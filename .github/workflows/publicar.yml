@@ -1,9 +1,9 @@
 # Usinix: gera os pacotes para Windows e Linux e publica na página de versões.
 #
-# - Ao enviar uma tag "v*" (ex.: v0.1.0-beta): compila Windows e Linux nas máquinas do GitHub
-#   (gratuitas em repositório público), empacota e cria a versão na página de versões. Tag com
-#   hífen (beta, rc) sai marcada como pré-lançamento.
-# - Manualmente (Actions → "Publicar versão" → Run workflow, no ramo main):
+# - Só manualmente (Actions → "Publicar versão" → Run workflow, no ramo main). Desde 08/11/2026 enviar uma
+#   tag "v*" não publica mais nada (uma tag empurrada por engano publicou a 1.2.7 num commit antigo), e
+#   rodar o fluxo a partir de uma tag também não publica: só do main, com a versão preenchida.
+#   Versão com hífen (beta, rc) sai marcada como pré-lançamento.
 #     * com "versao" preenchida (ex.: 0.1.2-beta): compila, empacota, cria a tag v<versao> no commit
 #       e publica. É o caminho recomendado: guarda o cache de compilação para as próximas versões.
 #     * sem "versao": só compila e empacota; os arquivos ficam como artefatos por 3 dias.
@@ -34,9 +34,6 @@
 name: Publicar versão
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       versao:
@@ -58,8 +55,9 @@ on:
         options: [ambas, win-64, linux-64]
         default: ambas
 
+# token só de leitura em todas as etapas; só "publicar" escreve (cria a tag e a versão)
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: publicar-${{ github.ref }}
@@ -319,8 +317,10 @@ jobs:
     if: >-
       !cancelled() && needs.pacotes.result == 'success' &&
       (needs.assinar.result == 'success' || needs.assinar.result == 'skipped') &&
-      (startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && github.event.inputs.versao != ''))
+      github.ref == 'refs/heads/main' && github.event.inputs.versao != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Baixar o código
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
