@@ -15637,6 +15637,32 @@ class T111PisoEFechamento(unittest.TestCase):
         self.assertEqual(len(pisos), 1)
         self.assertEqual(pisos[0].TipoPiso, "Chapa perfurada")
 
+class T112EnviarSugestao(unittest.TestCase):
+    """Ajuda › Enviar sugestão: comando, menu, faixa e endereço com a versão e o sistema."""
+
+    def test_comando_e_endereco(self):
+        import PrumoGui
+        import PrumoVersao
+        from urllib.parse import urlparse, parse_qs
+        self.assertIn("Prumo_Sugestao", FreeCADGui.listCommands())
+        u = urlparse(PrumoGui.url_sugestao())
+        self.assertEqual((u.scheme, u.netloc, u.path), ("https", "usinix.com.br", "/sugestao.html"))
+        q = parse_qs(u.query)
+        self.assertEqual(q["versao"], [PrumoVersao.VERSAO])
+        self.assertIn(q["so"][0], ("Windows", "Linux", "Outro"))
+        res = FreeCADGui.Command.get("Prumo_Sugestao").getInfo()
+        self.assertIn("sugestão", res["menuText"].lower())
+
+    def test_menu_e_faixa(self):
+        import PrumoGui
+        import PrumoRibbon
+        itens = PrumoGui._ManipuladorMenu().modifyMenuBar()
+        self.assertIn({"insert": "Prumo_Sugestao", "menuItem": "Prumo_Sobre"}, itens)
+        cmds = [c[0] for t in PrumoRibbon.TABS if t["id"] == "prumo" for _n, bt in t["panels"] for c in bt]
+        self.assertIn("Prumo_Sugestao", cmds)
+        self.assertTrue(os.path.isfile(os.path.join(PrumoGui.RES_DIR, "icons", "prumo_sugestao.svg")))
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -15665,4 +15691,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T92BarraDeVarredura, T93MenusComAcento, T94Sombras, T95SemDependerDeBancada, T96BarraDeVistas, T97CatalogoDePerfis, T98CliqueSempreResponde,
            T99PlanosNoNovoEsboco, T100IdeiasDeOutrosCAD,
            T101AdicionarOuRemoverMaterial, T102Componentes, T103DutosHVAC, T104ModelagemDireta,
-           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento]
+           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao]

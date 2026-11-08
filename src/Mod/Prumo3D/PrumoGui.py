@@ -494,6 +494,38 @@ class CmdArvore:
         return True
 
 
+URL_SUGESTAO = "https://usinix.com.br/sugestao.html"
+
+
+def url_sugestao():
+    """Endereço do formulário de sugestões com a versão e o sistema já preenchidos."""
+    import sys
+    from urllib.parse import urlencode
+    try:
+        import PrumoVersao
+        versao = PrumoVersao.VERSAO
+    except Exception:
+        versao = ""
+    so = "Windows" if sys.platform.startswith("win") else "Linux" if sys.platform.startswith("linux") else "Outro"
+    return URL_SUGESTAO + "?" + urlencode({"versao": versao, "so": so})
+
+
+class CmdSugestao:
+    def GetResources(self):
+        return {
+            "Pixmap": os.path.join(RES_DIR, "icons", "prumo_sugestao.svg"),
+            "MenuText": "Enviar sugestão…",
+            "ToolTip": "Abre no navegador o formulário para mandar uma ideia, melhoria ou problema",
+        }
+
+    def Activated(self):
+        from PySide import QtCore, QtGui
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(url_sugestao()))
+
+    def IsActive(self):
+        return True
+
+
 class CmdSobre:
     def GetResources(self):
         return {
@@ -830,13 +862,14 @@ class CmdBarrasClassicas:
         return True
 
 
-COMMANDS = ["Prumo_AplicarTema", "Prumo_Sobre"]
+COMMANDS = ["Prumo_AplicarTema", "Prumo_Sobre", "Prumo_Sugestao"]
 MENU_EXTRA = ["Prumo_TemaIcones", "Prumo_BarrasClassicas", "Prumo_RemoverSplash"]
 
 
 def register_commands():
     FreeCADGui.addCommand("Prumo_AplicarTema", CmdAplicarTema())
     FreeCADGui.addCommand("Prumo_Sobre", CmdSobre())
+    FreeCADGui.addCommand("Prumo_Sugestao", CmdSugestao())
     try:
         import PrumoPreferencias
         PrumoPreferencias.registrar()
@@ -1044,6 +1077,7 @@ class _ManipuladorMenu:
     def modifyMenuBar(self):
         # Vista: editor de materiais (a bancada Materiais fica desligada) e o botão da árvore
         return [{"insert": "Prumo_Sobre", "menuItem": "Std_About"}, {"remove": "Std_About"},
+                {"insert": "Prumo_Sugestao", "menuItem": "Prumo_Sobre"},
                 {"append": "Material_Edit", "menuItem": "Std_DockViewMenu"},
                 {"append": "Prumo_Arvore", "menuItem": "Std_DockViewMenu"},
                 {"append": "Prumo_ReguaHistorico", "menuItem": "Std_DockViewMenu"}]

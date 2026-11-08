@@ -391,7 +391,7 @@ TABS = [
         ("Prumo", [
             ("Prumo_Inicio", L, "Tela\ninicial"), ("Prumo_AplicarTema", L, "Aplicar\ntema"),
             ("Prumo_TemaEscuro", L, "Tema\nescuro"), ("Prumo_Preferencias", L, "Preferências"),
-            ("Prumo_Sobre", L, "Sobre"),
+            ("Prumo_Sobre", L, "Sobre"), ("Prumo_Sugestao", L, "Enviar\nsugestão"),
         ]),
         ("Interface", [
             ("Prumo_TemaIcones", S, "Tema de ícones"), ("Prumo_BarrasClassicas", S, "Barras clássicas"),
