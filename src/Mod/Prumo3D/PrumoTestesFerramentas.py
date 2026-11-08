@@ -723,15 +723,16 @@ class T15FolhasABNT(unittest.TestCase):
         import xml.etree.ElementTree as ET
         return ET.parse(caminho).getroot()
 
-    def test_doze_modelos(self):
+    def test_vinte_modelos(self):
+        # 5 formatos × 2 orientações × 2 normas (desde a 1.4.1 também A0 a A3 em pé)
         import PrumoFolhas
-        self.assertEqual(len(PrumoFolhas.lista_modelos()), 12)
+        self.assertEqual(len(PrumoFolhas.lista_modelos()), 20)
 
     def test_dimensoes_das_folhas(self):
         import PrumoFolhas
         for norma in PrumoFolhas.NORMAS:
             for f, (w, h) in self.MEDIDAS.items():
-                for retrato in ((True, False) if f == "A4" else (False,)):
+                for retrato in (True, False):
                     r = self._svg(PrumoFolhas.arquivo(f, norma, retrato))
                     ww, hh = (h, w) if retrato else (w, h)
                     self.assertEqual(r.get("width"), "%dmm" % ww, (f, norma, retrato))
