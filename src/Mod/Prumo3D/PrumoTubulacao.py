@@ -1013,6 +1013,64 @@ def _cima(u):
     return c
 
 
+def _orientar_dutos(res):
+    """Orientação da seção retangular trecho a trecho, contínua ao longo do traçado.
+
+    Antes cada trecho escolhia a sua (Z no deitado, X no em pé) enquanto a curva girava a seção junto com ela:
+    no traçado 3D (sobe de um trecho em Y, faz curva fora do plano) as peças saíam umas deitadas e outras em pé.
+    Agora a seção parte de um trecho deitado e, em cada conexão, gira com a mesma rotação que leva a direção de
+    chegada para a de saída (como a curva faz). Devolve {trecho interno: direção da altura da seção}."""
+    dirs = {}
+    for t in res.get("tubos", []):
+        k = t.get("pedaco", t["seg"])
+        d = t["fim"] - t["ini"]
+        if d.Length > 1e-9:
+            dirs[k] = FreeCAD.Vector(d).normalize()
+    vizinhos = {}
+    for c in res.get("conexoes", []):
+        pernas = [(pp[0], FreeCAD.Vector(pp[2])) for pp in c["pernas"] if pp[0] is not None and pp[0] >= 0]
+        for s1, u1 in pernas:
+            for s2, u2 in pernas:
+                if s1 != s2:
+                    vizinhos.setdefault(s1, []).append((u1, s2, u2))
+    for c in res.get("conexoes", []):      # trecho sem tubo (curto): direção pela perna
+        for pp in c["pernas"]:
+            if pp[0] is not None and pp[0] >= 0 and pp[0] not in dirs:
+                dirs[pp[0]] = FreeCAD.Vector(pp[2]).normalize()
+    cima = {}
+    ordem = sorted(dirs, key=lambda k: (abs(dirs[k].z) > 0.9, k))   # começa por um trecho deitado
+    for raiz in ordem:
+        if raiz in cima:
+            continue
+        cima[raiz] = _cima(dirs[raiz])
+        fila = [raiz]
+        while fila:
+            k = fila.pop(0)
+            for u1, k2, u2 in vizinhos.get(k, []):
+                if k2 in cima or k2 not in dirs:
+                    continue
+                chegada = -u1                     # do trecho k para o nó; sai para o trecho k2 em u2
+                if chegada.dot(u2) > 1 - 1e-9:
+                    c2 = FreeCAD.Vector(cima[k])
+                else:
+                    c2 = FreeCAD.Rotation(chegada, u2).multVec(cima[k])
+                d2 = dirs[k2]
+                c2 = c2 - d2 * c2.dot(d2)
+                if c2.Length < 1e-6:
+                    c2 = _cima(d2)
+                cima[k2] = c2.normalize()
+                fila.append(k2)
+    return cima
+
+
+def _cima_de(res_cimas, seg, u):
+    c = res_cimas.get(seg) if res_cimas else None
+    if c is None:
+        return _cima(u)
+    c = c - u * c.dot(u)
+    return c.normalize() if c.Length > 1e-6 else _cima(u)
+
+
 def _ret_wire(w, h, P, u, cima=None):
     import Part
     a = cima if cima is not None else _cima(u)
@@ -1040,6 +1098,7 @@ def _ret_curva(c, L):
     import Part
     P = c["no"]
     (_s1, _p1, u1, d1, A), (_s2, _p2, u2, _d2, _A2) = c["pernas"][:2]
+    cima1 = _cima_de(c.get("_cimas"), _s1, u1)
     delta = math.radians(180.0 - _ang(u1, u2))
     Rc = A / math.tan(delta / 2.0)
     bis = (u1 + u2)
@@ -1051,7 +1110,7 @@ def _ret_curva(c, L):
     e = L["tubos"][d1]["e"]
 
     def corpo(ww, hh):
-        perfil = _ret_wire(ww, hh, T1, -u1, _cima(u1))
+        perfil = _ret_wire(ww, hh, T1, -u1, cima1)
         return arco.makePipeShell([perfil], True, True)       # Frenet: a seção acompanha a curva
     return corpo(w, h).cut(corpo(w - 2 * e, h - 2 * e))
 
@@ -1063,7 +1122,7 @@ def _ret_reducao(c, L):
     ini, fim = P + u1 * a1, P + u2 * a2
     (w1, h1), (w2, h2) = _wh(L, d1), _wh(L, d2)
     e = max(L["tubos"][d1]["e"], L["tubos"][d2]["e"])
-    up = _cima(u2)
+    up = _cima_de(c.get("_cimas"), _s2, u2)
 
     def corpo(f):
         return Part.makeLoft([_ret_wire(w1 - f, h1 - f, ini, u2, up), _ret_wire(w2 - f, h2 - f, fim, u2, up)], True)
@@ -1077,7 +1136,7 @@ def _ret_conexao(c, L):
     for _s, _pt, u, dd, cf in c["pernas"]:
         if cf <= 0:
             continue
-        perna = _ret_tubo(L, dd, P, u, cf)
+        perna = _ret_tubo(L, dd, P, u, cf, _cima_de(c.get("_cimas"), _s, u))
         corpo = perna if corpo is None else corpo.fuse(perna)
     if corpo is None:
         import Part
@@ -1088,7 +1147,7 @@ def _ret_conexao(c, L):
 def solido_tubo(t, L):
     if L.get("secao") == "ret":
         u = (t["fim"] - t["ini"]).normalize()
-        return _ret_tubo(L, t["dn"], t["ini"], u, (t["fim"] - t["ini"]).Length)
+        return _ret_tubo(L, t["dn"], t["ini"], u, (t["fim"] - t["ini"]).Length, t.get("_cima"))
     tb = L["tubos"][t["dn"]]
     u = (t["fim"] - t["ini"]).normalize()
     comp = (t["fim"] - t["ini"]).Length
@@ -1265,9 +1324,24 @@ def _solido_conexao(c, L, k=1.0):
     return corpo.removeSplitter() if hasattr(corpo, "removeSplitter") else corpo
 
 
+def preparar_orientacao(res):
+    """Duto retangular: guarda nos tubos e conexões a orientação contínua da seção (ver _orientar_dutos)."""
+    if res.get("linha", {}).get("secao") != "ret":
+        return
+    cimas = _orientar_dutos(res)
+    for t in res.get("tubos", []):
+        k = t.get("pedaco", t["seg"])
+        u = (t["fim"] - t["ini"])
+        if k in cimas and u.Length > 1e-9:
+            t["_cima"] = _cima_de(cimas, k, FreeCAD.Vector(u).normalize())
+    for c in res.get("conexoes", []):
+        c["_cimas"] = cimas
+
+
 def forma(res):
     import Part
     L = res["linha"]
+    preparar_orientacao(res)
     sol = [solido_tubo(t, L) for t in res["tubos"]]
     for c in res["conexoes"]:
         if c.get("so_lista"):

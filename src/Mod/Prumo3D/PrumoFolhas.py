@@ -5,7 +5,7 @@
 Modelos em Resources/folhas, gerados por prumo-build/ferramentas/gerar_folhas_abnt.py:
 - NBR 16752 (vigente; dimensões da ISO 5457: margem esquerda 20 mm, demais 10 mm, legenda 180 mm);
 - NBR 10068 (padrão anterior, ainda comum: margem esquerda 25 mm, legenda 175/178 mm).
-A0 a A3 em paisagem; A4 em retrato (e paisagem). Legenda com empresa, cliente/obra, título,
+Todos os formatos em paisagem e em retrato. Legenda com empresa, cliente/obra, título,
 material, massa, tolerâncias gerais, desenhista, verificado, aprovado, data, responsável técnico,
 CREA/CFT, ART, escala, unidade, 1º diedro, formato, folha, número do desenho e revisão.
 """
@@ -26,6 +26,8 @@ except ImportError:  # pragma: no cover
 
 DIR_FOLHAS = os.path.join(PrumoUtil.RES_DIR, "folhas")
 FORMATOS = ["A0", "A1", "A2", "A3", "A4"]
+FORMATOS_MM = {"A0": (1189.0, 841.0), "A1": (841.0, 594.0), "A2": (594.0, 420.0), "A3": (420.0, 297.0),
+               "A4": (297.0, 210.0)}     # largura × altura deitada
 NORMAS = {"NBR16752": "ABNT NBR 16752 (atual)", "NBR10068": "ABNT NBR 10068 (anterior)"}
 NORMA_PADRAO = "NBR16752"
 FORMATO_PADRAO = "A3"
@@ -352,6 +354,13 @@ def _vistas(doc, page, objs, escala=None, arranjo=ARRANJO_PADRAO):
     fontes = [o for o, _sh in PrumoUtil.pecas(objs)]
     fontes = list(dict.fromkeys(objs if objs else fontes))
     _rot, projecoes, com_iso = ARRANJOS.get(arranjo, ARRANJOS[ARRANJO_PADRAO])
+    # escala ANTES de criar as vistas: as projeções feitas com a folha ainda em 1:1 guardavam a geometria em
+    # tamanho natural (estrutura de 6 m estourava a folha, só a frontal se refazia na escala certa)
+    if not escala:
+        larg, alt = _tamanho_folha(page)
+        escala = escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, com_iso)
+    page.Scale = escala
+    doc.recompute()
     grupo = novo_grupo(doc, page, fontes, projecoes) if projecoes else None
     iso = nova_iso(doc, page, fontes) if com_iso else None
     posicionar(page, fontes, grupo, iso, escala)
@@ -397,16 +406,19 @@ class PainelFolha(P.PainelTarefa):
         s1 = f.secao("Folha", "folha")
         self.formato = s1.linha("folha", P.lista(FORMATOS, FREECAD_PARAM().GetString("FolhaFormato",
                                                                                        FORMATO_PADRAO)),
-                                "A0 a A4 (NBR 10068).", "Formato")
-        self.retrato = s1.linha("altura", P.marcar("Retrato (folha em pé)"), "Só no A4.")
+                                "A0 a A4.", "Formato")
+        self.orientacao = s1.linha("altura", P.Opcoes([
+            ("horizontal", "Horizontal", _icone_orientacao(False), "Folha deitada (paisagem)"),
+            ("vertical", "Vertical", _icone_orientacao(True), "Folha em pé (retrato)")],
+            FREECAD_PARAM().GetString("FolhaOrientacao", "horizontal")), "Folha deitada ou em pé.", "Orientação")
+        for b in self.orientacao.botoes.values():
+            b.setIconSize(QtCore.QSize(42, 30))
         self.norma = QtWidgets.QComboBox()
         for k, v in NORMAS.items():
             self.norma.addItem(v, k)
         idx = self.norma.findData(FREECAD_PARAM().GetString("FolhaNorma", NORMA_PADRAO))
         self.norma.setCurrentIndex(max(idx, 0))
         s1.linha("tipo", self.norma, "Modelo de legenda: NBR 16752 (atual) ou NBR 10068.", "Padrão da folha")
-        self.formato.currentTextChanged.connect(self._formato)
-        self._formato(self.formato.currentText())
         s2 = f.secao("Legenda", "texto")
         valores = campos_padrao(self.doc, self.pecas.valores())
         self.campos = {}
@@ -442,10 +454,6 @@ class PainelFolha(P.PainelTarefa):
                 auto[chave] = v[chave]
         self._auto = auto
 
-    def _formato(self, f):
-        self.retrato.setEnabled(f == "A4")
-        self.retrato.setChecked(f == "A4")
-
     def pendencia(self):
         if self.doc is None:
             return "Abra ou crie um documento."
@@ -472,9 +480,10 @@ class PainelFolha(P.PainelTarefa):
         FREECAD_PARAM().SetString("FolhaFormato", formato)
         FREECAD_PARAM().SetString("FolhaNorma", norma)
         FREECAD_PARAM().SetString("FolhaArranjo", self.arranjo.currentData())
+        FREECAD_PARAM().SetString("FolhaOrientacao", self.orientacao.valor())
         campos = self.valores()
         lembrar_campos(campos)
-        return nova_folha(self.doc, formato, norma, self.retrato.isChecked() if formato == "A4" else False,
+        return nova_folha(self.doc, formato, norma, self.orientacao.valor() == "vertical",
                           campos, self.objs if self.vistas.isChecked() and self.objs else None,
                           arranjo=self.arranjo.currentData())
 
@@ -482,6 +491,11 @@ class PainelFolha(P.PainelTarefa):
         page = self.criar()
         QtCore.QTimer.singleShot(0, lambda: _abrir_folha(page))
         return page
+
+
+def _icone_orientacao(retrato):
+    import PrumoInserirDesenho
+    return PrumoInserirDesenho.icone_orientacao(retrato)
 
 
 def _abrir_folha(page):

@@ -15,6 +15,28 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.4.1 — 08/11/2026
+
+![Desenho › Inserir peça ou montagem: a estrutura marcada na lista e a folha que sai na escala que cabe](.github/images/novidades/1.4.1.webp)
+
+### Novidades
+
+- **Desenho › Inserir peça ou montagem (primeiro botão da aba):** escolha numa lista o que vai para o desenho
+  (peça, montagem, conjunto ou estrutura), sem precisar selecionar antes. No mesmo painel: folha nova ou a folha
+  que está aberta, formato A4 a A0, orientação, quais vistas (em cartões com o desenho do arranjo) e a escala, que
+  sai sozinha na maior que cabe.
+- **Folha horizontal ou vertical em dois botões**, no painel novo e na Folha ABNT, e agora em todos os formatos
+  (antes, folha em pé só no A4).
+- **Ajuda › Enviar sugestão:** abre o formulário do site com a versão e o sistema já preenchidos (também na aba
+  Usinix).
+
+### Correções
+
+- **Estrutura metálica maior que a folha:** as vistas superior e lateral eram calculadas antes de a folha receber a
+  escala e ficavam em tamanho natural. Agora a escala vem primeiro e todas as vistas cabem.
+- **Dutos de ar-condicionado no esboço 3D:** nas mudanças de direção fora do plano (subir e virar), trechos e
+  curvas saíam uns deitados e outros em pé. A seção agora segue contínua por todo o traçado.
+
 ## 1.4.0 — 05/11/2026
 
 ![Tela de abertura com o nome e o logotipo novos](.github/images/novidades/1.4.0.webp)

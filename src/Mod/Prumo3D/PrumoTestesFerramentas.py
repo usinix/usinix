@@ -15663,6 +15663,211 @@ class T112EnviarSugestao(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(PrumoGui.RES_DIR, "icons", "prumo_sugestao.svg")))
 
 
+class T113DutoNoTracado3D(unittest.TestCase):
+    """Duto retangular em traçado 3D: a seção segue contínua pelas curvas (antes saía deitada num trecho e em pé
+    no outro quando o traçado subia e mudava de plano)."""
+
+    @staticmethod
+    def _faces_em(sh, p, tol=1.0):
+        return [f for f in sh.Faces if f.Surface.__class__.__name__ == "Plane" and (f.CenterOfMass - p).Length < tol]
+
+    @staticmethod
+    def _caixa(f):
+        b = f.OuterWire.BoundBox
+        return (round(b.XLength), round(b.YLength), round(b.ZLength))
+
+    def _desalinhadas(self, pts):
+        import PrumoCatalogoTubos as C
+        import PrumoTubulacao as T
+        dn = C.cod_ret(600, 400)
+        segs = [(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+        res = T.montar(segs, [dn] * len(segs), "duto-ret")
+        L = res["linha"]
+        T.preparar_orientacao(res)
+        tubos = [(t, T.solido_tubo(t, L)) for t in res["tubos"]]
+        conex = [T.solido_conexao(c, L) for c in res["conexoes"] if not c.get("so_lista")]
+        ruins, juntas = 0, 0
+        for t, st in tubos:
+            for p in (t["ini"], t["fim"]):
+                ft = self._faces_em(st, p)
+                for sc in conex:
+                    fc = self._faces_em(sc, p)
+                    if ft and fc:
+                        juntas += 1
+                        ruins += self._caixa(fc[0]) != self._caixa(ft[0])
+        return ruins, juntas
+
+    def test_curvas_fora_do_plano(self):
+        V = FreeCAD.Vector
+        casos = {"X, sobe, Y": [V(0, 0, 0), V(3000, 0, 0), V(3000, 0, 2000), V(3000, 3000, 2000)],
+                 "Y, sobe, X, desce": [V(0, 0, 0), V(0, 3000, 0), V(0, 3000, 2500), V(3000, 3000, 2500),
+                                       V(3000, 3000, 0)],
+                 "diagonal 3D": [V(0, 0, 0), V(3000, 0, 0), V(5000, 1500, 1500), V(5000, 4000, 1500)],
+                 "plano": [V(0, 0, 0), V(3000, 0, 0), V(3000, 3000, 0)]}
+        for nome, pts in casos.items():
+            ruins, juntas = self._desalinhadas(pts)
+            self.assertGreater(juntas, 0, nome)
+            self.assertEqual(ruins, 0, "%s: %d de %d juntas desalinhadas" % (nome, ruins, juntas))
+
+    def test_trecho_deitado_continua_com_altura_vertical(self):
+        import PrumoCatalogoTubos as C
+        import PrumoTubulacao as T
+        V = FreeCAD.Vector
+        res = T.montar([(V(0, 0, 0), V(3000, 0, 0)), (V(3000, 0, 0), V(3000, 2000, 0))],
+                       [C.cod_ret(600, 400)] * 2, "duto-ret")
+        sh = T.forma(res)
+        self.assertTrue(sh.isValid())
+        self.assertAlmostEqual(sh.BoundBox.ZLength, 400, delta=1)
+
+    def test_objeto_no_tracado_3d(self):
+        import Part
+        import PrumoCatalogoTubos as C
+        import PrumoTubulacao as T
+        V = FreeCAD.Vector
+        doc = novo_doc("PrumoTesteDuto3D")
+        try:
+            pts = [V(0, 0, 0), V(3000, 0, 0), V(3000, 0, 2000), V(3000, 3000, 2000)]
+            linhas = doc.addObject("Part::Feature", "Tracado3D")
+            linhas.Shape = Part.Compound([Part.LineSegment(pts[i], pts[i + 1]).toShape() for i in range(3)])
+            doc.recompute()
+            o = T.criar(linhas, C.cod_ret(600, 400), "duto-ret", doc=doc)
+            doc.recompute()
+            self.assertTrue(o.Shape.isValid())
+            self.assertEqual(len(o.Shape.Solids), 5, "3 trechos e 2 curvas")
+        finally:
+            fechar(doc)
+
+
+class T114DesenhoInserirPeca(unittest.TestCase):
+    """Desenho › Inserir peça ou montagem: lista sem selecionar antes, folha nova ou aberta, horizontal/vertical em
+    dois botões e escala que cabe (estrutura metálica estourava a folha: as projeções eram feitas em 1:1)."""
+
+    def setUp(self):
+        import PrumoEsboco3D as E3
+        import PrumoEstrutura as E
+        V = FreeCAD.Vector
+        self.doc = novo_doc("PrumoTesteInserirDesenho")
+        H, X, Y = 3000.0, 6000.0, 4000.0
+        trechos = [[V(0, 0, 0), V(0, 0, H)], [V(X, 0, 0), V(X, 0, H)], [V(X, Y, 0), V(X, Y, H)], [V(0, Y, 0), V(0, Y, H)],
+                   [V(0, 0, H), V(X, 0, H)], [V(X, 0, H), V(X, Y, H)], [V(X, Y, H), V(0, Y, H)], [V(0, Y, H), V(0, 0, H)]]
+        pts, q = [], []
+        for t in trechos:
+            if pts:
+                q.append(len(pts))
+            pts += t
+        sk = E3.criar(self.doc, pts, q, nome="Esqueleto")
+        self.est = E.criar(self.doc, sk, "W 250 x 32,7")
+        self.caixa = self.doc.addObject("Part::Box", "Bloco")
+        self.doc.recompute()
+
+    def tearDown(self):
+        if FreeCAD.GuiUp and FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
+        fechar(self.doc)
+
+    def _arestas(self, v, espera=15.0):
+        import time
+        fim = time.time() + espera
+        ed = []
+        while time.time() < fim:
+            if FreeCAD.GuiUp:
+                from PySide import QtWidgets
+                QtWidgets.QApplication.processEvents()
+            ed = v.getVisibleEdges()
+            if ed:
+                break
+            time.sleep(0.1)
+        return ed
+
+    def test_lista_sem_selecionar(self):
+        import PrumoInserirDesenho as I
+        nomes = [o.Name for o in I.candidatos(self.doc)]
+        self.assertIn(self.est.Name, nomes)
+        self.assertIn(self.caixa.Name, nomes)
+        self.assertNotIn("Esqueleto", nomes)
+        self.assertFalse(any(o.Name.startswith("Barra") for o in I.candidatos(self.doc)), "barras ficam na estrutura")
+        self.assertEqual(I.tipo_legivel(self.est), "Estrutura")
+        # depois de a estrutura ir para uma folha (as vistas a usam), ela continua na lista
+        import PrumoFolhas as F
+        F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [self.est])
+        self.doc.recompute()
+        self.assertIn(self.est.Name, [o.Name for o in I.candidatos(self.doc)])
+
+    def test_estrutura_cabe_na_folha(self):
+        import Part
+        import PrumoFolhas as F
+        page = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [self.est])
+        self.doc.recompute()
+        self.assertAlmostEqual(page.Scale, 1 / 50.0)
+        larg, alt = F._tamanho_folha(page)
+        vistas = []
+        for v in page.Views:
+            vistas += list(v.Views) if hasattr(v, "Views") else [v]
+        self.assertGreaterEqual(len(vistas), 4)
+        for v in vistas:
+            ed = self._arestas(v)
+            self.assertTrue(ed, v.Label)
+            bb = Part.makeCompound(ed).BoundBox
+            self.assertLess(bb.XLength, larg, "%s: %.0f mm de largura numa folha de %.0f" % (v.Label, bb.XLength, larg))
+            self.assertLess(bb.YLength, alt, "%s: %.0f mm de altura numa folha de %.0f" % (v.Label, bb.YLength, alt))
+
+    def test_folhas_verticais_em_todos_os_formatos(self):
+        import os
+        import PrumoFolhas as F
+        for f in F.FORMATOS:
+            for n in F.NORMAS:
+                self.assertTrue(os.path.isfile(F.arquivo(f, n, True)), (f, n))
+        page = F.nova_folha(self.doc, "A3", "NBR16752", True, {}, None)
+        self.doc.recompute()
+        w, h = F._tamanho_folha(page)
+        self.assertGreater(h, w)
+
+    def test_painel_folha_nova_e_folha_aberta(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        from PySide import QtCore
+        import PrumoFolhas as F
+        import PrumoInserirDesenho as I
+        prm = F.FREECAD_PARAM()
+        antes = {k: prm.GetString(k, "") for k in ("FolhaFormato", "FolhaNorma", "FolhaOrientacao", "FolhaArranjo")}
+        self.addCleanup(lambda: [prm.SetString(k, v) if v else prm.RemString(k) for k, v in antes.items()])
+        FreeCADGui.Selection.clearSelection()
+        p = I.PainelInserir(self.doc)
+        self.assertIsNotNone(p.pendencia(), "sem nada marcado não deixa criar")
+        for i in range(p.lista.count()):
+            it = p.lista.item(i)
+            if it.data(QtCore.Qt.UserRole) == self.caixa.Name:
+                it.setCheckState(QtCore.Qt.Checked)
+        self.assertIsNone(p.pendencia())
+        p.formato.definir("A4")
+        p.orientacao.definir("vertical")
+        p.arranjo.definir("frontal_superior")
+        p.atualizar()
+        self.assertIn("A4 vertical", p.resumo.text())
+        page = p.executar()
+        self.doc.recompute()
+        w, h = __import__("PrumoFolhas")._tamanho_folha(page)
+        self.assertGreater(h, w)
+        self.assertTrue(any(v.isDerivedFrom("TechDraw::DrawProjGroup") for v in page.Views))
+        # na folha aberta: a estrutura entra na mesma folha, na escala dela
+        n0 = len(page.Views)
+        I.vistas_na_folha(page, [self.est], "so_iso")
+        self.doc.recompute()
+        self.assertEqual(len(page.Views), n0 + 1)
+
+    def test_botoes_na_faixa_e_na_folha_abnt(self):
+        import PrumoRibbon
+        aba = [t for t in PrumoRibbon.TABS if t["id"] == "desenho"][0]
+        self.assertEqual(aba["panels"][0][1][0][0], "Prumo_InserirDesenho", "primeiro botão do Desenho")
+        self.assertIn("Prumo_InserirDesenho", FreeCADGui.listCommands())
+        if not FreeCAD.GuiUp:
+            return
+        import PrumoFolhas as F
+        p = F.PainelFolha(self.doc)
+        self.assertEqual(set(p.orientacao.botoes), {"horizontal", "vertical"})
+        self.assertFalse(hasattr(p, "retrato"))
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -15691,4 +15896,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T92BarraDeVarredura, T93MenusComAcento, T94Sombras, T95SemDependerDeBancada, T96BarraDeVistas, T97CatalogoDePerfis, T98CliqueSempreResponde,
            T99PlanosNoNovoEsboco, T100IdeiasDeOutrosCAD,
            T101AdicionarOuRemoverMaterial, T102Componentes, T103DutosHVAC, T104ModelagemDireta,
-           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao]
+           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca]

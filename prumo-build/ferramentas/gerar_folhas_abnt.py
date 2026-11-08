@@ -254,7 +254,7 @@ def main(saida):
     feitos = []
     for norma in NORMAS:
         for formato in FORMATOS:
-            for retrato in ((True, False) if formato == "A4" else (False,)):
+            for retrato in (True, False):          # todos os formatos nas duas orientações
                 caminho = os.path.join(saida, nome_arquivo(formato, norma, retrato))
                 with open(caminho, "w", encoding="utf-8", newline="\n") as fh:
                     fh.write(gerar(formato, norma, retrato))

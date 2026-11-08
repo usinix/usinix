@@ -208,6 +208,7 @@ TABS = [
     # que começa um desenho; as ferramentas raras ficam no "Mais" de cada grupo (ver RAROS)
     {"id": "desenho", "label": "Desenho", "wb": "TechDrawWorkbench", "panels": [
         ("Folha", [
+            ("Prumo_InserirDesenho", L, "Inserir peça\nou montagem"),
             ("Prumo_NovaFolha", L, "Folha\nABNT"), ("Prumo_PaletaVistas", L, "Paleta de\nvistas"),
             ("Prumo_AbrirFolha", S, "Abrir folha"), ("Prumo_FolhasLote", S, "Folhas em lote"),
             ("Prumo_ListaMateriais", S, "Lista de materiais"),
@@ -1892,10 +1893,10 @@ SO_SEM_DOCUMENTO = {"Prumo_NovaPeca", "Prumo_NovoEsbocoAvulso", "Prumo_NovaMonta
 # Abas que dependem de "estar dentro" de algo: sem isso aberto, só aparece o que começa (ou abre) esse algo.
 # aba: (chave da situação, o que aparece sem ela, dica do primeiro passo)
 INICIO_DA_ABA = {
-    "desenho": ("folha", {"Prumo_NovaFolha", "Prumo_PaletaVistas", "Prumo_AbrirFolha", "Prumo_FolhasLote",
+    "desenho": ("folha", {"Prumo_InserirDesenho", "Prumo_NovaFolha", "Prumo_PaletaVistas", "Prumo_AbrirFolha", "Prumo_FolhasLote",
                           "Prumo_ListaMateriais"},
-                "Crie a folha (Folha ABNT) ou abra uma que já existe: as vistas, cotas e anotações aparecem "
-                "com a folha aberta."),
+                "Comece em Inserir peça ou montagem: escolha o que desenhar e a folha sai com as vistas na "
+                "escala que cabe. As cotas e anotações aparecem com a folha aberta."),
     "montagem": ("montagem", {"Assembly_CreateAssembly", "Prumo_EditarMontagem", "Prumo_ListaMateriais",
                               "Prumo_Massa", "Prumo_Interferencia", "Prumo_ComponentesDosSolidos"},
                  "Crie uma montagem ou abra a que já existe: as restrições aparecem com a montagem aberta."),
