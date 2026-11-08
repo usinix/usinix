@@ -12303,7 +12303,8 @@ class T83FaixaDoMomento(unittest.TestCase):
         b = self.doc.addObject("Part::Box", "Caixa")
         self.doc.recompute()
         cmds, mais = self._aba("desenho")
-        self.assertEqual(cmds, {"Prumo_NovaFolha", "Prumo_PaletaVistas", "Prumo_FolhasLote", "Prumo_ListaMateriais"})
+        self.assertEqual(cmds, {"Prumo_InserirDesenho", "Prumo_NovaFolha", "Prumo_PaletaVistas", "Prumo_FolhasLote",
+                                "Prumo_ListaMateriais"})
         self.assertEqual(mais, [])
         page = PrumoFolhas.nova_folha(self.doc, "A3", "NBR16752", False, {}, [b], arranjo="frontal_superior")
         cmds, mais = self._aba("desenho")
@@ -12732,7 +12733,8 @@ class T85SoldaRugosidadeAjuste(unittest.TestCase):
                 yield s
                 yield from todas(s)
         de_proposito = {"PrumoSelecao.PainelSelecao._preencher_com_selecao",   # enche as caixas em ordem
-                        "PrumoPiso.PainelPiso._atualizar_previa"}       # chama super() e depois mostra área e peso
+                        "PrumoPiso.PainelPiso._atualizar_previa",       # chama super() e depois mostra área e peso
+                        "PrumoInserirDesenho.PainelInserir._preencher_com_selecao"}  # a seleção só marca a lista
         ruins = []
         for cls in todas(P.PainelTarefa):
             for n in internos & set(vars(cls)):
