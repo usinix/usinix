@@ -9,7 +9,15 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 - `X.Y.Z`: correções e ajustes pequenos, sem ferramenta nova (ex.: 1.0.1).
 - `-beta` no fim: versão de teste antes da final; guarde cópia dos seus arquivos.
 
+<!--
+  Este arquivo alimenta a página usinix.com.br/novidades.html (lida direto do GitHub).
+  A cada versão: uma seção "## X.Y.Z — dd/mm/aaaa" (betas: "## X.Y.Z beta — dd/mm/aaaa").
+  Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
+  a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
+-->
 ## 1.4.0 — 05/11/2026
+
+![Tela de abertura com o nome e o logotipo novos](.github/images/novidades/1.4.0.webp)
 
 ### O Prumo 3D agora se chama Usinix
 
@@ -32,6 +40,8 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 
 ## 1.3.1 — 04/11/2026
 
+![Piso e fechamento: escolha entre chapa expandida, perfurada ou xadrez sobre o contorno](.github/images/novidades/1.3.1.webp)
+
 ### Novidades
 
 - **Piso e fechamento** (aba Estruturas, grupo Pisos e fechamentos): preenche um esboço fechado ou uma
@@ -44,6 +54,8 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   - Padrão corta onde cair, com opção de centralizar; área e peso na lista de materiais.
 
 ## 1.3.0 — 04/11/2026
+
+![Faixa de ferramentas focada na metal-mecânica](.github/images/novidades/1.3.0.webp)
 
 ### O CAD 3D da metal-mecânica
 
@@ -60,6 +72,8 @@ estruturas de aço.
 
 ## 1.2.9 — 04/11/2026
 
+![Barra de varredura com perfil quadrifólio e nós arredondados](.github/images/novidades/1.2.9.webp)
+
 ### Novidades
 
 - **Barra de varredura com perfis novos:** sextavado (medida entre faces), oval (largura × altura) e
@@ -73,6 +87,8 @@ estruturas de aço.
   encostada no meio de outra linha.
 
 ## 1.2.8 — 04/11/2026
+
+![Medir em português: área e perímetro da face escolhida](.github/images/novidades/1.2.8.webp)
 
 ### Novidades
 
@@ -116,6 +132,8 @@ estruturas de aço.
 - Testes automáticos gravam o andamento em `PrumoTestes-andamento.log` (mostra onde parou se fechar).
 
 ## 1.2.6 — 03/11/2026
+
+![Aba Componentes com parafuso, porca e arruela](.github/images/novidades/1.2.6.webp)
 
 ### Novidades
 
@@ -371,6 +389,8 @@ estruturas de aço.
 
 ## 1.2.0 — 29/10/2026
 
+![Montagem: mover junta com batente de contato e trajetória de um ponto](.github/images/novidades/1.2.0.webp)
+
 ### Novidades
 
 - **Atualização só do complemento (poucos MB).** A partir desta versão, cada versão nova publica também
@@ -425,6 +445,8 @@ estruturas de aço.
     ligado, a linha termina no contato. Cancelar tira as trajetórias.
 
 ## 1.1.0 — 29/10/2026
+
+![Procurar comando (Ctrl+K) pelo nome, inclusive o de outros CAD](.github/images/novidades/1.1.0.webp)
 
 ### Novidades
 
@@ -802,6 +824,8 @@ automática.
 
 ## 0.9.0 beta — 24/10/2026
 
+![Simulação em cartões: detalhe de ligação com o mapa de tensões](.github/images/novidades/0.9.0.webp)
+
 ### Melhorias
 
 - **Desenho em cartões, parte 2:**
@@ -937,6 +961,8 @@ automática.
 
 ## 0.6.0 beta — 23/10/2026
 
+![Painel lateral único, com as abas no alto e propriedades em cartões](.github/images/novidades/0.6.0.webp)
+
 ### Novo
 
 - **Painel lateral único, com as abas no alto:** **Árvore**, **Propriedades** e, só enquanto um comando
@@ -1046,6 +1072,8 @@ automática.
 
 ## 0.3.0 beta — 22/10/2026
 
+![Tubulação: tubos e conexões saem sozinhos em cada nó do traçado](.github/images/novidades/0.3.0.webp)
+
 ### Novo
 
 - **Tubulação** (aba Estruturas): tubos e conexões automáticos sobre o traçado do Esboço 3D (ou de um
@@ -1091,6 +1119,8 @@ automática.
   menu Vista → Painéis continuam trazendo os painéis de volta).
 
 ## 0.1 beta — 22/10/2026
+
+![Estrutura soldada com o assistente de estruturas](.github/images/novidades/0.1.webp)
 
 Primeira versão pública, para Windows e Linux. Baseada no FreeCAD 1.1.4.
 
