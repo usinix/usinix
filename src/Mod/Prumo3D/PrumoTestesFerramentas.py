@@ -16569,6 +16569,159 @@ class T119FolhaLegendaEstiloTraducao(unittest.TestCase):
                                                                "Show units"), "Mostrar unidades")
 
 
+
+class T120ConectarIA(unittest.TestCase):
+    """1.6.0: ponte local para assistentes de IA (MCP). Pedido HTTP real, servidor MCP real por stdin/stdout."""
+
+    def setUp(self):
+        import PrumoIA
+        self.IA = PrumoIA
+        self.doc = novo_doc("PrumoTesteIA")
+        g = FreeCAD.ParamGet(PrumoIA.PARAM)
+        self._cod = g.GetBool("IAPermitirCodigo", False)
+        self.addCleanup(lambda: g.SetBool("IAPermitirCodigo", self._cod))
+
+    def tearDown(self):
+        self.IA.desligar()
+        fechar(self.doc)
+
+    def _em_paralelo(self, f, tempo=60):
+        """Roda f numa linha separada enquanto a interface processa os pedidos da ponte."""
+        import threading
+        from PySide import QtWidgets
+        res = {}
+
+        def alvo():
+            try:
+                res["v"] = f()
+            except Exception as exc:
+                res["e"] = exc
+        th = threading.Thread(target=alvo, daemon=True)
+        th.start()
+        fim = time.time() + tempo
+        while th.is_alive() and time.time() < fim:
+            QtWidgets.QApplication.processEvents()
+            time.sleep(0.01)
+        self.assertFalse(th.is_alive(), "a ponte não respondeu")
+        if "e" in res:
+            raise res["e"]
+        return res.get("v")
+
+    def _post(self, caminho, dados, token=None, cabecalhos=None):
+        import json
+        import urllib.request
+        import urllib.error
+        con = json.load(open(self.IA.arquivo_conexao(), encoding="utf-8"))
+        h = {"Content-Type": "application/json", "X-Usinix-Token": token if token is not None else con["token"]}
+        h.update(cabecalhos or {})
+        req = urllib.request.Request("http://127.0.0.1:%d%s" % (con["porta"], caminho),
+                                     data=json.dumps(dados).encode(), headers=h, method="POST")
+        op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        try:
+            with op.open(req, timeout=60) as r:
+                return r.status, json.loads(r.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, None
+
+    def test_ponte_segura_e_ferramentas(self):
+        porta = self.IA.ligar()
+        self.assertTrue(self.IA.ligada())
+        self.assertGreater(porta, 0)
+        st, r = self._em_paralelo(lambda: self._post("/ferramentas", {}))
+        self.assertEqual(st, 200)
+        nomes = {t["name"] for t in r["ferramentas"]}
+        for n in ("estado", "esboco_linhas", "criar_estrutura", "trabalhos_na_barra", "lista_de_corte",
+                  "nova_folha", "capturar_vista", "desfazer"):
+            self.assertIn(n, nomes)
+        # sem o código, com código errado ou vindo de página web: recusado
+        self.assertEqual(self._em_paralelo(lambda: self._post("/ferramentas", {}, token="errado"))[0], 403)
+        self.assertEqual(self._em_paralelo(lambda: self._post("/ferramentas", {},
+                                                              cabecalhos={"Origin": "http://exemplo"}))[0], 403)
+        # código Python solto desligado por padrão
+        FreeCAD.ParamGet(self.IA.PARAM).SetBool("IAPermitirCodigo", False)
+        st, r = self._em_paralelo(lambda: self._post("/chamar", {"ferramenta": "executar_python",
+                                                                 "argumentos": {"codigo": "resultado = 1"}}))
+        self.assertFalse(r["ok"])
+        self.assertIn("desligado", r["erro"])
+        self.IA.desligar()
+        self.assertFalse(os.path.exists(self.IA.arquivo_conexao()))
+
+    def test_escada_feita_pela_ia_pelo_servidor_mcp(self):
+        """Servidor MCP de verdade (python3 usinix_mcp.py) falando JSON-RPC por stdin/stdout."""
+        import json
+        import subprocess
+        import shutil as sh
+        py = sh.which("python3") or sh.which("python")
+        if py is None:
+            self.skipTest("sem python externo")
+        FreeCAD.setActiveDocument(self.doc.Name)
+        self.IA.ligar()
+        cfg = self.IA.config_cliente()["mcpServers"]["usinix"]
+        self.assertTrue(os.path.isfile(cfg["args"][0]))
+        msgs = [{"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                 "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "teste"}}},
+                {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+                {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "esboco_linhas", "arguments": {
+                    "pontos": [[0, 0], [1414.2, 1414.2]], "plano": "XZ", "nome": "Banzo"}}},
+                {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "criar_estrutura", "arguments": {
+                    "esqueleto": "Banzo", "perfil": "W 150 x 13,0"}}},
+                {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "trabalhos_na_barra",
+                 "arguments": {"estrutura": "Estrutura", "ponta_inicio": "horizontal", "ponta_fim": "horizontal",
+                               "furos": {"face": "Alma", "parafuso": "M12", "ref": "as_duas", "dist": 100, "qtd": 2,
+                                         "passo": 80}, "por_parafusos": True}}},
+                {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "lista_de_corte",
+                                                                               "arguments": {}}},
+                {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "capturar_vista",
+                                                                               "arguments": {"largura": 400}}},
+                {"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "nao_existe", "arguments": {}}}]
+        entrada = "\n".join(json.dumps(m) for m in msgs) + "\n"
+
+        def rodar():
+            p = subprocess.run([py] + cfg["args"], input=entrada.encode(), capture_output=True, timeout=120,
+                               env=_ambiente_limpo())
+            return p.stdout.decode("utf-8")
+        saida = self._em_paralelo(rodar, tempo=150)
+        resp = {r["id"]: r for r in (json.loads(l) for l in saida.splitlines() if l.strip())}
+        self.assertNotIn(None, resp, "notificação não tem resposta")
+        self.assertEqual(resp[1]["result"]["serverInfo"]["name"], "usinix")
+        self.assertIn("trabalhos_na_barra", [t["name"] for t in resp[2]["result"]["tools"]])
+        for i in (3, 4, 5, 6):
+            self.assertFalse(resp[i]["result"].get("isError"), resp[i])
+        corte = json.loads(resp[6]["result"]["content"][0]["text"])
+        self.assertEqual(corte[0]["perfil"], "W 150 x 13,0")
+        self.assertAlmostEqual(corte[0]["corte_a"], 45.0, places=0)
+        self.assertEqual(corte[0]["furacao"], "4 × Ø13,5")
+        self.assertEqual(resp[7]["result"]["content"][0]["type"], "image")
+        self.assertTrue(resp[8]["result"]["isError"])
+        # cada ferramenta é um Desfazer
+        self.assertIn("IA: trabalhos_na_barra", list(self.doc.UndoNames))
+
+    def test_servidor_mcp_sem_usinix_avisa(self):
+        import json
+        import subprocess
+        import shutil as sh
+        py = sh.which("python3") or sh.which("python")
+        if py is None:
+            self.skipTest("sem python externo")
+        self.IA.desligar()
+        falso = os.path.join(tempfile.mkdtemp(), "nada.json")
+        entrada = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                              "params": {"name": "estado", "arguments": {}}}) + "\n"
+        p = subprocess.run([py, self.IA.script_mcp(), "--conexao", falso], input=entrada.encode(),
+                           capture_output=True, timeout=30, env=_ambiente_limpo())
+        r = json.loads(p.stdout.decode().splitlines()[0])
+        self.assertTrue(r["result"]["isError"])
+        self.assertIn("Conectar IA", r["result"]["content"][0]["text"])
+
+def _ambiente_limpo():
+    """Ambiente de um programa de fora (o assistente inicia o servidor MCP fora do Usinix): sem as variáveis do
+    Python e das bibliotecas do AppImage, que derrubam o python3 do sistema."""
+    env = dict(os.environ)
+    for k in ("PYTHONHOME", "PYTHONPATH", "LD_PRELOAD", "LD_LIBRARY_PATH"):
+        env.pop(k, None)
+    return env
+
 def QtCore_UserRole():
     from PySide import QtCore
     return QtCore.Qt.UserRole
@@ -16610,4 +16763,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T116AtualizacaoReabreESplashEsbocoSuave,
            T117AbrirNoLinuxETema,
            T118TrabalhosNaBarra,
-           T119FolhaLegendaEstiloTraducao]
+           T119FolhaLegendaEstiloTraducao,
+           T120ConectarIA]

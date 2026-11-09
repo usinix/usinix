@@ -401,6 +401,7 @@ TABS = [
         ("Aprender", [("Prumo_Tutorial", L, "Tutorial\nprimeira peça"),
                       ("Prumo_TutorialEstrutura", L, "Tutorial\nestrutura"),
                       ("Prumo_GuiaMigracao", L, "Vindo do\nSolidWorks")]),
+        ("Inteligência artificial", [("Prumo_ConectarIA", L, "Conectar\nIA")]),
         ("Qualidade", [("Prumo_Testes", L, "Testes\nautomáticos")]),
     ]},
 ]
