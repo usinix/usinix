@@ -1452,6 +1452,11 @@ if FreeCAD.GuiUp:
             if sub.startswith("Vertex"):
                 return self._inicio_arraste(info, pos)
             if sub.startswith("Edge"):
+                # clique em cima da ponta que a vista entregou como aresta (a linha fica por cima do ponto em
+                # algumas versões do programa): vale como a ponta
+                j = self._ponta_perto(pos)
+                if j is not None:
+                    return self._comecar_arraste(j)
                 k = self.segmento_da_aresta(sub)
                 agora = QtCore.QTime.currentTime().msecsSinceStartOfDay()
                 ant = self._clique_ant
@@ -1469,7 +1474,25 @@ if FreeCAD.GuiUp:
             dist = [(FreeCAD.Vector(q) - loc).Length for q in self.obj.Pontos]
             if not dist or min(dist) > 1e-3:
                 return False
-            j = dist.index(min(dist))
+            return self._comecar_arraste(dist.index(min(dist)))
+
+        def _ponta_perto(self, pos, px=6):
+            """Índice do ponto do desenho a até px pixels de pos na tela, ou None."""
+            v = self._vista_edicao or self._vista
+            if v is None:
+                return None
+            melhor = None
+            for j, q in enumerate(self.obj.Pontos):
+                try:
+                    t = v.getPointOnScreen(self.obj.Placement.multVec(FreeCAD.Vector(q)))
+                except Exception:
+                    return None
+                d = math.hypot(t[0] - pos[0], t[1] - pos[1])
+                if d <= px and (melhor is None or d < melhor[0]):
+                    melhor = (d, j)
+            return melhor[1] if melhor else None
+
+        def _comecar_arraste(self, j):
             segs = self.segs()
             # a linha que chega no ponto (o ponto é a ponta dela); no primeiro ponto, a que sai dele
             ks = [k for k, (a, b) in enumerate(segs) if b == j] or [k for k, (a, b) in enumerate(segs) if a == j]
