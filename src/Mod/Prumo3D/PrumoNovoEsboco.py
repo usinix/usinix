@@ -284,8 +284,9 @@ class _Filtro(QtCore.QObject):
         return False
 
 
-def centralizar_no_esboco(sk, altura_vazio=200.0):
-    """Leva o centro da vista para a origem do esboço (sem girar). Com o modelo vazio, ajusta o zoom."""
+def alvo_da_camera(sk, altura_vazio=200.0):
+    """Posição da câmera com o centro da vista na origem do esboço (sem girar) e, com o modelo vazio numa
+    câmera ortográfica, a altura do zoom (senão None)."""
     from pivy import coin
     v = FreeCADGui.ActiveDocument.ActiveView
     cam = v.getCameraNode()
@@ -293,12 +294,79 @@ def centralizar_no_esboco(sk, altura_vazio=200.0):
     dirv = cam.orientation.getValue().multVec(coin.SbVec3f(0, 0, -1))
     dist = cam.focalDistance.getValue()
     p = coin.SbVec3f(alvo.x, alvo.y, alvo.z) - dirv * dist
-    cam.position.setValue(p)
     vazio = not any(getattr(o, "Shape", None) is not None and not o.Shape.isNull() and o.Shape.Solids
                     for o in sk.Document.Objects)
+    altura = None
     if vazio and sk.GeometryCount == 0 and cam.isOfType(coin.SoOrthographicCamera.getClassTypeId()):
-        cam.height.setValue(altura_vazio)
+        altura = float(altura_vazio)
+    return p, altura
+
+
+def centralizar_no_esboco(sk, altura_vazio=200.0):
+    """Leva o centro da vista para a origem do esboço (sem girar), de uma vez. Com o modelo vazio, ajusta o zoom."""
+    cam = FreeCADGui.ActiveDocument.ActiveView.getCameraNode()
+    p, altura = alvo_da_camera(sk, altura_vazio)
+    cam.position.setValue(p)
+    if altura is not None:
+        cam.height.setValue(altura)
     return True
+
+
+def _suave(t):
+    """Começa e termina devagar (sem tranco)."""
+    return t * t * (3.0 - 2.0 * t)
+
+
+def centralizar_suave(doc_nome, nome, duracao_ms=260):
+    """Espera o FreeCAD terminar de girar a vista para o esboço e desliza até a origem dele.
+
+    1.4.1: antes esperava 900 ms fixos e pulava para o centro — a vista parava e dava um tranco. Agora
+    percebe o fim do giro pela câmera parada (a cada 20 ms) e emenda um deslize curto."""
+    import time
+    est = {"ori": None, "parada": 0, "ini": time.time(), "fase": "esperar", "t0": 0.0, "de": None,
+           "para": None, "h0": None, "h1": None}
+    tm = QtCore.QTimer(QtWidgets.QApplication.instance())
+    tm.setInterval(16)
+    _ESTADO["deslize"] = tm
+
+    def parar():
+        tm.stop()
+        tm.deleteLater()
+        if _ESTADO.get("deslize") is tm:
+            _ESTADO["deslize"] = None
+
+    def passo():
+        try:
+            o = FreeCAD.getDocument(doc_nome).getObject(nome)
+            gd = FreeCADGui.ActiveDocument
+            vp = gd.getInEdit() if gd is not None else None
+            if o is None or vp is None or vp.Object is not o:
+                return parar()
+            cam = gd.ActiveView.getCameraNode()
+            if est["fase"] == "esperar":
+                q = cam.orientation.getValue().getValue()
+                ori = tuple(round(x, 5) for x in q)
+                est["parada"] = est["parada"] + 1 if ori == est["ori"] else 0
+                est["ori"] = ori
+                if est["parada"] < 3 and time.time() - est["ini"] < 2.0:
+                    return
+                para, h1 = alvo_da_camera(o)
+                est.update(fase="deslizar", t0=time.time(), de=cam.position.getValue(), para=para,
+                           h0=cam.height.getValue() if h1 is not None else None, h1=h1)
+            t = min(1.0, (time.time() - est["t0"]) * 1000.0 / max(1, duracao_ms))
+            k = _suave(t)
+            de, para = est["de"], est["para"]
+            cam.position.setValue(de + (para - de) * k)
+            if est["h1"] is not None:
+                cam.height.setValue(est["h0"] + (est["h1"] - est["h0"]) * k)
+            if t >= 1.0:
+                parar()
+        except Exception:
+            parar()
+
+    tm.timeout.connect(passo)
+    tm.start()
+    return tm
 
 
 def _vigiar_esbocos():
@@ -316,21 +384,14 @@ def _vigiar_esbocos():
     _ESTADO["editando"] = chave
     if obj is not None and obj.TypeId == "Sketcher::SketchObject" and obj.GeometryCount == 0 and \
             FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Prumo3D").GetBool("CentralizarEsbocoNovo", True):
-        def fazer(doc=obj.Document.Name, nome=obj.Name):
-            try:
-                o = FreeCAD.getDocument(doc).getObject(nome)
-                if o is not None:
-                    centralizar_no_esboco(o)
-            except Exception:
-                pass
-        QtCore.QTimer.singleShot(900, fazer)       # depois da animação da vista normal ao esboço
+        centralizar_suave(obj.Document.Name, obj.Name)   # depois do giro da vista para o esboço
 
 
 def instalar():
     if _ESTADO["filtro"] is not None:
         return
     t = QtCore.QTimer(QtWidgets.QApplication.instance())
-    t.setInterval(300)
+    t.setInterval(100)       # percebe logo que um esboço entrou em edição (o deslize emenda no giro)
     t.timeout.connect(_vigiar_esbocos)
     t.start()
     _ESTADO["vigia_esboco"] = t

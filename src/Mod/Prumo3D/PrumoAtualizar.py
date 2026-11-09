@@ -450,6 +450,10 @@ class JanelaDownload:
             if self.modo == "complemento":
                 import PrumoComplemento
                 self.estado["instalada"] = PrumoComplemento.instalar_zip(self.destino)
+                # a splash e o reabrir da versão que acabou de entrar (correções chegam já nesta atualização)
+                novo = do_complemento_novo("PrumoComplemento")
+                if novo is not None and hasattr(novo, "instalar_splash"):
+                    novo.instalar_splash(PrumoComplemento.pasta_usuario())
         except Exception as exc:
             self.estado["erro"] = exc
         self.estado["fim"] = True
@@ -579,6 +583,13 @@ class JanelaDownload:
         elif self.acao == "reabrir":
             self.d.accept()
             self._fim_do_objeto()
+            novo = do_complemento_novo("PrumoAtualizar")
+            try:
+                if novo is not None and hasattr(novo, "reabrir"):
+                    novo.reabrir()
+                    return
+            except Exception as exc:
+                _registrar("reabrir da versão nova falhou: %r" % (exc,))
             reabrir()
 
     def _cancelar(self):
@@ -612,11 +623,22 @@ def comando_instalar_depois(caminho, pid):
     elevação") e o Usinix fechava sem instalar nada. Start-Process usa o ShellExecute, que mostra o pedido
     de permissão do Windows (UAC) normalmente."""
     if sys.platform.startswith("win"):
-        alvo = caminho.replace("'", "''")
-        script = ("Wait-Process -Id {pid} -ErrorAction SilentlyContinue; "
+        import ntpath
+        import re
+        # o getHomePath termina em barra e o caminho saía com barra dupla antes de "bin": tira a repetida,
+        # mas mantém as duas do começo de um caminho de rede
+        caminho = caminho[:2] + re.sub(r"[\\/]{2,}", lambda m: m.group(0)[0], caminho[2:])
+        q = lambda t: t.replace("'", "''")
+        log = q(os.path.join(pasta_download(), "atualizacao.log"))
+        # espera no máximo 90 s: se o processo antigo demorar a sumir, abre assim mesmo. O resultado vai
+        # para atualizacao.log (antes, se o Start-Process falhasse, não ficava rastro nenhum).
+        script = ("Wait-Process -Id {pid} -Timeout 90 -ErrorAction SilentlyContinue; "
                   "Start-Sleep -Milliseconds 500; "
-                  "Start-Process -FilePath '{alvo}' -WorkingDirectory '{pasta}'").format(
-                      pid=int(pid), alvo=alvo, pasta=os.path.dirname(caminho).replace("'", "''"))
+                  "try {{ Start-Process -FilePath '{alvo}' -WorkingDirectory '{pasta}' -ErrorAction Stop; "
+                  "$r = 'aberto' }} catch {{ $r = 'falhou: ' + $_.Exception.Message }}; "
+                  "try {{ Add-Content -LiteralPath '{log}' -Encoding UTF8 -Value "
+                  "((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  espera (pid {pid}): ' + $r) }} catch {{}}").format(
+                      pid=int(pid), alvo=q(caminho), pasta=q(ntpath.dirname(caminho)), log=log)
         return ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                 "-WindowStyle", "Hidden", "-Command", script]
     return ["/bin/sh", "-c", 'while kill -0 {pid} 2>/dev/null; do sleep 0.5; done; exec "$0"'.format(pid=int(pid)),
@@ -658,7 +680,7 @@ def _disparar(caminho, popen=None, abrir=None):
     try:
         flags = 0
         if sys.platform.startswith("win"):
-            flags = 0x00000008 | 0x08000000 | 0x00000200   # DETACHED | NO_WINDOW | NEW_PROCESS_GROUP
+            flags = 0x00000010 | 0x00000200   # NEW_CONSOLE | NEW_PROCESS_GROUP (sem console o PowerShell falhava)
         popen(cmd, close_fds=True, creationflags=flags, stdin=subprocess.DEVNULL,
               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         _registrar("processo de espera iniciado: %s" % cmd[0])
@@ -667,6 +689,26 @@ def _disparar(caminho, popen=None, abrir=None):
         _registrar("processo de espera falhou: %r" % (exc,))
         FreeCAD.Console.PrintError("Usinix: não abriu o instalador: {}\n".format(exc))
         return False
+
+
+def do_complemento_novo(nome):
+    """Carrega o módulo `nome` do complemento recém-instalado (pasta do usuário), com outro nome para não
+    trocar o que está rodando. Assim a correção que vem na atualização já vale para a própria atualização
+    (splash, reabrir). None se não houver ou der erro."""
+    try:
+        import importlib.util
+        import PrumoComplemento
+        arq = os.path.join(PrumoComplemento.pasta_usuario(), nome + ".py")
+        if not os.path.isfile(arq) or os.path.normcase(os.path.abspath(arq)) == os.path.normcase(
+                os.path.abspath(sys.modules[nome].__file__ if nome in sys.modules else "")):
+            return None
+        spec = importlib.util.spec_from_file_location("_usinix_novo_" + nome, arq)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception as exc:
+        _registrar("módulo novo %s não carregou: %r" % (nome, exc))
+        return None
 
 
 def executavel():
@@ -681,22 +723,44 @@ def executavel():
     return sys.executable
 
 
-def reabrir(popen=None, fechar=True):
-    """Fecha o Usinix (ele pergunta se quer salvar) e, se fechou, abre de novo assim que o processo terminar."""
+def reabrir(popen=None, fechar=True, iniciar_destacado=None):
+    """Fecha o Usinix (ele pergunta se quer salvar) e, se fechou, abre de novo assim que o processo terminar.
+
+    1.4.1: no Windows o PowerShell lançado pelo subprocess (DETACHED_PROCESS, sem console) não abria o
+    programa de novo — o mesmo defeito que já tinha aparecido com o instalador na 0.9.3. Agora vai pelo
+    QProcess.startDetached, o mesmo caminho da troca de tema, que funciona; o subprocess fica de reserva,
+    com um console próprio (escondido pelo -WindowStyle Hidden)."""
     import subprocess
     mw = janela_principal() if fechar else None
     if mw is not None and not mw.close():
         _registrar("reabrir: fechamento cancelado pelo usuário")
         return False
-    cmd = comando_instalar_depois(executavel(), os.getpid())
+    cmd = comando_instalar_depois(os.path.normpath(executavel()), os.getpid())
+    _registrar("reabrir: %s" % cmd[-1])
+    if popen is None:
+        if iniciar_destacado is None:
+            try:
+                QtCore = _qt()[0]
+                iniciar_destacado = QtCore.QProcess.startDetached
+            except Exception:
+                iniciar_destacado = None
+        if iniciar_destacado is not None:
+            try:
+                r = iniciar_destacado(cmd[0], list(cmd[1:]))
+                ok = r[0] if isinstance(r, tuple) else bool(r)
+                _registrar("reabrir: QProcess.startDetached %s" % ("ok" if ok else "falhou"))
+                if ok:
+                    return True
+            except Exception as exc:
+                _registrar("reabrir: QProcess.startDetached falhou: %r" % (exc,))
     popen = popen or subprocess.Popen
     try:
         flags = 0
         if sys.platform.startswith("win"):
-            flags = 0x00000008 | 0x08000000 | 0x00000200
+            flags = 0x00000010 | 0x00000200   # CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP
         popen(cmd, close_fds=True, creationflags=flags, stdin=subprocess.DEVNULL,
               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        _registrar("reabrir: %s" % cmd[-1])
+        _registrar("reabrir: processo de espera iniciado (subprocess)")
         return True
     except Exception as exc:
         _registrar("reabrir falhou: %r" % (exc,))

@@ -13123,7 +13123,7 @@ class T87AtualizacaoSoDoComplemento(unittest.TestCase):
             jan.d.reject()
             chamado = []
             self.assertTrue(A.reabrir(popen=lambda cmd, **kw: chamado.append(cmd), fechar=False))
-            self.assertIn(A.executavel(), " ".join(chamado[0]))
+            self.assertIn(os.path.normpath(A.executavel()), " ".join(chamado[0]))
             # complemento para outra base: atualiza pelo pacote completo
             info["complemento"] = dict(info["complemento"], freecad="0.0.1")
             self.assertIsNone(A.ativo_complemento(info))
@@ -15979,6 +15979,136 @@ class T115EsbocoModoLimpoECorSelecao(unittest.TestCase):
         self.assertTrue(all(ligados()[i] for i in geo), "modo desligado: todas as restrições")
 
 
+
+class T116AtualizacaoReabreESplashEsbocoSuave(unittest.TestCase):
+    """1.4.1: Reabrir agora não abria o Usinix no Windows; a 1ª abertura mostrava a versão antiga na splash;
+    o esboço novo dava um tranco antes de centralizar."""
+
+    def _win(self, f):
+        import sys
+        antes = sys.platform
+        try:
+            sys.platform = "win32"
+            return f()
+        finally:
+            sys.platform = antes
+
+    def test_espera_tem_limite_e_anota_resultado(self):
+        import PrumoAtualizar as A
+        cmd = self._win(lambda: A.comando_instalar_depois(r"C:\Program Files\Usinix 1.1\\bin\Usinix.exe", 55))
+        sc = cmd[-1]
+        self.assertIn("Wait-Process -Id 55 -Timeout 90", sc)
+        self.assertIn("'C:\\Program Files\\Usinix 1.1\\bin\\Usinix.exe'", sc)   # sem barra dupla
+        self.assertIn("catch", sc)
+        self.assertIn("atualizacao.log", sc)
+        self.assertLess(sc.index("Start-Process"), sc.index("Add-Content"))
+
+    def test_reabrir_vai_pelo_qprocess_e_tem_reserva(self):
+        import PrumoAtualizar as A
+        destacados, processos = [], []
+
+        def det(prog, args):
+            destacados.append((prog, args))
+            return True
+        self.assertTrue(self._win(lambda: A.reabrir(fechar=False, iniciar_destacado=det)))
+        self.assertEqual(destacados[0][0], "powershell.exe")
+        self.assertIn("Start-Process", destacados[0][1][-1])
+        # QProcess falhou: vai pelo subprocess, com console próprio (sem DETACHED_PROCESS, que falhava)
+        import subprocess
+        orig = subprocess.Popen
+        try:
+            subprocess.Popen = lambda cmd, **kw: processos.append((cmd, kw))
+            self.assertTrue(self._win(lambda: A.reabrir(fechar=False, iniciar_destacado=lambda p, a: False)))
+        finally:
+            subprocess.Popen = orig
+        self.assertEqual(len(processos), 1)
+        fl = processos[0][1]["creationflags"]
+        self.assertFalse(fl & 0x00000008)
+        self.assertTrue(fl & 0x00000010)
+
+    def test_splash_copiada_na_instalacao_do_complemento(self):
+        import PrumoComplemento as PC
+        par = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Prumo3D")
+        dest = os.path.join(FreeCAD.getUserAppDataDir(), "Gui", "images", "splash_image.png")
+        guardada = open(dest, "rb").read() if os.path.isfile(dest) else None
+        nossa0, inst0 = par.GetBool("SplashIsOurs", False), par.GetBool("InstallSplash", True)
+        pasta = tempfile.mkdtemp(prefix="prumo_spl_")
+        try:
+            os.makedirs(os.path.join(pasta, "Resources"))
+            with open(os.path.join(pasta, "Resources", "splash_image.png"), "wb") as f:
+                f.write(b"NOVA-1.4.2")
+            par.SetBool("InstallSplash", True)
+            par.SetBool("SplashIsOurs", True)
+            self.assertTrue(PC.instalar_splash(pasta))
+            self.assertEqual(open(dest, "rb").read(), b"NOVA-1.4.2")
+            # splash personalizada de outra pessoa: não sobrescreve
+            with open(dest, "wb") as f:
+                f.write(b"DO-USUARIO")
+            par.SetBool("SplashIsOurs", False)
+            self.assertFalse(PC.instalar_splash(pasta))
+            self.assertEqual(open(dest, "rb").read(), b"DO-USUARIO")
+        finally:
+            if guardada is None:
+                if os.path.isfile(dest):
+                    os.remove(dest)
+            else:
+                with open(dest, "wb") as f:
+                    f.write(guardada)
+            par.SetBool("SplashIsOurs", nossa0)
+            par.SetBool("InstallSplash", inst0)
+            shutil.rmtree(pasta, ignore_errors=True)
+
+    def test_instalar_zip_chama_a_splash(self):
+        import inspect
+        import PrumoComplemento as PC
+        import PrumoAtualizar as A
+        self.assertIn("instalar_splash(dest)", inspect.getsource(PC.instalar_zip))
+        fonte = inspect.getsource(A)
+        self.assertIn('do_complemento_novo("PrumoAtualizar")', fonte)
+        self.assertIn('do_complemento_novo("PrumoComplemento")', fonte)
+        self.assertIsNone(A.do_complemento_novo("NaoExisteModulo"))
+
+    def test_esboco_novo_desliza_sem_tranco(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        from PySide import QtWidgets
+        import PrumoNovoEsboco as N
+        doc = novo_doc("PrumoTesteDeslize")
+        try:
+            b = doc.addObject("PartDesign::Body", "Body")
+            doc.recompute()
+            sk = b.newObject("Sketcher::SketchObject", "Sketch")
+            xz = [f for f in b.Origin.OriginFeatures if f.Role == "XZ_Plane"][0]
+            sk.AttachmentSupport = [(xz, "")]
+            sk.MapMode = "FlatFace"
+            sk.AttachmentOffset = FreeCAD.Placement(FreeCAD.Vector(800, 400, 0), FreeCAD.Rotation())
+            doc.recompute()
+            v = FreeCADGui.ActiveDocument.ActiveView
+            t0 = time.time()
+            FreeCADGui.ActiveDocument.setEdit(sk.Name)
+            alvo = sk.getGlobalPlacement().Base
+            amostras = []
+            fim = time.time() + 4
+            chegou = None
+            while time.time() < fim:
+                QtWidgets.QApplication.processEvents()
+                p = v.getCameraNode().position.getValue()
+                amostras.append((time.time(), p[0], p[2]))
+                if chegou is None and abs(p[0] - alvo.x) < 1 and abs(p[2] - alvo.z) < 1:
+                    chegou = time.time()
+                if chegou is not None and time.time() - chegou > 0.3:
+                    break
+                time.sleep(0.01)
+            self.assertIsNotNone(chegou, "não centralizou")
+            self.assertLess(chegou - t0, 1.6, "demorou para centralizar (%.2f s)" % (chegou - t0))
+            # sem salto: no deslize, nenhum passo leva mais da metade do caminho de uma vez
+            d = [math.hypot(b2[1] - a[1], b2[2] - a[2]) for a, b2 in zip(amostras, amostras[1:])]
+            total = math.hypot(800, 400)
+            self.assertLess(max(d) if d else 0, total * 0.5, "salto de %.0f mm" % (max(d) if d else 0))
+        finally:
+            FreeCADGui.ActiveDocument.resetEdit()
+            fechar(doc)
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -16007,4 +16137,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T92BarraDeVarredura, T93MenusComAcento, T94Sombras, T95SemDependerDeBancada, T96BarraDeVistas, T97CatalogoDePerfis, T98CliqueSempreResponde,
            T99PlanosNoNovoEsboco, T100IdeiasDeOutrosCAD,
            T101AdicionarOuRemoverMaterial, T102Componentes, T103DutosHVAC, T104ModelagemDireta,
-           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca, T115EsbocoModoLimpoECorSelecao]
+           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca, T115EsbocoModoLimpoECorSelecao,
+           T116AtualizacaoReabreESplashEsbocoSuave]

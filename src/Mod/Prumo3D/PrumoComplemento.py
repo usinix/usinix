@@ -287,7 +287,45 @@ def instalar_zip(arquivo, versao_programa_=None):
         os.replace(dest, antigo)
     os.replace(tmp, dest)
     shutil.rmtree(antigo, ignore_errors=True)
+    instalar_splash(dest)
     return versao
+
+
+def instalar_splash(pasta_complemento):
+    """Copia a imagem de abertura do complemento para <dados do usuário>/Gui/images já na instalação.
+
+    A splash aparece antes de qualquer módulo carregar. Se a cópia fosse feita só ao abrir (PrumoGui), a
+    primeira abertura da versão nova ainda mostrava o número antigo e parecia que não tinha atualizado.
+    Não sobrescreve uma splash personalizada que não seja do Usinix. Devolve True se copiou."""
+    import shutil
+    origem = os.path.join(pasta_complemento, "Resources", "splash_image.png")
+    if not os.path.isfile(origem):
+        return False
+    try:
+        par = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Prumo3D")
+        if not par.GetBool("InstallSplash", True):
+            return False
+        pasta = os.path.join(FreeCAD.getUserAppDataDir(), "Gui", "images")
+        dest = os.path.join(pasta, "splash_image.png")
+        if os.path.isfile(dest) and not par.GetBool("SplashIsOurs", False):
+            try:
+                import PrumoGui
+                nossa = PrumoGui._is_old_prumo_splash(dest)
+            except Exception:
+                nossa = False
+            if not nossa:
+                return False
+        os.makedirs(pasta, exist_ok=True)
+        shutil.copyfile(origem, dest)
+        par.SetBool("SplashIsOurs", True)
+        try:
+            FreeCAD.saveParameter()
+        except Exception:
+            pass
+        return True
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: splash do complemento não copiada: %s\n" % exc)
+        return False
 
 
 def remover_copia_do_usuario():
