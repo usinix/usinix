@@ -40,6 +40,7 @@
 #include <Gui/CommandT.h>
 #include <Gui/Document.h>
 #include <Gui/MainWindow.h>
+#include <Gui/Selection/Selection.h>
 #include <Gui/ViewProviderDocumentObject.h>
 #include <Mod/TechDraw/App/DrawHatch.h>
 #include <Mod/TechDraw/App/DrawGeomHatch.h>
@@ -272,6 +273,13 @@ bool ViewProviderPage::doubleClicked()
     if (Preferences::switchOnClick()) {
         Gui::Command::assureWorkbench("TechDrawWorkbench");
         show();
+    }
+    // Usinix: double click on the page also opens the title block fields (Prumo_EditarLegenda, when present)
+    auto& mgr = Gui::Application::Instance->commandManager();
+    if (Gui::Command* cmd = mgr.getCommandByName("Prumo_EditarLegenda")) {
+        Gui::Selection().clearSelection();
+        Gui::Selection().addSelection(getObject()->getDocument()->getName(), getObject()->getNameInDocument());
+        cmd->invoke(0);
     }
 
     return true;

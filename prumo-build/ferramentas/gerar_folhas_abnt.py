@@ -73,7 +73,7 @@ LEGENDA = [
           (20, "REV.", "revisao", "0", 3.5, None)]),
 ]
 LETRA_ROTULO = 1.8
-FONTE = "osifont"
+FONTE = "Poppins"   # mesma fonte da interface do Usinix (registrada pelo PrumoEstilo)
 
 
 def _f(v):

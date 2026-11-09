@@ -115,6 +115,8 @@ def itens_para(selecao):
     so_esbocos = all(o.TypeId == "Sketcher::SketchObject" for o in objs)
     tem_peca = PrumoUtil.tem_peca(objs)
 
+    if len(objs) == 1 and not subs and objs[0].isDerivedFrom("TechDraw::DrawPage"):
+        return ["Prumo_EditarLegenda"]
     if so_esbocos and len(objs) == 1 and not subs:
         itens += ["Prumo_CtxExtrudar", "Prumo_CtxCavidade", "Prumo_CtxRevolucao", "Prumo_CtxFuro",
                   "Prumo_CtxEditarEsboco"]

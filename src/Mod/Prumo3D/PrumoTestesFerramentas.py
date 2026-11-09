@@ -12310,7 +12310,7 @@ class T83FaixaDoMomento(unittest.TestCase):
         cmds, mais = self._aba("desenho")
         self.assertIn("Prumo_AbrirFolha", cmds, "com folha no projeto, aparece Abrir folha")
         self.assertNotIn("TechDraw_SectionGroup", cmds, "folha fechada: ainda não há onde cortar")
-        page.ViewObject.doubleClicked()
+        PrumoFolhas._abrir_folha(page)
         self._esp(1.5)
         self.assertTrue(self.R.folha_aberta())
         cmds, mais = self._aba("desenho")
@@ -12421,7 +12421,7 @@ class T83FaixaDoMomento(unittest.TestCase):
                                       arranjo="3vistas_iso")
         self.assertTrue(V.nome_do_arquivo(page, "pdf").endswith("DES-001-A.pdf"), "número do desenho no nome")
         self.assertEqual(V.pecas_da_folha(page), [b])
-        page.ViewObject.doubleClicked()
+        PrumoFolhas._abrir_folha(page)
         self._esp(1.5)
         self.assertIs(V.folha_ativa(), page)
         pasta = tempfile.mkdtemp()
@@ -16435,6 +16435,105 @@ class T118TrabalhosNaBarra(unittest.TestCase):
             self.assertIn("Prumo_TrabalhosBarra", FreeCADGui.listCommands())
             self.assertIn("Prumo_TabelaFuros", FreeCADGui.listCommands())
 
+
+class T119FolhaLegendaEstiloTraducao(unittest.TestCase):
+    """1.5.0: escolher a peça no painel da Nova folha, duplo clique na folha abre a legenda, linhas finas, fonte
+    Poppins, vértices só com o mouse em cima e preferências das bancadas em português."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteFolhaLegenda")
+
+    def tearDown(self):
+        try:
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        fechar(self.doc)
+
+    def test_nova_folha_escolhe_a_peca_no_painel(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoFolhas as F
+        a = self.doc.addObject("Part::Box", "Caixa")
+        b = self.doc.addObject("Part::Cylinder", "Eixo")
+        self.doc.recompute()
+        FreeCADGui.Selection.clearSelection()
+        pn = F.PainelFolha(self.doc)
+        nomes = [pn.lista.item(i).data(QtCore_UserRole()) for i in range(pn.lista.count())]
+        self.assertEqual(sorted(nomes), ["Caixa", "Eixo"])
+        it = [pn.lista.item(i) for i in range(pn.lista.count()) if pn.lista.item(i).data(QtCore_UserRole()) == "Eixo"][0]
+        it.setCheckState(QtCore_Checked())
+        self.assertEqual(pn.pecas.valores(), [b])
+        self.assertTrue(pn.vistas.isChecked())
+        pn.busca.setText("caix")
+        vis = [pn.lista.item(i).data(QtCore_UserRole()) for i in range(pn.lista.count()) if not pn.lista.item(i).isHidden()]
+        self.assertEqual(vis, ["Caixa"])
+        pn.pecas.limpar()                                   # tirar pela caixa desmarca na lista
+        self.assertNotEqual(it.checkState(), QtCore_Checked())
+        self.assertEqual(a.Name, "Caixa")
+
+    def test_editar_legenda_da_folha(self):
+        import PrumoFolhas as F
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("TechDraw indisponível")
+        page = F.nova_folha(self.doc, "A4", "NBR16752", False, {"titulo": "SUPORTE"})
+        self.assertIs(F.pagina_de(page.Template), page)
+        if not FreeCAD.GuiUp:
+            return
+        pn = F.PainelLegenda(page)
+        self.assertEqual(pn.campos["titulo"].text(), "SUPORTE")
+        pn.campos["titulo"].setText("SUPORTE DA BOMBA")
+        pn.campos["numero"].setText("DES-010")
+        pn.executar()
+        et = page.Template.EditableTexts
+        self.assertEqual(et["titulo"], "SUPORTE DA BOMBA")
+        self.assertEqual(et["numero"], "DES-010")
+        self.assertIn("Prumo_EditarLegenda", FreeCADGui.listCommands())
+        import PrumoContexto
+        self.assertEqual(PrumoContexto.itens_para([(page, [])]), ["Prumo_EditarLegenda"])
+
+    def test_estilo_do_desenho(self):
+        import PrumoFolhas as F
+        base = "User parameter:BaseApp/Preferences/Mod/TechDraw/"
+        guarda = (FreeCAD.ParamGet(base + "Decorations").GetInt("LineGroup", 3),
+                  FreeCAD.ParamGet(base + "Labels").GetString("LabelFont", "osifont"))
+        try:
+            self.assertTrue(F.aplicar_estilo_desenho(forcar=True))
+            self.assertEqual(FreeCAD.ParamGet(base + "Decorations").GetInt("LineGroup", 3), 1)
+            self.assertEqual(FreeCAD.ParamGet(base + "Labels").GetString("LabelFont", ""), "Poppins")
+            self.assertFalse(FreeCAD.ParamGet(base + "General").GetBool("VerticesAlwaysVisible", True))
+            self.assertFalse(F.aplicar_estilo_desenho())          # uma vez por versão do estilo
+        finally:
+            FreeCAD.ParamGet(base + "Decorations").SetInt("LineGroup", guarda[0])
+            FreeCAD.ParamGet(base + "Labels").SetString("LabelFont", guarda[1])
+        for arq in F.lista_modelos():
+            txt = open(arq, encoding="utf-8").read()
+            self.assertNotIn("osifont", txt, arq)
+            self.assertIn("font-family:Poppins", txt, arq)
+
+    def test_preferencias_das_bancadas_em_portugues(self):
+        import PrumoI18n as I
+        for en in ("Line width group", "Show center marks", "Gmsh path", "Hide addons without a license",
+                   "Revert To Old Unfolder", "Keep page up to date", "Balloon shape"):
+            self.assertIn(en, I.EXTRA, en)
+            self.assertNotEqual(I.EXTRA[en], en)
+        if FreeCAD.GuiUp:
+            from PySide import QtCore
+            self.assertEqual(QtCore.QCoreApplication.translate("TechDrawGui::DlgPrefsTechDrawDimensionsImp",
+                                                               "Show units"), "Mostrar unidades")
+
+
+def QtCore_UserRole():
+    from PySide import QtCore
+    return QtCore.Qt.UserRole
+
+
+def QtCore_Checked():
+    from PySide import QtCore
+    return QtCore.Qt.Checked
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -16466,4 +16565,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca, T115EsbocoModoLimpoECorSelecao,
            T116AtualizacaoReabreESplashEsbocoSuave,
            T117AbrirNoLinuxETema,
-           T118TrabalhosNaBarra]
+           T118TrabalhosNaBarra,
+           T119FolhaLegendaEstiloTraducao]

@@ -513,7 +513,7 @@ void QGIViewPart::drawAllVertexes()
                 item->setRadius(getVertexSize());
                 item->setPrettyNormal();
                 item->setZValue(ZVALUE::VERTEX);
-                item->setVisible(shouldShowFrame());
+                item->setVisible(verticesAlwaysVisible() && shouldShowFrame());
             }
         }
     }
@@ -1321,7 +1321,7 @@ void QGIViewPart::updateFrameVisibility()
     
     for (auto& child : childItems()) {
         if (child->type() == UserType::QGIVertex) {
-            child->setVisible(showDecorations || child->isSelected());
+            child->setVisible((verticesAlwaysVisible() && showDecorations) || child->isSelected());
         }
         if (child->type() == UserType::QGICMark) {
             child->setVisible(showCenterMarks());
@@ -1357,7 +1357,7 @@ void QGIViewPart::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
             if (child->isSelected()){
                 continue;
             }
-            child->setVisible(showDecorations);
+            child->setVisible(verticesAlwaysVisible() && showDecorations);
             continue;
         }
 
@@ -1383,6 +1383,13 @@ bool QGIViewPart::isExporting() const
     }
 
     return scenePage->getExportingAny();
+}
+
+// Usinix: vertex dots only while the mouse is over the view (to pick points for dimensions), unless the
+// preference Mod/TechDraw/General/VerticesAlwaysVisible is on (upstream behaviour: shown with the frames)
+bool QGIViewPart::verticesAlwaysVisible()
+{
+    return Preferences::getPreferenceGroup("General")->GetBool("VerticesAlwaysVisible", false);
 }
 
 // returns true if vertex dots should be shown

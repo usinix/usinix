@@ -35,7 +35,9 @@ TENTATIVAS_MAX = 2
 # do Prumo 3D precisa do instalador completo
 # 1.4.2: C++ novo (modo limpo do esboço), AppRun do Linux com a biblioteca de fontes do sistema e o tema
 # renomeado: só o complemento não traria isso
-BASE_MINIMA = "1.4.2"
+# 1.5.0: C++ novo (vértices do desenho só com o mouse em cima, duplo clique na folha abre a legenda, canto no
+# modo limpo do esboço)
+BASE_MINIMA = "1.5.0"
 
 _estado = {"aqui": None, "usuario": False, "delegou": None, "motivo": ""}
 

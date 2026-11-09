@@ -1626,10 +1626,8 @@ class CmdDesenhoVaso:
     def Activated(self):
         v = vaso_selecionado()
         page = desenho(v)
-        try:
-            page.ViewObject.doubleClicked()
-        except Exception:
-            pass
+        import PrumoFolhas
+        PrumoFolhas._abrir_folha(page)
 
 
 class CmdTesteVaso:

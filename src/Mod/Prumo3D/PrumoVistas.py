@@ -644,7 +644,8 @@ if P is not None:
 
     def _mostrar(page):
         try:
-            QtCore.QTimer.singleShot(0, page.ViewObject.doubleClicked)
+            import PrumoFolhas
+            QtCore.QTimer.singleShot(0, lambda: PrumoFolhas._abrir_folha(page))
         except Exception:
             pass
 

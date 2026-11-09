@@ -50,11 +50,36 @@ def lista_modelos():
     return sorted(os.path.join(DIR_FOLHAS, n) for n in os.listdir(DIR_FOLHAS) if n.endswith(".svg"))
 
 
+ESTILO_DESENHO_VERSAO = 1
+
+
+def aplicar_estilo_desenho(forcar=False):
+    """Linhas e texto do Desenho técnico no padrão do Usinix (uma vez por versão do estilo).
+
+    - Grupo de linhas 0,35 mm (grossa 0,35, fina 0,18): o padrão do FreeCAD (0,70) deixava as vistas pesadas
+      nas folhas A4/A3.
+    - Texto das cotas e rótulos em Poppins, a fonte da interface (as folhas ABNT usam a mesma).
+    - Pontos dos vértices só com o mouse sobre a vista (para pegar pontos de cota), não o tempo todo."""
+    g = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH)
+    if not forcar and g.GetInt("EstiloDesenhoVersao", 0) >= ESTILO_DESENHO_VERSAO:
+        return False
+    base = "User parameter:BaseApp/Preferences/Mod/TechDraw/"
+    FreeCAD.ParamGet(base + "Decorations").SetInt("LineGroup", 1)          # "FC 0.35mm" em LineGroup.csv
+    FreeCAD.ParamGet(base + "Labels").SetString("LabelFont", "Poppins")
+    FreeCAD.ParamGet(base + "General").SetBool("VerticesAlwaysVisible", False)
+    g.SetInt("EstiloDesenhoVersao", ESTILO_DESENHO_VERSAO)
+    return True
+
+
 def aplicar_preferencias(forcar=False):
     """Faz do modelo ABNT A3 (NBR 16752) o padrão do Desenho técnico.
 
     Só muda na primeira vez (ou se a preferência aponta para um arquivo que não existe), para
     respeitar a escolha do usuário depois."""
+    try:
+        aplicar_estilo_desenho()
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: estilo do desenho: %s\n" % exc)
     g = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH)
     f = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/TechDraw/Files")
     atual = f.GetString("TemplateFile", "")
@@ -389,7 +414,7 @@ def _filtro_pecas(obj, subs):
 
 class PainelFolha(P.PainelTarefa):
     titulo = "Nova folha ABNT"
-    ajuda = "Selecione as peças para as vistas (opcional) e confira a legenda."
+    ajuda = "Marque na lista (ou selecione na tela) as peças para as vistas e confira a legenda."
 
     def __init__(self, doc=None, objs=None):
         self.doc = doc or FreeCAD.ActiveDocument
@@ -403,6 +428,23 @@ class PainelFolha(P.PainelTarefa):
                              dica="Peças, corpos, partes ou montagens. Sem peças, a folha sai em branco.")
         for o in self._objs_iniciais:
             self.pecas.aceitar(o)
+        # escolher aqui mesmo, sem ir à árvore: busca + lista do que tem sólido no documento
+        self.busca = QtWidgets.QLineEdit()
+        self.busca.setPlaceholderText("Buscar peça, corpo ou montagem…")
+        self.busca.setClearButtonEnabled(True)
+        s0.widget(self.busca)
+        self.lista = QtWidgets.QListWidget()
+        self.lista.setObjectName("PrumoListaPecas")
+        self.lista.setMinimumHeight(130)
+        self.lista.setIconSize(QtCore.QSize(20, 20))
+        s0.widget(self.lista)
+        self._encher_lista()
+        self.busca.textChanged.connect(self._filtrar)
+        self.lista.itemChanged.connect(self._item_marcado)
+        self.lista.itemDoubleClicked.connect(
+            lambda it: it.setCheckState(QtCore.Qt.Unchecked if it.checkState() == QtCore.Qt.Checked
+                                        else QtCore.Qt.Checked))
+        self.pecas.mudou.connect(self._marcar_da_caixa)
         s1 = f.secao("Folha", "folha")
         self.formato = s1.linha("folha", P.lista(FORMATOS, FREECAD_PARAM().GetString("FolhaFormato",
                                                                                        FORMATO_PADRAO)),
@@ -439,6 +481,54 @@ class PainelFolha(P.PainelTarefa):
         self.vistas.toggled.connect(self.arranjo.setEnabled)
         self.arranjo.setEnabled(self.vistas.isChecked())
         self.pecas.mudou.connect(self._pecas_mudaram)
+
+    # ---- lista de peças do painel
+    def _encher_lista(self):
+        import PrumoInserirDesenho as I
+        self.lista.blockSignals(True)
+        self.lista.clear()
+        try:
+            cands = I.candidatos(self.doc)
+        except Exception:
+            cands = []
+        cands.sort(key=lambda o: (not I._visivel(o), o.Label.lower()))
+        marcados = {o.Name for o in self.pecas.valores()}
+        for o in cands:
+            it = QtWidgets.QListWidgetItem("%s  ·  %s%s" % (o.Label, I.tipo_legivel(o),
+                                                            "" if I._visivel(o) else " (oculto)"))
+            try:
+                it.setIcon(o.ViewObject.Icon)
+            except Exception:
+                pass
+            it.setData(QtCore.Qt.UserRole, o.Name)
+            it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable)
+            it.setCheckState(QtCore.Qt.Checked if o.Name in marcados else QtCore.Qt.Unchecked)
+            self.lista.addItem(it)
+        self.lista.blockSignals(False)
+
+    def _filtrar(self, texto):
+        t = (texto or "").strip().lower()
+        for i in range(self.lista.count()):
+            it = self.lista.item(i)
+            it.setHidden(bool(t) and t not in it.text().lower())
+
+    def _item_marcado(self, it):
+        o = self.doc.getObject(it.data(QtCore.Qt.UserRole)) if self.doc else None
+        if o is None:
+            return
+        if it.checkState() == QtCore.Qt.Checked:
+            self.pecas.aceitar(o)
+        else:
+            self.pecas.remover_valor(o)
+
+    def _marcar_da_caixa(self):
+        marcados = {o.Name for o in self.pecas.valores()}
+        self.lista.blockSignals(True)
+        for i in range(self.lista.count()):
+            it = self.lista.item(i)
+            it.setCheckState(QtCore.Qt.Checked if it.data(QtCore.Qt.UserRole) in marcados
+                             else QtCore.Qt.Unchecked)
+        self.lista.blockSignals(False)
 
     def _pecas_mudaram(self):
         objs = self.pecas.valores()
@@ -499,10 +589,101 @@ def _icone_orientacao(retrato):
 
 
 def _abrir_folha(page):
+    """Mostra a folha (sem o duplo clique, que agora também abre a edição da legenda)."""
     try:
-        page.ViewObject.doubleClicked()
+        FreeCADGui.activateWorkbench("TechDrawWorkbench")
     except Exception:
         pass
+    try:
+        page.ViewObject.show()
+    except Exception:
+        try:
+            page.ViewObject.doubleClicked()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------- editar a legenda de uma folha
+TODOS_CAMPOS_LEGENDA = CAMPOS_LEGENDA + (
+    ("verificado", "Verificado", "texto"), ("aprovado", "Aprovado", "texto"), ("data", "Data", "texto"),
+    ("massa", "Massa (kg)", "material"), ("escala", "Escala", "escala"), ("unidade", "Unidade", "texto"),
+    ("folha", "Folha", "folha"))
+
+
+def pagina_de(obj):
+    """A folha de um objeto selecionado (a própria folha, o modelo dela ou uma vista)."""
+    if obj is None:
+        return None
+    if obj.isDerivedFrom("TechDraw::DrawPage"):
+        return obj
+    for o in getattr(obj, "InList", []):
+        if o.isDerivedFrom("TechDraw::DrawPage"):
+            return o
+    return None
+
+
+class PainelLegenda(P.PainelTarefa):
+    titulo = "Legenda da folha"
+    ajuda = "Os campos do carimbo desta folha. OK grava; Cancelar deixa como estava."
+
+    def __init__(self, page):
+        self.page = page
+        super().__init__()
+
+    def _preencher_com_selecao(self):
+        pass
+
+    def montar(self):
+        f = self.form
+        s = f.secao("Legenda — %s" % self.page.Label, "texto")
+        tpl = self.page.Template
+        et = dict(tpl.EditableTexts) if tpl is not None and hasattr(tpl, "EditableTexts") else {}
+        self.campos = {}
+        for chave, rotulo, ic in TODOS_CAMPOS_LEGENDA:
+            if chave in et:
+                self.campos[chave] = s.linha(ic, QtWidgets.QLineEdit(et.get(chave, "")), rotulo, rotulo)
+        outros = [k for k in et if k not in self.campos]
+        for k in sorted(outros):                     # campos de modelos que não são do Usinix
+            self.campos[k] = s.linha("texto", QtWidgets.QLineEdit(et.get(k, "")), k, k)
+        if not self.campos:
+            s.texto("O modelo desta folha não tem campos editáveis.")
+
+    def pendencia(self):
+        return None
+
+    def pronto_texto(self):
+        return "Altere os campos e clique em OK."
+
+    def executar(self):
+        tpl = self.page.Template
+        et = dict(tpl.EditableTexts)
+        mudou = False
+        for k, w in self.campos.items():
+            v = w.text()
+            if et.get(k) != v:
+                et[k] = v
+                mudou = True
+        if mudou:
+            tpl.EditableTexts = et
+            lembrar_campos({k: et[k] for k in ("empresa", "desenhista", "resp_tecnico", "crea") if k in et})
+            self.page.Document.recompute()
+        return self.page
+
+
+class CmdEditarLegenda:
+    def GetResources(self):
+        return {"Pixmap": PrumoUtil.icone("folha_abnt.svg"), "MenuText": "Editar legenda",
+                "ToolTip": "Abre os campos do carimbo da folha selecionada (duplo clique na folha também abre)."}
+
+    def IsActive(self):
+        sel = FreeCADGui.Selection.getSelection()
+        return bool(sel) and pagina_de(sel[0]) is not None
+
+    def Activated(self):
+        sel = FreeCADGui.Selection.getSelection()
+        page = pagina_de(sel[0]) if sel else None
+        if page is not None:
+            PainelLegenda(page).mostrar()
 
 
 DialogoFolha = PainelFolha   # nome antigo

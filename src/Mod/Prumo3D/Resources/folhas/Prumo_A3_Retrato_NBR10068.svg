@@ -43,67 +43,67 @@
 <path d="M 25,360 H 21.5"/>
 <path d="M 290,360 H 293.5"/>
 </g>
-<text x="36.75" y="5.775" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>1</tspan></text>
-<text x="36.75" y="416.1" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>1</tspan></text>
-<text x="73.5" y="5.775" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>2</tspan></text>
-<text x="73.5" y="416.1" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>2</tspan></text>
-<text x="123.5" y="5.775" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>3</tspan></text>
-<text x="123.5" y="416.1" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>3</tspan></text>
-<text x="173.5" y="5.775" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>4</tspan></text>
-<text x="173.5" y="416.1" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>4</tspan></text>
-<text x="223.5" y="5.775" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>5</tspan></text>
-<text x="223.5" y="416.1" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>5</tspan></text>
-<text x="269.25" y="5.775" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>6</tspan></text>
-<text x="269.25" y="416.1" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>6</tspan></text>
-<text x="23.25" y="34.375" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>A</tspan></text>
-<text x="291.75" y="34.375" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>A</tspan></text>
-<text x="23.25" y="85.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>B</tspan></text>
-<text x="291.75" y="85.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>B</tspan></text>
-<text x="23.25" y="135.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>C</tspan></text>
-<text x="291.75" y="135.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>C</tspan></text>
-<text x="23.25" y="185.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>D</tspan></text>
-<text x="291.75" y="185.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>D</tspan></text>
-<text x="23.25" y="235.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>E</tspan></text>
-<text x="291.75" y="235.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>E</tspan></text>
-<text x="23.25" y="285.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>F</tspan></text>
-<text x="291.75" y="285.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>F</tspan></text>
-<text x="23.25" y="335.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>G</tspan></text>
-<text x="291.75" y="335.875" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>G</tspan></text>
-<text x="23.25" y="387.375" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>H</tspan></text>
-<text x="291.75" y="387.375" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>H</tspan></text>
+<text x="36.75" y="5.775" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>1</tspan></text>
+<text x="36.75" y="416.1" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>1</tspan></text>
+<text x="73.5" y="5.775" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>2</tspan></text>
+<text x="73.5" y="416.1" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>2</tspan></text>
+<text x="123.5" y="5.775" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>3</tspan></text>
+<text x="123.5" y="416.1" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>3</tspan></text>
+<text x="173.5" y="5.775" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>4</tspan></text>
+<text x="173.5" y="416.1" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>4</tspan></text>
+<text x="223.5" y="5.775" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>5</tspan></text>
+<text x="223.5" y="416.1" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>5</tspan></text>
+<text x="269.25" y="5.775" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>6</tspan></text>
+<text x="269.25" y="416.1" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>6</tspan></text>
+<text x="23.25" y="34.375" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>A</tspan></text>
+<text x="291.75" y="34.375" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>A</tspan></text>
+<text x="23.25" y="85.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>B</tspan></text>
+<text x="291.75" y="85.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>B</tspan></text>
+<text x="23.25" y="135.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>C</tspan></text>
+<text x="291.75" y="135.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>C</tspan></text>
+<text x="23.25" y="185.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>D</tspan></text>
+<text x="291.75" y="185.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>D</tspan></text>
+<text x="23.25" y="235.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>E</tspan></text>
+<text x="291.75" y="235.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>E</tspan></text>
+<text x="23.25" y="285.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>F</tspan></text>
+<text x="291.75" y="285.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>F</tspan></text>
+<text x="23.25" y="335.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>G</tspan></text>
+<text x="291.75" y="335.875" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>G</tspan></text>
+<text x="23.25" y="387.375" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>H</tspan></text>
+<text x="291.75" y="387.375" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:middle;fill:#000000;stroke:none"><tspan>H</tspan></text>
 <g id="legenda">
 <rect x="112" y="355" width="178" height="58" style="fill:none;stroke:#000000;stroke-width:0.7"/>
-<text x="113" y="357.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>EMPRESA / PROPRIETÁRIO</tspan></text>
-<text id="campo_empresa" x="113.5" y="363.65" freecad:editable="empresa" freecad:autofill="company" style="font-size:3.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="221.778" y="357.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>CLIENTE / OBRA</tspan></text>
-<text id="campo_cliente" x="222.278" y="363.65" freecad:editable="cliente" style="font-size:3.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="113" y="369.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>TÍTULO</tspan></text>
-<text id="campo_titulo" x="113.5" y="376.4" freecad:editable="titulo" freecad:autofill="title" style="font-size:5px;font-family:osifont;font-weight:bold;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="113" y="381.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>MATERIAL</tspan></text>
-<text id="campo_material" x="113.5" y="385.15" freecad:editable="material" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="182.222" y="381.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>MASSA (kg)</tspan></text>
-<text id="campo_massa" x="182.722" y="385.15" freecad:editable="massa" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="216.833" y="381.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>TOLERÂNCIAS GERAIS</tspan></text>
-<text id="campo_tolerancias" x="217.333" y="385.15" freecad:editable="tolerancias" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="113" y="389.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DESENHISTA</tspan></text>
-<text id="campo_desenhista" x="113.5" y="393.15" freecad:editable="desenhista" freecad:autofill="author" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="162.444" y="389.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>VERIFICADO</tspan></text>
-<text id="campo_verificado" x="162.944" y="393.15" freecad:editable="verificado" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="202" y="389.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>APROVADO</tspan></text>
-<text id="campo_aprovado" x="202.5" y="393.15" freecad:editable="aprovado" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="241.556" y="389.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DATA</tspan></text>
-<text id="campo_data" x="242.056" y="393.15" freecad:editable="data" freecad:autofill="date" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="113" y="397.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>RESPONSÁVEL TÉCNICO</tspan></text>
-<text id="campo_resp_tecnico" x="113.5" y="401.15" freecad:editable="resp_tecnico" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="172.333" y="397.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>CREA / CFT</tspan></text>
-<text id="campo_crea" x="172.833" y="401.15" freecad:editable="crea" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="211.889" y="397.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>ART Nº</tspan></text>
-<text id="campo_art" x="212.389" y="401.15" freecad:editable="art" style="font-size:2.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="113" y="405.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>ESCALA</tspan></text>
-<text id="campo_escala" x="113.5" y="410.65" freecad:editable="escala" freecad:autofill="scale" style="font-size:3.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>1:1</tspan></text>
-<text x="137.722" y="405.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>UNID.</tspan></text>
-<text id="campo_unidade" x="138.222" y="410.65" freecad:editable="unidade" style="font-size:3.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>mm</tspan></text>
-<text x="152.556" y="405.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>1º DIEDRO</tspan></text>
+<text x="113" y="357.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>EMPRESA / PROPRIETÁRIO</tspan></text>
+<text id="campo_empresa" x="113.5" y="363.65" freecad:editable="empresa" freecad:autofill="company" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="221.778" y="357.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>CLIENTE / OBRA</tspan></text>
+<text id="campo_cliente" x="222.278" y="363.65" freecad:editable="cliente" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="113" y="369.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>TÍTULO</tspan></text>
+<text id="campo_titulo" x="113.5" y="376.4" freecad:editable="titulo" freecad:autofill="title" style="font-size:5px;font-family:Poppins;font-weight:bold;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="113" y="381.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>MATERIAL</tspan></text>
+<text id="campo_material" x="113.5" y="385.15" freecad:editable="material" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="182.222" y="381.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>MASSA (kg)</tspan></text>
+<text id="campo_massa" x="182.722" y="385.15" freecad:editable="massa" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="216.833" y="381.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>TOLERÂNCIAS GERAIS</tspan></text>
+<text id="campo_tolerancias" x="217.333" y="385.15" freecad:editable="tolerancias" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="113" y="389.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DESENHISTA</tspan></text>
+<text id="campo_desenhista" x="113.5" y="393.15" freecad:editable="desenhista" freecad:autofill="author" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="162.444" y="389.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>VERIFICADO</tspan></text>
+<text id="campo_verificado" x="162.944" y="393.15" freecad:editable="verificado" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="202" y="389.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>APROVADO</tspan></text>
+<text id="campo_aprovado" x="202.5" y="393.15" freecad:editable="aprovado" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="241.556" y="389.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DATA</tspan></text>
+<text id="campo_data" x="242.056" y="393.15" freecad:editable="data" freecad:autofill="date" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="113" y="397.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>RESPONSÁVEL TÉCNICO</tspan></text>
+<text id="campo_resp_tecnico" x="113.5" y="401.15" freecad:editable="resp_tecnico" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="172.333" y="397.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>CREA / CFT</tspan></text>
+<text id="campo_crea" x="172.833" y="401.15" freecad:editable="crea" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="211.889" y="397.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>ART Nº</tspan></text>
+<text id="campo_art" x="212.389" y="401.15" freecad:editable="art" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="113" y="405.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>ESCALA</tspan></text>
+<text id="campo_escala" x="113.5" y="410.65" freecad:editable="escala" freecad:autofill="scale" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>1:1</tspan></text>
+<text x="137.722" y="405.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>UNID.</tspan></text>
+<text id="campo_unidade" x="138.222" y="410.65" freecad:editable="unidade" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>mm</tspan></text>
+<text x="152.556" y="405.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>1º DIEDRO</tspan></text>
 <g id="simbolo_1o_diedro" style="fill:none;stroke:#000000;stroke-width:0.193;stroke-linecap:round;stroke-linejoin:round">
 <path d="M 167.214,406.05 L 161.714,407.425 V 410.175 L 167.214,411.55 Z"/>
 <circle cx="171.064" cy="408.8" r="1.375"/>
@@ -113,14 +113,14 @@
 <path d="M 161.164,408.8 H 174.364"/>
 <path d="M 171.064,405.5 V 412.1"/>
 </g>
-<text x="182.222" y="405.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>FORMATO</tspan></text>
-<text id="campo_formato" x="182.722" y="410.65" freecad:editable="formato" style="font-size:3.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>A3</tspan></text>
-<text x="202" y="405.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>FOLHA</tspan></text>
-<text id="campo_folha" x="202.5" y="410.65" freecad:editable="folha" freecad:autofill="sheet" style="font-size:3.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>1 / 1</tspan></text>
-<text x="226.722" y="405.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>Nº DO DESENHO</tspan></text>
-<text id="campo_numero" x="227.222" y="410.65" freecad:editable="numero" style="font-size:3.5px;font-family:osifont;font-weight:bold;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="271.222" y="405.4" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>REV.</tspan></text>
-<text id="campo_revisao" x="271.722" y="410.65" freecad:editable="revisao" style="font-size:3.5px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>0</tspan></text>
+<text x="182.222" y="405.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>FORMATO</tspan></text>
+<text id="campo_formato" x="182.722" y="410.65" freecad:editable="formato" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>A3</tspan></text>
+<text x="202" y="405.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>FOLHA</tspan></text>
+<text id="campo_folha" x="202.5" y="410.65" freecad:editable="folha" freecad:autofill="sheet" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>1 / 1</tspan></text>
+<text x="226.722" y="405.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>Nº DO DESENHO</tspan></text>
+<text id="campo_numero" x="227.222" y="410.65" freecad:editable="numero" style="font-size:3.5px;font-family:Poppins;font-weight:bold;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="271.222" y="405.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>REV.</tspan></text>
+<text id="campo_revisao" x="271.722" y="410.65" freecad:editable="revisao" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>0</tspan></text>
 <g style="fill:none;stroke:#000000;stroke-width:0.35">
 <path d="M 220.778,355 V 367"/>
 <path d="M 112,367 H 290"/>
@@ -143,5 +143,5 @@
 <path d="M 270.222,403 V 413"/>
 </g>
 </g>
-<text id="marca" x="112" y="354" style="font-size:1.8px;font-family:osifont;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>Usinix</tspan></text>
+<text id="marca" x="112" y="354" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>Usinix</tspan></text>
 </svg>

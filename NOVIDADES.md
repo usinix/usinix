@@ -38,16 +38,27 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 - **Estruturas › Tabela de furos:** cada furo com onde fica, distância da ponta, posição transversal, Ø e
   parafuso. Com uma folha de desenho aberta, a tabela vai para a folha.
 
+- **Nova folha ABNT: escolha a peça no próprio painel.** Lista com tudo que pode ir para o desenho (peças,
+  corpos, montagens, estruturas) e uma busca; não precisa mais ir à árvore selecionar e voltar.
+- **Duplo clique na folha (na árvore) abre os campos do carimbo** para editar título, número, desenhista,
+  revisão etc. Também no botão direito da folha: "Editar legenda".
+- **Desenho mais leve:** linhas no grupo 0,35 mm (antes 0,70 mm, pesado no A4/A3) e textos das cotas, dos
+  rótulos e do carimbo na fonte Poppins, a mesma do Usinix.
+- **Sem bolinhas nos cantos das vistas:** os pontos dos vértices só aparecem com o mouse sobre a vista (para
+  pegar pontos de cota). Quem preferir o jeito antigo: preferência VerticesAlwaysVisible do Desenho técnico.
+
 ### Correções
 
 - **Esboço em modo limpo:** clicar num canto mostrava só as coincidências; agora mostra também a horizontal,
   a vertical e as demais restrições das linhas que chegam nele.
+- **Preferências das bancadas em português:** Desenho técnico, Simulação, Chapa e Gerenciador de complementos
+  ainda tinham muitas opções em inglês.
 
 ### Observação
 
-- Quem tem a 1.4.2 recebe esta versão pela atualização rápida (só o complemento): o Usinix baixa, instala e
-  reabre sozinho. A correção do canto no modo limpo é do programa compilado e chega com o instalador completo
-  (instalação nova ou a próxima versão que pedir o pacote completo).
+- Esta versão traz partes novas do programa (desenho, folha, esboço), então a atualização baixa o
+  **instalador completo**. No Linux, baixe o AppImage novo na página de versões.
+- Folhas já feitas mantêm as linhas e a fonte de antes; as vistas novas saem no estilo novo.
 
 ## 1.4.2 — 09/11/2026
 

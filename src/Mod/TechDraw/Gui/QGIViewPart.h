@@ -153,6 +153,7 @@ protected:
     bool formatGeomFromCenterLine(const std::string& cTag, QGIEdge* item);
 
     bool showVertices() const;
+    static bool verticesAlwaysVisible();
 
     bool showCenterMarks() const;
     bool showCenterMarksExporting() const;
