@@ -765,7 +765,8 @@ class T15FolhasABNT(unittest.TestCase):
         for f, (w, h) in self.MEDIDAS.items():
             x, y, qw, qh, est = self._quadro(PrumoFolhas.arquivo(f, "NBR16752", False))
             self.assertEqual((x, y, w - (x + qw), h - (y + qh)), (20, 10, 10, 10))
-            self.assertIn("stroke-width:0.7", est)
+            # NBR 16752:2020, Tabela 4: linha do quadro 1,0 mm no A0 e A1; 0,7 mm no A2, A3 e A4
+            self.assertIn("stroke-width:%s" % ("1" if f in ("A0", "A1") else "0.7"), est)
 
     def test_legenda_tem_todos_os_campos(self):
         import PrumoFolhas

@@ -135,20 +135,24 @@
 <text id="campo_cliente" x="517.444" y="781.65" freecad:editable="cliente" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
 <text x="410" y="787.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>TÍTULO</tspan></text>
 <text id="campo_titulo" x="410.5" y="794.4" freecad:editable="titulo" freecad:autofill="title" style="font-size:5px;font-family:Poppins;font-weight:bold;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="536.389" y="787.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>TIPO DE DOCUMENTO</tspan></text>
+<text id="campo_tipo_doc" x="536.889" y="793.65" freecad:editable="tipo_doc" style="font-size:3.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DESENHO</tspan></text>
 <text x="410" y="799.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>MATERIAL</tspan></text>
 <text id="campo_material" x="410.5" y="803.15" freecad:editable="material" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
 <text x="478.056" y="799.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>MASSA (kg)</tspan></text>
 <text id="campo_massa" x="478.556" y="803.15" freecad:editable="massa" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
 <text x="512.083" y="799.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>TOLERÂNCIAS GERAIS</tspan></text>
 <text id="campo_tolerancias" x="512.583" y="803.15" freecad:editable="tolerancias" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="410" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DESENHISTA</tspan></text>
-<text id="campo_desenhista" x="410.5" y="811.15" freecad:editable="desenhista" freecad:autofill="author" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="458.611" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>VERIFICADO</tspan></text>
-<text id="campo_verificado" x="459.111" y="811.15" freecad:editable="verificado" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="497.5" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>APROVADO</tspan></text>
-<text id="campo_aprovado" x="498" y="811.15" freecad:editable="aprovado" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
-<text x="536.389" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DATA</tspan></text>
-<text id="campo_data" x="536.889" y="811.15" freecad:editable="data" freecad:autofill="date" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="410" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>PROJETISTA</tspan></text>
+<text id="campo_projetista" x="410.5" y="811.15" freecad:editable="projetista" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="446.944" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DESENHISTA</tspan></text>
+<text id="campo_desenhista" x="447.444" y="811.15" freecad:editable="desenhista" freecad:autofill="author" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="483.889" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>VERIFICADO</tspan></text>
+<text id="campo_verificado" x="484.389" y="811.15" freecad:editable="verificado" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="518.889" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>APROVADO</tspan></text>
+<text id="campo_aprovado" x="519.389" y="811.15" freecad:editable="aprovado" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
+<text x="553.889" y="807.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>DATA</tspan></text>
+<text id="campo_data" x="554.389" y="811.15" freecad:editable="data" freecad:autofill="date" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
 <text x="410" y="815.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>RESPONSÁVEL TÉCNICO</tspan></text>
 <text id="campo_resp_tecnico" x="410.5" y="819.15" freecad:editable="resp_tecnico" style="font-size:2.5px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan></tspan></text>
 <text x="468.333" y="815.4" style="font-size:1.8px;font-family:Poppins;font-weight:normal;text-anchor:start;fill:#000000;stroke:none"><tspan>CREA / CFT</tspan></text>
@@ -180,13 +184,15 @@
 <g style="fill:none;stroke:#000000;stroke-width:0.35">
 <path d="M 515.944,773 V 785"/>
 <path d="M 409,785 H 584"/>
+<path d="M 535.389,785 V 797"/>
 <path d="M 409,797 H 584"/>
 <path d="M 477.056,797 V 805"/>
 <path d="M 511.083,797 V 805"/>
 <path d="M 409,805 H 584"/>
-<path d="M 457.611,805 V 813"/>
-<path d="M 496.5,805 V 813"/>
-<path d="M 535.389,805 V 813"/>
+<path d="M 445.944,805 V 813"/>
+<path d="M 482.889,805 V 813"/>
+<path d="M 517.889,805 V 813"/>
+<path d="M 552.889,805 V 813"/>
 <path d="M 409,813 H 584"/>
 <path d="M 467.333,813 V 821"/>
 <path d="M 506.222,813 V 821"/>

@@ -8,9 +8,13 @@ Uso:
 Duas famílias:
 
 - NBR16752: ABNT NBR 16752:2020 (Desenho técnico — Requisitos para apresentação em folhas de
-  desenho). A norma segue a ISO 5457/ISO 7200; as dimensões usadas aqui são as da ISO 5457
-  (margem esquerda 20 mm, demais 10 mm, quadro 0,7 mm, legenda 180 mm). A CONFERIR no texto da
-  NBR 16752 (norma paga; valores tirados das normas ISO de adoção idêntica).
+  desenho; publicada em 23/01/2020, confirmada em 21/01/2025, em vigor). Conferido no texto da norma
+  (catálogo ABNT/Confea, 09/11/2026): margem esquerda 20 mm e demais 10 mm em todos os formatos
+  (4.2, Tabela 4); linha do quadro 1,0 mm (A0, A1) e 0,7 mm (A2, A3, A4) (Tabela 4); legenda no canto
+  inferior direito, na horizontal, com 180 mm de comprimento em todos os formatos e altura variável
+  (5.3.2); campos obrigatórios da legenda em 5.3.1 (proprietário/empresa, título, número de identificação,
+  tipo de documento, responsáveis, autor e aprovador, projetista, desenhista e verificador, data, escala,
+  folha, responsável técnico com registro).
 - NBR10068: ABNT NBR 10068:1987 (folha de desenho — leiaute e dimensões), substituída pela
   NBR 16752, mas ainda muito usada: margem esquerda 25 mm; demais 10 mm (A0, A1) ou 7 mm
   (A2, A3, A4); quadro 1,4 / 1,0 / 0,7 / 0,5 / 0,5 mm; legenda 175 mm (A0, A1) ou 178 mm.
@@ -29,7 +33,7 @@ NORMAS = {
     "NBR16752": {
         "titulo": "ABNT NBR 16752",
         "margem": {f: {"esq": 20, "dir": 10, "sup": 10, "inf": 10} for f in FORMATOS},
-        "quadro": {f: 0.7 for f in FORMATOS},
+        "quadro": {"A0": 1.0, "A1": 1.0, "A2": 0.7, "A3": 0.7, "A4": 0.7},
         "legenda": {f: 180 for f in FORMATOS},
         "corte": True,
     },
@@ -53,14 +57,16 @@ NORMAS = {
 LEGENDA = [
     (12, [(110, "EMPRESA / PROPRIETÁRIO", "empresa", "", 3.5, "company"),
           (70, "CLIENTE / OBRA", "cliente", "", 3.5, None)]),
-    (12, [(180, "TÍTULO", "titulo", "", 5.0, "title")]),
+    (12, [(130, "TÍTULO", "titulo", "", 5.0, "title"),
+          (50, "TIPO DE DOCUMENTO", "tipo_doc", "DESENHO", 3.5, None)]),
     (8, [(70, "MATERIAL", "material", "", 2.5, None),
          (35, "MASSA (kg)", "massa", "", 2.5, None),
          (75, "TOLERÂNCIAS GERAIS", "tolerancias", "", 2.5, None)]),
-    (8, [(50, "DESENHISTA", "desenhista", "", 2.5, "author"),
-         (40, "VERIFICADO", "verificado", "", 2.5, None),
-         (40, "APROVADO", "aprovado", "", 2.5, None),
-         (50, "DATA", "data", "", 2.5, "date")]),
+    (8, [(38, "PROJETISTA", "projetista", "", 2.5, None),
+         (38, "DESENHISTA", "desenhista", "", 2.5, "author"),
+         (36, "VERIFICADO", "verificado", "", 2.5, None),
+         (36, "APROVADO", "aprovado", "", 2.5, None),
+         (32, "DATA", "data", "", 2.5, "date")]),
     (8, [(60, "RESPONSÁVEL TÉCNICO", "resp_tecnico", "", 2.5, None),
          (40, "CREA / CFT", "crea", "", 2.5, None),
          (80, "ART Nº", "art", "", 2.5, None)]),

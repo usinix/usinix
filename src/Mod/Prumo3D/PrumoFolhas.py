@@ -3,7 +3,8 @@
 """Folhas de desenho no padrão brasileiro.
 
 Modelos em Resources/folhas, gerados por prumo-build/ferramentas/gerar_folhas_abnt.py:
-- NBR 16752 (vigente; dimensões da ISO 5457: margem esquerda 20 mm, demais 10 mm, legenda 180 mm);
+- NBR 16752:2020 (vigente; conferida no texto da norma: margem esquerda 20 mm, demais 10 mm, quadro 1,0 mm
+  no A0/A1 e 0,7 mm no A2 a A4, legenda de 180 mm no canto inferior direito, com os campos de 5.3.1);
 - NBR 10068 (padrão anterior, ainda comum: margem esquerda 25 mm, legenda 175/178 mm).
 Todos os formatos em paisagem e em retrato. Legenda com empresa, cliente/obra, título,
 material, massa, tolerâncias gerais, desenhista, verificado, aprovado, data, responsável técnico,
@@ -32,7 +33,7 @@ NORMAS = {"NBR16752": "ABNT NBR 16752 (atual)", "NBR10068": "ABNT NBR 10068 (ant
 NORMA_PADRAO = "NBR16752"
 FORMATO_PADRAO = "A3"
 
-CAMPOS = ["empresa", "cliente", "titulo", "material", "massa", "tolerancias", "desenhista",
+CAMPOS = ["empresa", "cliente", "titulo", "tipo_doc", "material", "massa", "tolerancias", "projetista", "desenhista",
           "verificado", "aprovado", "data", "resp_tecnico", "crea", "art", "escala", "unidade",
           "formato", "folha", "numero", "revisao"]
 
@@ -401,10 +402,12 @@ def _vistas(doc, page, objs, escala=None, arranjo=ARRANJO_PADRAO):
 # ============================================================================ diálogo
 import PrumoPainel as P
 
-CAMPOS_LEGENDA = (("titulo", "Título", "texto"), ("numero", "Nº do desenho", "quantidade"),
+CAMPOS_LEGENDA = (("titulo", "Título", "texto"), ("tipo_doc", "Tipo de documento", "folha"),
+                  ("numero", "Nº do desenho", "quantidade"),
                   ("empresa", "Empresa", "folha"), ("cliente", "Cliente / obra", "folha"),
                   ("material", "Material", "material"), ("tolerancias", "Tolerâncias gerais", "folga"),
-                  ("desenhista", "Desenhista", "texto"), ("resp_tecnico", "Responsável técnico", "texto"),
+                  ("projetista", "Projetista", "texto"), ("desenhista", "Desenhista", "texto"),
+                  ("resp_tecnico", "Responsável técnico", "texto"),
                   ("crea", "CREA / CFT", "texto"), ("art", "ART nº", "quantidade"), ("revisao", "Revisão", "texto"))
 
 
