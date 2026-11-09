@@ -127,6 +127,15 @@ bool EditModeConstraintCoinManager::constraintShownBySelection(
             || (pos != Sketcher::PointPos::none && Attorney::isGeoElementSelected(vp, geoId, pos))) {
             return true;
         }
+        // Usinix: a constraint on the whole curve (horizontal, equal...) also shows when one of the
+        // curve's points is selected, so clicking a corner shows the constraints of the lines meeting there
+        if (pos == Sketcher::PointPos::none) {
+            for (auto p : {Sketcher::PointPos::start, Sketcher::PointPos::end, Sketcher::PointPos::mid}) {
+                if (Attorney::isGeoElementSelected(vp, geoId, p)) {
+                    return true;
+                }
+            }
+        }
     }
     return false;
 }
