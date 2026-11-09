@@ -631,10 +631,7 @@ class PainelLegenda(P.PainelTarefa):
 
     def __init__(self, page):
         self.page = page
-        super().__init__()
-
-    def _preencher_com_selecao(self):
-        pass
+        super().__init__()      # sem caixas de seleção: a seleção atual não mexe em nada aqui
 
     def montar(self):
         f = self.form
