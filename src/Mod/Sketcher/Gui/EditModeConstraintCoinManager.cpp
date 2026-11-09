@@ -128,11 +128,26 @@ bool EditModeConstraintCoinManager::constraintShownBySelection(
             return true;
         }
         // Usinix: a constraint on the whole curve (horizontal, equal...) also shows when one of the
-        // curve's points is selected, so clicking a corner shows the constraints of the lines meeting there
+        // curve's points is selected, so clicking a corner shows the constraints of the lines meeting there.
+        // A corner is two points joined by a coincident constraint: the point of the other line counts too.
         if (pos == Sketcher::PointPos::none) {
+            const auto& all = Attorney::getConstraints(vp);
             for (auto p : {Sketcher::PointPos::start, Sketcher::PointPos::end, Sketcher::PointPos::mid}) {
                 if (Attorney::isGeoElementSelected(vp, geoId, p)) {
                     return true;
+                }
+                for (const auto* c : all) {
+                    if (c->Type != Sketcher::Coincident) {
+                        continue;
+                    }
+                    if (c->First == geoId && c->FirstPos == p
+                        && Attorney::isGeoElementSelected(vp, c->Second, c->SecondPos)) {
+                        return true;
+                    }
+                    if (c->Second == geoId && c->SecondPos == p
+                        && Attorney::isGeoElementSelected(vp, c->First, c->FirstPos)) {
+                        return true;
+                    }
                 }
             }
         }

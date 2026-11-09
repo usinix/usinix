@@ -16514,6 +16514,49 @@ class T119FolhaLegendaEstiloTraducao(unittest.TestCase):
             self.assertNotIn("osifont", txt, arq)
             self.assertIn("font-family:Poppins", txt, arq)
 
+    def test_duplo_clique_abre_legenda_e_sem_pontos(self):
+        """C++ da 1.5.0: duplo clique na folha abre a legenda; pontos dos vértices escondidos fora do mouse."""
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import time
+        import PrumoFolhas as F
+        from PySide import QtWidgets
+        try:
+            import TechDrawGui  # noqa: F401
+        except ImportError:
+            self.skipTest("TechDraw indisponível")
+        b = self.doc.addObject("Part::Box", "Bloco")
+        self.doc.recompute()
+        page = F.nova_folha(self.doc, "A4", "NBR16752", False, {"titulo": "BLOCO"}, [b], arranjo="frontal_superior")
+        F._abrir_folha(page)
+        fim = time.time() + 2.5
+        while time.time() < fim:
+            QtWidgets.QApplication.processEvents()
+            time.sleep(0.02)
+        self.assertFalse(FreeCADGui.Control.activeDialog(), "abrir a folha por código não abre a legenda")
+        # pontos dos vértices: nenhum visível sem o mouse em cima
+        cena = None
+        for w in FreeCADGui.getMainWindow().findChildren(QtWidgets.QGraphicsView):
+            if w.scene() is not None and w.isVisible():
+                cena = w.scene()
+        if cena is not None:
+            verts = [it for it in cena.items() if it.type() == QtWidgets.QGraphicsItem.UserType + 33]   # QGIVertex (QGIUserTypes.h)
+            antigo = verts and all(it.isVisible() for it in verts)
+            if not antigo:
+                self.assertFalse(any(it.isVisible() for it in verts), "vértices escondidos")
+        page.ViewObject.doubleClicked()
+        fim = time.time() + 1.5
+        while time.time() < fim:
+            QtWidgets.QApplication.processEvents()
+            time.sleep(0.02)
+        if not FreeCADGui.Control.activeDialog():
+            self.skipTest("binário sem o duplo clique da legenda (C++ anterior à 1.5.0)")
+        import PrumoPainel
+        pn = PrumoPainel._ATIVO.get("painel")
+        self.assertIsInstance(pn, F.PainelLegenda)
+        self.assertEqual(pn.campos["titulo"].text(), "BLOCO")
+        FreeCADGui.Control.closeDialog()
+
     def test_preferencias_das_bancadas_em_portugues(self):
         import PrumoI18n as I
         for en in ("Line width group", "Show center marks", "Gmsh path", "Hide addons without a license",
