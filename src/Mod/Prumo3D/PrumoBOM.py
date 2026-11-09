@@ -161,6 +161,24 @@ def coletar(objs, densidade_padrao=None):
                     ordem.append(chave)
                 linhas[chave].qtd += qtd
             continue
+        if "ItensParafusos" in base.PropertiesList:
+            # parafusos nos furos de uma barra (Trabalhos na barra): parafuso, arruela e porca contados à parte
+            import PrumoFixadores as F
+            import PrumoTrabalhosBarra as TB
+            mat_txt = str(_prop(base, "Material") or "") or "—"
+            for qtd, tipo, m, comp in TB.itens_bom(base):
+                den = F.denominacao(tipo, m, comp or None)
+                chave = ("padrao", den, mat_txt if mat_txt != "—" else "")
+                if chave not in linhas:
+                    try:
+                        massa = F.forma(tipo, m, comp).Volume * densidade_padrao * 1e-9
+                    except Exception:
+                        massa = None
+                    obs = "" if F.confirmado(tipo, m) else "dimensões a conferir"
+                    linhas[chave] = Linha(chave, den, mat_txt, "", massa, obs)
+                    ordem.append(chave)
+                linhas[chave].qtd += qtd
+            continue
         if "TipoPiso" in base.PropertiesList:
             # piso/fechamento (chapa expandida, perfurada, xadrez): um item por chapa, com área e peso
             chave = ("piso", base.Document.Name, base.Name)

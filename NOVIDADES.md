@@ -15,6 +15,40 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.5.0 — 09/11/2026
+
+![Trabalhos na barra: banzo de escada a 45° com as pontas cortadas na horizontal, furos e parafusos](.github/images/novidades/1.5.0.webp)
+
+### Trabalhos na barra: cortes de ponta, furos e parafusos
+
+### Novidades
+
+- **Estruturas › Trabalhos na barra:** a barra da estrutura recebe os trabalhos da serralheria sem deixar de ser
+  barra (continua na lista de corte, com os cantos e a análise).
+  - **Corte das pontas soltas:** reto (como antes), horizontal, vertical ou pela face de outra peça (a barra é
+    aparada ou prolongada até a face plana escolhida: piso, laje, chapa). Ex.: banzo de escada a 45° com
+    apoio no piso e chegada na laje cortados na horizontal. Ponta presa em outra barra segue o canto.
+  - **Furos na alma ou nas mesas:** distância da ponta (do início, do fim ou das duas), quantidade,
+    espaçamento, uma ou duas filas, distância entre filas e deslocamento. Escolhendo o parafuso (M8 a M30),
+    o diâmetro sai com a folga (1,5 mm, nas preferências).
+  - **Parafuso, arruela e porca nos furos:** com o comprimento escolhido do catálogo para a barra, a peça
+    presa junto (chapa, cantoneira), a arruela e a porca. Entram na lista de materiais.
+  - Prévia no desenho enquanto mexe no painel; reabrir numa barra já trabalhada traz o que está gravado.
+- **Lista de corte com a furação** de cada barra (ex.: "8 × Ø13,5").
+- **Estruturas › Tabela de furos:** cada furo com onde fica, distância da ponta, posição transversal, Ø e
+  parafuso. Com uma folha de desenho aberta, a tabela vai para a folha.
+
+### Correções
+
+- **Esboço em modo limpo:** clicar num canto mostrava só as coincidências; agora mostra também a horizontal,
+  a vertical e as demais restrições das linhas que chegam nele.
+
+### Observação
+
+- Quem tem a 1.4.2 recebe esta versão pela atualização rápida (só o complemento): o Usinix baixa, instala e
+  reabre sozinho. A correção do canto no modo limpo é do programa compilado e chega com o instalador completo
+  (instalação nova ou a próxima versão que pedir o pacote completo).
+
 ## 1.4.2 — 09/11/2026
 
 ![Esboço: antes, ícones de todas as restrições; agora, só os da linha selecionada, em magenta](.github/images/novidades/1.4.2.webp)

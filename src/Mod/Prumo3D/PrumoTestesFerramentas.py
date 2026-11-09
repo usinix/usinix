@@ -16290,7 +16290,10 @@ class T118TrabalhosNaBarra(unittest.TestCase):
             pn.ref.setCurrentText("As duas pontas")
             pn.qtd.setValue(2)
             pn.passo.setValue(70)
+            pn.por_parafuso.setChecked(True)
             pn.atualizar_previa()
+            self.assertEqual(len(T.parafusamentos(self.doc, b)), 1)
+            self.assertEqual(T.parafusamentos(self.doc, b)[0].Quantidade, 4)
             self.assertIsNone(pn.pendencia())
             self.assertAlmostEqual(b.CorteInicio.Value, 45.0, places=3)     # prévia já no desenho
             self.assertEqual(b.Furacao, "4 × Ø13,5")
@@ -16317,6 +16320,7 @@ class T118TrabalhosNaBarra(unittest.TestCase):
             FreeCADGui.Control.closeDialog()
         self.doc.recompute()
         self.assertEqual(b.Furacao, "4 × Ø13,5")
+        self.assertEqual(T.parafusamentos(self.doc, b)[0].Quantidade, 4)
 
     def test_pela_face_de_outra_peca(self):
         import PrumoTrabalhosBarra as T
@@ -16337,13 +16341,99 @@ class T118TrabalhosNaBarra(unittest.TestCase):
         self.assertAlmostEqual(b.Shape.BoundBox.ZMax, topo + 60, places=3)   # prolongada até a laje
         self.assertTrue(est.Pontas[0].startswith("0:1=plano:"))
 
+    def test_parafusos_nos_furos_e_lista_de_materiais(self):
+        import PrumoTrabalhosBarra as T
+        import PrumoBOM
+        import PrumoFixadores as F
+        E, est, b = self._escada(perfil="W 150 x 13,0")
+        grupo = {"face": "Alma", "diam": 13.5, "ref": "inicio", "dist": 100, "qtd": 2, "passo": 80, "filas": 2,
+                 "gab": 60, "desloc": 0, "parafuso": "M12"}
+        # outro grupo com o mesmo diâmetro não ganha parafuso
+        T.aplicar([b], furos=[dict(grupo, ref="fim")], id_grupo="outro")
+        T.aplicar([b], furos=[grupo], id_grupo="g1")
+        self.doc.recompute()
+        self.assertEqual(b.Furacao, "8 × Ø13,5")
+        pf = T.por_parafusos([b], "g1", "M12", aperto=10.0, material="Aço classe 8.8")[0]
+        self.doc.recompute()
+        self.assertEqual(pf.Quantidade, 4)
+        self.assertIn(pf, est.Group)
+        it = E.PrumoPerfis.perfil(b.Perfil)
+        precisa = it["tw"] + 10.0 + F.medidas("arruela", "M12")["h"] + F.medidas("porca", "M12")["m"] + 2 * F.passo("M12")
+        esperado = min(c for c in F.comprimentos("sextavado", "M12") if c >= precisa - 1e-6)
+        self.assertAlmostEqual(pf.Comprimento.Value, esperado, places=6)
+        self.assertEqual(len(pf.Shape.Solids), 12)               # 4 × (parafuso, arruela, porca)
+        # os parafusos passam pelos furos: corpo sem bater na barra (só encostam)
+        self.assertLess(pf.Shape.common(b.Shape).Volume, 1.0)
+        linhas = {l.denominacao: l for l in PrumoBOM.coletar([est])}
+        den = F.denominacao("sextavado", "M12", esperado)
+        self.assertEqual(linhas[den].qtd, 4)
+        self.assertEqual(linhas[F.denominacao("porca", "M12")].qtd, 4)
+        self.assertEqual(linhas[F.denominacao("arruela", "M12")].qtd, 4)
+        self.assertEqual(linhas[den].material, "Aço classe 8.8")
+        # tirar os parafusos do grupo
+        T.tirar_parafusos(self.doc, "g1")
+        self.assertEqual(T.parafusamentos(self.doc), [])
+
+    def test_tabela_de_furos_na_folha(self):
+        import PrumoTrabalhosBarra as T
+        import PrumoFolhas
+        E, est, b = self._escada(perfil="W 150 x 13,0")
+        T.aplicar([b], furos=[{"face": "Alma", "diam": 13.5, "ref": "fim", "dist": 50, "qtd": 2, "passo": 80,
+                               "filas": 2, "gab": 60, "desloc": 0, "parafuso": "M12"},
+                              {"face": "As duas mesas", "diam": 18, "ref": "inicio", "dist": 40, "qtd": 1,
+                               "passo": 0, "filas": 2, "gab": 50, "desloc": 0}], id_grupo="g")
+        self.doc.recompute()
+        ls = T.linhas_furos([est])
+        self.assertEqual(len(ls), 8)                      # 2 × 2 na alma + 2 × 2 nas mesas
+        alma = [l for l in ls if l[2] == "alma"]
+        self.assertEqual(sorted({round(l[4], 3) for l in alma}), [50.0, 130.0])   # medido do fim
+        self.assertEqual({l[3] for l in alma}, {"fim"})
+        self.assertEqual(sorted({l[5] for l in alma}), [-30.0, 30.0])
+        sh = T.gravar_tabela(self.doc, ls)
+        self.assertEqual(sh.get("E1"), "Distância (mm)")
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            return
+        page = PrumoFolhas.nova_folha(self.doc, "A3", "NBR16752", False, {}, [b], None)
+        v = T.inserir_tabela_na_folha(page, sh, len(ls))
+        self.assertIn(v, page.Views)
+        self.assertEqual(v.CellEnd, "H9")
+        self.assertIs(T.inserir_tabela_na_folha(page, sh, len(ls)), v)
+        esq, _d, sup, _i = __import__("PrumoBOM").margens_da_folha(page)
+        self.assertLess(v.X.Value if hasattr(v.X, "Value") else v.X, float(page.Template.Width) / 2)
+
+    def test_placa_de_base_segue_o_corte(self):
+        import PrumoEstruturaExtras as X
+        E, est, b = self._escada(perfil="W 150 x 13,0")
+        E.definir_ponta(est, 0, 0, E.PONTA_HORIZONTAL)
+        self.doc.recompute()
+        pl = X.criar_placa_base(b, "Início", Largura=250, Comprimento=300, Espessura=16, Furos="4",
+                                DiametroFuro=22, DistanciaBorda=40)
+        self.doc.recompute()
+        self.assertTrue(pl.Shape.isValid(), pl.Shape)
+        bb = pl.Shape.BoundBox
+        self.assertAlmostEqual(bb.ZMax, 0.0, places=3)         # deitada no piso, embaixo do corte
+        self.assertAlmostEqual(bb.ZMin, -16.0, places=3)
+        self.assertAlmostEqual(bb.XLength, 300.0, places=3)    # comprimento no sentido da barra
+        self.assertAlmostEqual(bb.YLength, 250.0, places=3)
+        self.assertLess(pl.Shape.common(b.Shape).Volume, 1.0)
+        furos = [f for f in pl.Shape.Faces if f.Surface.__class__.__name__ == "Cylinder"]
+        self.assertEqual(len(furos), 4)
+        # placa pequena para o corte inclinado (o corte da W 150 a 45° tem ~212 mm no sentido da barra)
+        pl.Comprimento = 180
+        self.doc.recompute()
+        self.assertTrue(pl.Avisos and "menor que o corte" in pl.Avisos[0], pl.Avisos)
+
     def test_comando_na_faixa(self):
         import PrumoRibbon
         nomes = [c[0] for aba in PrumoRibbon.TABS if aba["id"] == "estruturas" for _n, cmds in aba["panels"]
                  for c in cmds]
         self.assertIn("Prumo_TrabalhosBarra", nomes)
+        self.assertIn("Prumo_TabelaFuros", nomes)
         if FreeCAD.GuiUp:
             self.assertIn("Prumo_TrabalhosBarra", FreeCADGui.listCommands())
+            self.assertIn("Prumo_TabelaFuros", FreeCADGui.listCommands())
 
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,

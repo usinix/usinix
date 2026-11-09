@@ -126,6 +126,341 @@ def aplicar(barras, pontas=None, furos=None, id_grupo=None, plano_face=None):
     return est
 
 
+# ============================================================================ parafusos nos furos
+def furos_na_barra(barra, diam=None):
+    """Furos da barra já cortada: [(entrada, direção, saída)] pelas faces cilíndricas da forma.
+
+    Entrada e saída são os pontos do eixo nas faces externas do material furado (alma, mesa, as duas
+    paredes do tubo); a direção vai da entrada para a saída. diam filtra pelo diâmetro (mm)."""
+    grupos = []
+    for f in barra.Shape.Faces:
+        sf = f.Surface
+        if sf.__class__.__name__ != "Cylinder":
+            continue
+        if diam is not None and abs(2.0 * sf.Radius - diam) > 1e-3:
+            continue
+        if f.Area > 2.0 * 3.141593 * sf.Radius * 2000.0:      # não é furo (ex.: tubo redondo inteiro)
+            continue
+        eixo = FreeCAD.Vector(sf.Axis).normalize()
+        c = sf.Center
+        for g in grupos:
+            d = c - g["c"]
+            if abs(abs(eixo.dot(g["eixo"])) - 1) < 1e-6 and (d - g["eixo"] * d.dot(g["eixo"])).Length < 1e-3:
+                g["faces"].append(f)
+                break
+        else:
+            grupos.append({"c": c, "eixo": eixo, "faces": [f], "r": sf.Radius})
+    res = []
+    for g in grupos:
+        proj = [(v.Point - g["c"]).dot(g["eixo"]) for f in g["faces"] for v in f.Vertexes]
+        if not proj:
+            continue
+        a, b = min(proj), max(proj)
+        ent, sai = g["c"] + g["eixo"] * a, g["c"] + g["eixo"] * b
+        res.append((ent, (sai - ent).normalize() if (sai - ent).Length > 1e-9 else g["eixo"], sai, 2 * g["r"]))
+    return res
+
+
+def comprimento_parafuso(m, aperto):
+    """Menor comprimento de catálogo (ISO 4017) que passa o aperto, a arruela e a porca com 2 fios de sobra."""
+    import PrumoFixadores as F
+    arr = F.medidas("arruela", m)["h"]
+    porca = F.medidas("porca", m)["m"]
+    precisa = aperto + arr + porca + 2 * (F.passo(m) or 1.5)
+    lst = [float(x) for x in F.comprimentos("sextavado", m)]
+    for c in lst:
+        if c >= precisa - 1e-6:
+            return c, precisa
+    return (lst[-1] if lst else precisa), precisa
+
+
+class Parafusamento:
+    """Parafuso, arruela e porca em cada furo de um grupo de furos de uma barra (uma forma só; a lista de
+    materiais conta as peças pela propriedade Itens)."""
+
+    def __init__(self, obj):
+        obj.Proxy = self
+        self._props(obj)
+
+    def _props(self, obj):
+        def add(tipo, nome, grupo, dica, ro=False):
+            if nome not in obj.PropertiesList:
+                obj.addProperty(tipo, nome, grupo, dica)
+            if ro:
+                obj.setEditorMode(nome, 1)
+        add("App::PropertyLink", "Barra", "Parafusos", "Barra furada")
+        add("App::PropertyString", "Grupo", "Parafusos", "Grupo de furos (id) desta barra")
+        add("App::PropertyString", "Diametro", "Parafusos", "Rosca (M12...)")
+        add("App::PropertyLength", "Aperto", "Parafusos", "Espessura da peça presa além da barra (chapa, cantoneira)")
+        add("App::PropertyString", "Material", "Parafusos", "Material / classe (ex.: aço classe 8.8)")
+        add("App::PropertyLength", "Comprimento", "Parafusos", "Comprimento do parafuso escolhido", True)
+        add("App::PropertyInteger", "Quantidade", "Parafusos", "Furos com parafuso", True)
+        add("App::PropertyStringList", "ItensParafusos", "Parafusos", "Peças para a lista de materiais "
+            "(quantidade|tipo|rosca|comprimento)", True)
+
+    def onDocumentRestored(self, obj):
+        obj.Proxy = self
+        self._props(obj)
+
+    def execute(self, obj):
+        import Part
+        import PrumoFixadores as F
+        b, m = obj.Barra, obj.Diametro
+        if b is None or not m or m not in F.diametros("sextavado"):
+            obj.Shape = Part.Shape()
+            obj.ItensParafusos = []
+            obj.Quantidade = 0
+            return
+        est = b.Estrutura
+        gs = [f for f in E.furos_da_barra(est, b.Indice) if f.get("id") == obj.Grupo] if est else []
+        diams = {round(float(f.get("diam", 0)), 3) for f in gs}
+        pecas, n, comp = [], 0, 0.0
+        md_arr = F.medidas("arruela", m)
+        eds = E.arestas(est.Esqueleto)
+        e = eds[b.Indice]
+        p0, t = e.valueAt(e.FirstParameter), E._dir(e, True)
+        xs = [x for f in gs for x in E._pos_furos(e, f)]
+        for d in diams:
+            for ent, dirc, sai, _dd in furos_na_barra(b, d):
+                if not any(abs((ent - p0).dot(t) - x) < 1e-3 for x in xs):
+                    continue                     # furo de outro grupo com o mesmo diâmetro
+                aperto_barra = (sai - ent).Length
+                comp, _p = comprimento_parafuso(m, aperto_barra + obj.Aperto.Value)
+                cabeca = ent - dirc * obj.Aperto.Value
+                pl = FreeCAD.Placement(cabeca, FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), dirc * -1))
+                par = F.forma("sextavado", m, comp)
+                par.Placement = pl
+                arr = F.forma("arruela", m)
+                arr.Placement = FreeCAD.Placement(sai, FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), dirc))
+                porca = F.forma("porca", m)
+                porca.Placement = FreeCAD.Placement(sai + dirc * md_arr["h"],
+                                                    FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), dirc))
+                pecas += [par, arr, porca]
+                n += 1
+        obj.Shape = Part.makeCompound(pecas) if pecas else Part.Shape()
+        obj.Quantidade = n
+        obj.Comprimento = comp
+        obj.ItensParafusos = (["%d|sextavado|%s|%s" % (n, m, fmt(comp, 0)), "%d|arruela|%s|" % (n, m),
+                               "%d|porca|%s|" % (n, m)] if n else [])
+        if n:
+            obj.Label = "Parafusos %s × %s (%d) — %s" % (m, fmt(comp, 0), n, b.Label)
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+
+class VPParafusamento:
+    def __init__(self, vobj):
+        vobj.Proxy = self
+
+    def attach(self, vobj):
+        self.Object = vobj.Object
+
+    def getIcon(self):
+        return PrumoUtil.icone("fixador.svg")
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+
+def parafusamentos(doc, barra=None, grupo=None):
+    return [o for o in doc.Objects if "ItensParafusos" in o.PropertiesList
+            and (barra is None or o.Barra == barra) and (grupo is None or o.Grupo == grupo)]
+
+
+def por_parafusos(barras, grupo, m, aperto=0.0, material=""):
+    """Um parafusamento por barra para o grupo de furos (cria ou atualiza). Devolve os objetos."""
+    res = []
+    for b in barras:
+        doc = b.Document
+        ex = parafusamentos(doc, b, grupo)
+        o = ex[0] if ex else doc.addObject("Part::FeaturePython", "Parafusos")
+        if not ex:
+            Parafusamento(o)
+            o.Barra, o.Grupo = b, grupo
+            if FreeCAD.GuiUp:
+                VPParafusamento(o.ViewObject)
+                try:
+                    mat = FreeCAD.Material()
+                    mat.DiffuseColor = (0.62, 0.64, 0.66)
+                    o.ViewObject.ShapeAppearance = [mat]
+                except Exception:
+                    pass
+            est = b.Estrutura
+            try:
+                est.addObject(o)
+            except Exception:
+                pass
+        o.Diametro, o.Aperto, o.Material = m, aperto, material
+        res.append(o)
+    return res
+
+
+def tirar_parafusos(doc, grupo, barras=None):
+    for o in parafusamentos(doc, grupo=grupo):
+        if barras is None or o.Barra in barras:
+            doc.removeObject(o.Name)
+
+
+def itens_bom(obj):
+    """[(quantidade, tipo, rosca, comprimento)] de um parafusamento, para a lista de materiais."""
+    res = []
+    for l in obj.ItensParafusos:
+        q, t, m, c = (l.split("|") + ["", "", "", ""])[:4]
+        try:
+            res.append((int(q), t, m, float(c.replace(",", ".")) if c else 0.0))
+        except ValueError:
+            continue
+    return res
+
+
+# ============================================================================ tabela de furos (desenho)
+NOME_TABELA = "TabelaFuros"
+COLS_TABELA = ["Barra", "Furo", "Onde", "Medido de", "Distância (mm)", "Transversal (mm)", "Ø (mm)", "Parafuso"]
+LARG_TABELA = [120, 45, 110, 80, 100, 110, 60, 75]
+
+
+def linhas_furos(objs):
+    """Uma linha por furo das barras: (barra, nº, onde, medido de, distância da ponta, transversal, Ø, parafuso).
+
+    A distância vale da ponta da linha indicada (início ou fim), como a oficina marca; a transversal, do
+    centro da face (alma: na altura; mesas: na largura)."""
+    barras = []
+    for o in objs:
+        if E.eh_estrutura(o):
+            barras += E.barras_de(o)
+        elif E.eh_barra(o):
+            barras.append(o)
+    vistos, res = set(), []
+    for b in barras:
+        if b.Name in vistos or b.Estrutura is None:
+            continue
+        vistos.add(b.Name)
+        est = b.Estrutura
+        e = E.arestas(est.Esqueleto)[b.Indice]
+        n = 0
+        for f in E.furos_da_barra(est, b.Indice):
+            filas = 2 if int(f.get("filas", 1)) >= 2 else 1
+            gab, desloc = float(f.get("gab", 0)), float(f.get("desloc", 0))
+            transv = [desloc] if filas == 1 else [desloc - gab / 2.0, desloc + gab / 2.0]
+            lados = {"Mesa de cima": ["mesa de cima"], "Mesa de baixo": ["mesa de baixo"],
+                     "As duas mesas": ["mesa de cima", "mesa de baixo"]}.get(f.get("face"), ["alma"])
+            ref = f.get("ref", "inicio")
+            for x in E._pos_furos(e, f):
+                if x < -1e-6 or x > e.Length + 1e-6:
+                    continue
+                d = x if ref == "inicio" else e.Length - x
+                for lado in lados:
+                    for w in transv:
+                        n += 1
+                        res.append((b.Label, n, lado, "início" if ref == "inicio" else "fim", d, w,
+                                    float(f.get("diam", 0)), f.get("parafuso") or "—"))
+    return res
+
+
+def gravar_tabela(doc, linhas):
+    sheet = doc.getObject(NOME_TABELA)
+    if sheet is None:
+        sheet = doc.addObject("Spreadsheet::Sheet", NOME_TABELA)
+        sheet.Label = "Tabela de furos"
+    else:
+        sheet.clearAll()
+    letras = "ABCDEFGH"
+    for i, (c, w) in enumerate(zip(COLS_TABELA, LARG_TABELA)):
+        sheet.set("%s1" % letras[i], c)
+        sheet.setColumnWidth(letras[i], w)
+    sheet.setStyle("A1:H1", "bold")
+    sheet.setBackground("A1:H1", (0.0, 0.227, 0.439))
+    sheet.setForeground("A1:H1", (1.0, 1.0, 1.0))
+    sheet.setAlignment("A1:H1", "center|vcenter")
+    for r, (bl, n, onde, ref, d, w, diam, par) in enumerate(linhas, 2):
+        sheet.set("A%d" % r, "'" + bl)
+        sheet.set("B%d" % r, str(n))
+        sheet.set("C%d" % r, "'" + onde)
+        sheet.set("D%d" % r, "'" + ref)
+        sheet.set("E%d" % r, "'" + fmt(d, 1))
+        sheet.set("F%d" % r, "'" + fmt(w, 1))
+        sheet.set("G%d" % r, "'" + (fmt(diam, 0) if abs(diam - round(diam)) < 1e-6 else fmt(diam, 1)))
+        sheet.set("H%d" % r, "'" + par)
+    if linhas:
+        sheet.setAlignment("B2:H%d" % (len(linhas) + 1), "center|vcenter")
+    doc.recompute()
+    return sheet
+
+
+def inserir_tabela_na_folha(page, sheet, n_linhas):
+    """Tabela de furos no canto superior esquerdo do quadro (a lista de materiais fica embaixo, à direita)."""
+    import PrumoBOM as B
+    doc = page.Document
+    vista = next((v for v in page.Views if v.TypeId == "TechDraw::DrawViewSpreadsheet" and v.Source == sheet),
+                 None)
+    if vista is None:
+        vista = doc.addObject("TechDraw::DrawViewSpreadsheet", "VistaTabelaFuros")
+        vista.Label = "Tabela de furos"
+        vista.Source = sheet
+        page.addView(vista)
+    vista.CellStart = "A1"
+    vista.CellEnd = "H%d" % (n_linhas + 1)
+    alt_px = float(sheet.getRowHeight("1")) or 30.0
+    escala = B.ALTURA_LINHA_MM / (alt_px * B.PX_MM)
+    try:
+        vista.ScaleType = "Custom"
+    except Exception:
+        pass
+    vista.Scale = escala
+    vista.TextSize = B.TEXTO_MM / (B.PX_MM * escala)
+    vista.LineWidth = 0.35 / B.PX_MM
+    try:
+        alt = float(page.Template.Height)
+        esq, _d, sup, _inf = B.margens_da_folha(page)
+        w = sum(LARG_TABELA) * B.PX_MM * escala
+        h = sum(sheet.getRowHeight(str(r)) for r in range(1, n_linhas + 2)) * B.PX_MM * escala
+        vista.X = esq + 5.0 + w / 2.0
+        vista.Y = alt - sup - 5.0 - h / 2.0
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: posição da tabela de furos: %s\n" % exc)
+    doc.recompute()
+    return vista
+
+
+class CmdTabelaFuros:
+    def GetResources(self):
+        return {"Pixmap": PrumoUtil.icone("lista_corte.svg"), "MenuText": "Tabela de furos",
+                "ToolTip": "Planilha com cada furo das barras (onde, distância da ponta, transversal, Ø e "
+                           "parafuso). Com uma folha de desenho aberta, coloca a tabela na folha."}
+
+    def IsActive(self):
+        return FreeCAD.ActiveDocument is not None
+
+    def Activated(self):
+        doc = FreeCAD.ActiveDocument
+        objs = FreeCADGui.Selection.getSelection() or doc.Objects
+        linhas = linhas_furos(objs)
+        if not linhas:
+            QtWidgets.QMessageBox.information(FreeCADGui.getMainWindow(), "Tabela de furos",
+                                              "Nenhuma barra com furos. Use Trabalhos na barra para furar.")
+            return
+        doc.openTransaction("Tabela de furos")
+        sheet = gravar_tabela(doc, linhas)
+        page = None
+        try:
+            mdi = FreeCADGui.getMainWindow().centralWidget().activeSubWindow()
+            titulo = mdi.windowTitle() if mdi else ""
+            page = next((p for p in doc.Objects if p.isDerivedFrom("TechDraw::DrawPage") and p.Label in titulo),
+                        None)
+        except Exception:
+            page = None
+        if page is not None:
+            inserir_tabela_na_folha(page, sheet, len(linhas))
+        doc.commitTransaction()
+
+
 class PainelTrabalhos(P.PainelTarefa):
     titulo = "Trabalhos na barra"
     ajuda = ("Corte das pontas soltas e furos nas barras da estrutura. A barra continua barra: a lista de "
@@ -172,9 +507,17 @@ class PainelTrabalhos(P.PainelTarefa):
                             "(gabarito).", "Entre filas")
         self.desloc = s3.linha("posicao", P.numero(0.0, -2000.0, 2000.0), "Desloca as filas em relação ao "
                                "centro da face.", "Deslocamento")
+        self.por_parafuso = P.marcar("Pôr parafuso, arruela e porca nos furos", False)
+        s3.widget(self.por_parafuso)
+        self.aperto = s3.linha("espessura", P.numero(0.0, 0.0, 500.0), "Espessura da peça presa junto com a "
+                               "barra (chapa, cantoneira); entra no comprimento do parafuso.", "Peça presa")
+        self.mat_paraf = s3.linha("material", QtWidgets.QLineEdit("Aço classe 8.8"), "Material / classe dos "
+                                  "parafusos para a lista de materiais.", "Classe do parafuso")
         self.parafuso.currentIndexChanged.connect(self._parafuso_mudou)
         self.face_furo.currentIndexChanged.connect(self._face_mudou)
         self.furar.toggled.connect(self._habilitar)
+        self.por_parafuso.toggled.connect(self._habilitar)
+        self.parafuso.currentIndexChanged.connect(self._habilitar)
         self.id_grupo = "tb-" + uuid.uuid4().hex[:8]
         self._carregado = False
         self._habilitar()
@@ -204,8 +547,11 @@ class PainelTrabalhos(P.PainelTarefa):
     def _habilitar(self, *_a):
         on = self.furar.isChecked()
         for w in (self.face_furo, self.parafuso, self.diam, self.ref, self.dist, self.qtd, self.passo,
-                  self.filas, self.gab, self.desloc):
+                  self.filas, self.gab, self.desloc, self.por_parafuso):
             w.setEnabled(on)
+        com = on and self.por_parafuso.isChecked() and self.parafuso.currentText() != "Sem parafuso"
+        self.aperto.setEnabled(com)
+        self.mat_paraf.setEnabled(com)
 
     # ---- o que já está gravado nas barras
     def _carregar_da_barra(self, b):
@@ -231,6 +577,11 @@ class PainelTrabalhos(P.PainelTarefa):
             self.filas.setCurrentIndex(1 if int(g.get("filas", 1)) >= 2 else 0)
             self.gab.setValue(float(g.get("gab", 0)))
             self.desloc.setValue(float(g.get("desloc", 0)))
+            ps = parafusamentos(b.Document, b, self.id_grupo)
+            self.por_parafuso.setChecked(bool(ps))
+            if ps:
+                self.aperto.setValue(ps[0].Aperto.Value)
+                self.mat_paraf.setText(ps[0].Material)
 
     def atualizar(self):
         bs = self.barras.valores()
@@ -284,6 +635,10 @@ class PainelTrabalhos(P.PainelTarefa):
         if "face" in (self.p0.valor(), self.p1.valor()) and not self.face.valores():
             return "Pela face: selecione a face plana (piso, laje, chapa) onde a barra é cortada."
         g = self.grupo_furos()
+        if g and self.por_parafuso.isChecked() and not g[0]["parafuso"]:
+            return "Para pôr parafusos, escolha o parafuso (M12, M16...)."
+        if g and g[0]["parafuso"] and self.por_parafuso.isChecked() and g[0]["diam"] < float(g[0]["parafuso"][1:]):
+            return "O furo é menor que o parafuso: aumente o diâmetro do furo."
         if g and g[0]["qtd"] > 1 and g[0]["passo"] <= 0:
             return "Furos: informe o espaçamento entre os furos."
         return None
@@ -291,10 +646,18 @@ class PainelTrabalhos(P.PainelTarefa):
     def executar(self):
         bs = self.barras.valores()
         pl = self.face.valores()[0] if self.face.valores() else None
-        est = aplicar(bs, {0: self.p0.valor(), 1: self.p1.valor()}, self.grupo_furos(), self.id_grupo, pl)
+        g = self.grupo_furos()
+        est = aplicar(bs, {0: self.p0.valor(), 1: self.p1.valor()}, g, self.id_grupo, pl)
         if est is not None:
             for b in E.barras_de(est):
                 b.touch()
+            doc = est.Document
+            if g and self.por_parafuso.isChecked() and g[0]["parafuso"]:
+                tirar_parafusos(doc, self.id_grupo, [o for o in E.barras_de(est) if o not in bs])
+                por_parafusos(bs, self.id_grupo, g[0]["parafuso"], self.aperto.value(),
+                              self.mat_paraf.text().strip())
+            else:
+                tirar_parafusos(doc, self.id_grupo)
         return bs
 
     def pronto_texto(self):
@@ -323,3 +686,4 @@ class CmdTrabalhosBarra:
 
 def registrar_comandos():
     FreeCADGui.addCommand("Prumo_TrabalhosBarra", CmdTrabalhosBarra())
+    FreeCADGui.addCommand("Prumo_TabelaFuros", CmdTabelaFuros())

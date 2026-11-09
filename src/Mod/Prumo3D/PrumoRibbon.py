@@ -263,7 +263,7 @@ TABS = [
         ]),
         ("Solda", [
             ("Prumo_Solda", L, "Cordão de\nsolda"), ("Prumo_ListaSoldas", S, "Lista de soldas"),
-            ("Prumo_ListaDeCorte", S, "Lista de corte"),
+            ("Prumo_ListaDeCorte", S, "Lista de corte"), ("Prumo_TabelaFuros", S, "Tabela de furos"),
         ]),
         # parafusos, porcas e arruelas: na aba Componentes
         ("Calcular", [

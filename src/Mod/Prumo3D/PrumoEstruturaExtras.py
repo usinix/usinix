@@ -334,7 +334,11 @@ class PlacaBase(_Base):
         k = PONTAS.index(obj.Ponta)
         p, fora, sec, ang = ponta(b, k)
         if abs(ang) > 1e-6:
-            raise ValueError("a ponta tem corte inclinado (%s°): a placa vale só para corte reto" % fmt(ang, 0))
+            corte = _corte_da_ponta_solta(b, k)
+            if corte is None:
+                raise ValueError("a ponta tem corte inclinado (%s°) de canto: a placa vale para corte reto ou para "
+                                 "a ponta solta cortada em Trabalhos na barra" % fmt(ang, 0))
+            return self._forma_no_corte(obj, b, sec, *corte)
         L, C, t = obj.Largura.Value, obj.Comprimento.Value, obj.Espessura.Value
         if L <= 0 or C <= 0 or t <= 0:
             raise ValueError("medidas da placa precisam ser positivas")
@@ -367,6 +371,74 @@ class PlacaBase(_Base):
         if n:
             den += " — %d furos Ø%s" % (n, fmt_dim(dfuro))
         return sh.removeSplitter() if hasattr(sh, "removeSplitter") else sh, den
+
+
+    def _forma_no_corte(self, obj, b, sec, face_corte, fora):
+        """Placa deitada no plano do corte da ponta (Trabalhos na barra: horizontal, vertical, pela face).
+
+        Comprimento: no sentido da barra (projetado no plano do corte); largura: na outra direção."""
+        import Part
+        L, C, t = obj.Largura.Value, obj.Comprimento.Value, obj.Espessura.Value
+        if L <= 0 or C <= 0 or t <= 0:
+            raise ValueError("medidas da placa precisam ser positivas")
+        est = b.Estrutura
+        e = E.arestas(est.Esqueleto)[b.Indice]
+        tb = E._dir(e, True)
+        ec = tb - fora * tb.dot(fora)
+        if ec.Length < 1e-6:
+            ec = sec.v - fora * sec.v.dot(fora)
+        ec.normalize()
+        el = fora.cross(ec).normalize()
+        centro = face_corte.CenterOfMass
+        xs = [(v.Point - centro).dot(el) for v in face_corte.Vertexes]
+        ys = [(v.Point - centro).dot(ec) for v in face_corte.Vertexes]
+        hl, hc = L / 2.0, C / 2.0
+        if max(abs(x) for x in xs) > hl + 1e-6 or max(abs(y) for y in ys) > hc + 1e-6:
+            raise ValueError("a placa (%s × %s) é menor que o corte da barra (%s × %s)" % (
+                fmt_dim(L), fmt_dim(C), fmt_dim(max(xs) - min(xs)), fmt_dim(max(ys) - min(ys))))
+        face = _poligono([centro + el * x + ec * y for x, y in ((-hl, -hc), (hl, -hc), (hl, hc), (-hl, hc))])
+        sh = face.extrude(fora * t)
+        n = int(obj.Furos)
+        dfuro, borda = obj.DiametroFuro.Value, obj.DistanciaBorda.Value
+        if n:
+            if borda - dfuro / 2.0 <= 0 or borda >= min(hl, hc):
+                raise ValueError("distância da borda incompatível com o furo e a placa")
+            if n == 4:
+                pos = [(x, y) for x in (-hl + borda, hl - borda) for y in (-hc + borda, hc - borda)]
+            else:
+                pos = [(0, -hc + borda), (0, hc - borda)] if C >= L else [(-hl + borda, 0), (hl - borda, 0)]
+            for x, y in pos:
+                q = centro + el * x + ec * y
+                if face_corte.distToShape(Part.Vertex(q))[0] < dfuro / 2.0:
+                    raise ValueError("furo sobre o perfil: aumente a placa ou a distância da borda")
+                sh = sh.cut(Part.makeCylinder(dfuro / 2.0, t + 2, q - fora, fora))
+        den = "Placa de base %s × %s × %s mm" % (fmt_dim(L), fmt_dim(C), fmt_dim(t))
+        if n:
+            den += " — %d furos Ø%s" % (n, fmt_dim(dfuro))
+        return sh.removeSplitter() if hasattr(sh, "removeSplitter") else sh, den
+
+
+def _corte_da_ponta_solta(barra, k):
+    """(face do corte na barra, normal para fora) da ponta solta k cortada em Trabalhos na barra, ou None."""
+    est = barra.Estrutura
+    if est is None:
+        return None
+    eds = E.arestas_ativas(est, E.arestas(est.Esqueleto))
+    e = eds[barra.Indice]
+    if E.ligacoes(eds, barra.Indice)[k].tipo != "livre":
+        return None
+    pl = E.plano_da_ponta(e, k, E.ponta(est, barra.Indice, k))
+    if pl is None:
+        return None
+    q, n = pl
+    a = E._dir(e, k == 0) * -1
+    fora = n if n.dot(a) > 0 else n * -1
+    faces = [f for f in barra.Shape.Faces if f.Surface.__class__.__name__ == "Plane"
+             and abs(abs(f.normalAt(*_meio_param(f)).dot(fora)) - 1) < 1e-6
+             and abs((f.CenterOfMass - q).dot(fora)) < 1e-3]
+    if not faces:
+        return None
+    return max(faces, key=lambda f: f.Area), fora
 
 
 # ============================================================================ cordão de solda
