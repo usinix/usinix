@@ -94,6 +94,43 @@ EditModeConstraintCoinManager::EditModeConstraintCoinManager(
 EditModeConstraintCoinManager::~EditModeConstraintCoinManager()
 {}
 
+// Usinix ("modo limpo"): with ShowOnlySelectedConstraintIcons on, a geometric constraint is drawn only
+// when it touches the selection (curve or vertex), or is itself selected. Dimensions always show.
+bool EditModeConstraintCoinManager::constraintShownBySelection(
+    const ViewProviderSketch& vp,
+    const Sketcher::Constraint* constraint,
+    int constrId,
+    bool filterOn
+)
+{
+    using Attorney = SketcherGui::ViewProviderSketchCoinAttorney;
+    if (!filterOn || constraint->isDimensional()) {
+        return true;
+    }
+    if (!Attorney::hasSketchSelection(vp)) {
+        return false;
+    }
+    if (Attorney::isConstraintSelected(vp, constrId)) {
+        return true;
+    }
+    const std::pair<int, Sketcher::PointPos> elements[] = {
+        {constraint->First, constraint->FirstPos},
+        {constraint->Second, constraint->SecondPos},
+        {constraint->Third, constraint->ThirdPos},
+    };
+    for (const auto& [geoId, pos] : elements) {
+        if (geoId == Sketcher::GeoEnum::GeoUndef) {
+            continue;
+        }
+        // the curve itself, or this end of it
+        if (Attorney::isGeoElementSelected(vp, geoId, Sketcher::PointPos::none)
+            || (pos != Sketcher::PointPos::none && Attorney::isGeoElementSelected(vp, geoId, pos))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void EditModeConstraintCoinManager::updateVirtualSpace()
 {
     const std::vector<Sketcher::Constraint*>& constrlist
@@ -107,9 +144,11 @@ void EditModeConstraintCoinManager::updateVirtualSpace()
 
         SbBool* sws = editModeScenegraphNodes.constrGroup->enable.startEditing();
 
+        const bool filterOn = ViewProviderSketch::showOnlySelectedConstraintIcons();
         for (size_t i = 0; i < constrlist.size(); i++) {
             sws[i] = !(constrlist[i]->isInVirtualSpace != isshownvirtualspace)
-                && constrlist[i]->isVisible;  // XOR of constraint mode and VP mode
+                && constrlist[i]->isVisible  // XOR of constraint mode and VP mode
+                && constraintShownBySelection(viewProvider, constrlist[i], static_cast<int>(i), filterOn);
         }
 
 
@@ -2324,6 +2363,8 @@ void EditModeConstraintCoinManager::drawConstraintIcons(const GeoListFacade& geo
 
     std::vector<constrIconQueueItem> iconQueue;
 
+    const bool iconFilterOn = ViewProviderSketch::showOnlySelectedConstraintIcons();
+
     int maxNumberOfConstraints = std::min(
         editModeScenegraphNodes.constrGroup->getNumChildren(),
         static_cast<int>(constraints.size())
@@ -2423,7 +2464,8 @@ void EditModeConstraintCoinManager::drawConstraintIcons(const GeoListFacade& geo
         thisIcon.infoPtr = infoPtr;
         thisIcon.visible = (constraint->isInVirtualSpace
                             == ViewProviderSketchCoinAttorney::isShownVirtualSpace(viewProvider))
-            && constraint->isVisible;
+            && constraint->isVisible
+            && constraintShownBySelection(viewProvider, constraint, constrId, iconFilterOn);
 
         if (constraint->Type == Symmetric) {
             Base::Vector3d startingpoint

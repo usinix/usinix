@@ -2300,6 +2300,7 @@ void ViewProviderSketch::onSelectionChanged(const Gui::SelectionChanges& msg)
                 clearSelectPoints();
                 selection.SelCurvSet.clear();
                 selection.SelConstraintSet.clear();
+                refreshConstraintSelectionFilter();
                 editCoinManager->drawConstraintIcons();
                 updateColor();
             }
@@ -2339,6 +2340,9 @@ void ViewProviderSketch::onSelectionChanged(const Gui::SelectionChanges& msg)
                         if (!selection.selectionBuffering) {
                             editCoinManager->drawConstraintIcons();
                         }
+                    }
+                    if (!selection.selectionBuffering) {
+                        refreshConstraintSelectionFilter();
                     }
                     updateColor();
                 }
@@ -2383,6 +2387,7 @@ void ViewProviderSketch::onSelectionChanged(const Gui::SelectionChanges& msg)
                             selection.SelConstraintSet.erase(ConstrId);
                             editCoinManager->drawConstraintIcons();
                         }
+                        refreshConstraintSelectionFilter();
                         updateColor();
                     }
                 }
@@ -2817,6 +2822,7 @@ void ViewProviderSketch::doBoxSelection(const SbVec2s& startPos, const SbVec2s& 
     }
 
     selection.selectionBuffering = false;
+    refreshConstraintSelectionFilter();
     editCoinManager->drawConstraintIcons();
     updateColor();
 }
@@ -2972,6 +2978,7 @@ bool ViewProviderSketch::selectAll()
     }
 
     selection.selectionBuffering = false;
+    refreshConstraintSelectionFilter();
     editCoinManager->drawConstraintIcons();
     updateColor();
 
@@ -4581,6 +4588,53 @@ bool ViewProviderSketch::isCurveSelected(int curveId) const
 bool ViewProviderSketch::isConstraintSelected(int constraintId) const
 {
     return selection.SelConstraintSet.find(constraintId) != selection.SelConstraintSet.end();
+}
+
+bool ViewProviderSketch::showOnlySelectedConstraintIcons()
+{
+    ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/Sketcher/General"
+    );
+    return hGrp->GetBool("ShowOnlySelectedConstraintIcons", true);
+}
+
+bool ViewProviderSketch::hasSketchSelection() const
+{
+    return !selection.SelPointSet.empty() || !selection.SelCurvSet.empty()
+        || !selection.SelConstraintSet.empty();
+}
+
+bool ViewProviderSketch::isGeoElementSelected(int geoId, Sketcher::PointPos pos) const
+{
+    if (geoId == Sketcher::GeoEnum::GeoUndef) {
+        return false;
+    }
+    if (pos == Sketcher::PointPos::none) {
+        return isCurveSelected(geoId);
+    }
+    if (geoId == Sketcher::GeoEnum::RtPnt && pos == Sketcher::PointPos::start) {
+        return isPointSelected(Selection::RootPoint);
+    }
+    if (selection.SelPointSet.empty()) {
+        return false;
+    }
+    int vertexId = getSketchObject()->getVertexIndexGeoPos(geoId, pos);
+    return vertexId >= 0 && isPointSelected(vertexId);
+}
+
+void ViewProviderSketch::refreshConstraintSelectionFilter()
+{
+    if (!isInEditMode() || !editCoinManager) {
+        return;
+    }
+    const bool filterOn = showOnlySelectedConstraintIcons();
+    // with the filter off nothing depends on the selection; redraw once more when it was just turned off
+    if (!filterOn && !constraintFilterWasOn) {
+        return;
+    }
+    constraintFilterWasOn = filterOn;
+    editCoinManager->updateVirtualSpace();
+    editCoinManager->drawConstraintIcons();
 }
 
 void ViewProviderSketch::executeOnSelectionPointSet(

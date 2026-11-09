@@ -140,6 +140,14 @@ public:
     void createEditModeInventorNodes();
 
 private:
+    // Usinix ("modo limpo"): whether a constraint is shown, given the current selection
+    static bool constraintShownBySelection(
+        const ViewProviderSketch& vp,
+        const Sketcher::Constraint* constraint,
+        int constrId,
+        bool filterOn
+    );
+
     void rebuildConstraintNodes(const GeoListFacade& geolistfacade);  // with specific geometry
 
     void rebuildConstraintNodes(

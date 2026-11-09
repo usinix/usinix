@@ -327,7 +327,7 @@ def apply_background(force=False):
 VIEW_COLORS = {
     # seleção e pré-seleção
     "HighlightColor": "#F7BE00",
-    "SelectionColor": "#0B5CAD",
+    "SelectionColor": "#D6197A",      # magenta: não se confunde com as linhas (azul), restritas (verde) nem o realce (âmbar)
     # eixos
     "AxisXColor": "#C2412D",
     "AxisYColor": "#2E8B6A",
@@ -367,11 +367,11 @@ NAVICUBE = {
     "int": {"InactiveOpacity": 75, "FontWeight": 63},
     "float": {"BorderWidth": 1.4, "FontZoom": 0.3},
 }
-VIEW_COLORS_VERSION = 6
+VIEW_COLORS_VERSION = 7
 
 # Tema escuro: o que muda em relação às cores acima (linhas azul-marinho somem no fundo escuro)
 VIEW_COLORS_ESC = {
-    "SelectionColor": "#5AA2EB",
+    "SelectionColor": "#FF5FB0",
     "SketchEdgeColor": "#8CBCEB", "SketchVertexColor": "#8CBCEB",
     "EditedEdgeColor": "#E3ECF5", "EditedVertexColor": "#F1F4F8",
     "ConstructionColor": "#7FA8D6", "InternalAlignedGeoColor": "#5F7F9F",

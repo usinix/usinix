@@ -115,6 +115,8 @@ private:
     static inline bool isPointSelected(const ViewProviderSketch& vp, int pointId);
     static inline bool isCurveSelected(const ViewProviderSketch& vp, int curveId);
     static inline bool isConstraintSelected(const ViewProviderSketch& vp, int constraintId);
+    static inline bool isGeoElementSelected(const ViewProviderSketch& vp, int geoId, Sketcher::PointPos pos);
+    static inline bool hasSketchSelection(const ViewProviderSketch& vp);
 
     static inline void executeOnSelectionPointSet(
         const ViewProviderSketch& vp,
@@ -281,6 +283,20 @@ inline bool ViewProviderSketchCoinAttorney::isConstraintSelected(
 )
 {
     return vp.isConstraintSelected(constraintId);
+}
+
+inline bool ViewProviderSketchCoinAttorney::isGeoElementSelected(
+    const ViewProviderSketch& vp,
+    int geoId,
+    Sketcher::PointPos pos
+)
+{
+    return vp.isGeoElementSelected(geoId, pos);
+}
+
+inline bool ViewProviderSketchCoinAttorney::hasSketchSelection(const ViewProviderSketch& vp)
+{
+    return vp.hasSketchSelection();
 }
 
 inline void ViewProviderSketchCoinAttorney::executeOnSelectionPointSet(

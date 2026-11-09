@@ -513,6 +513,10 @@ public:
     };
 
 public:
+    /// Usinix ("modo limpo"): show the icons of geometric constraints only for the selected geometry
+    /// (dimensions are always shown). Parameter Mod/Sketcher/General/ShowOnlySelectedConstraintIcons.
+    static bool showOnlySelectedConstraintIcons();
+
     /// constructor
     ViewProviderSketch();
     /// destructor
@@ -924,6 +928,16 @@ private:
     bool isCurveSelected(int curveId) const;
 
     bool isConstraintSelected(int constraintId) const;
+
+    /// Usinix: true if the curve (pos == none) or the vertex (geoId, pos) is selected
+    bool isGeoElementSelected(int geoId, Sketcher::PointPos pos) const;
+
+    /// Usinix: true if anything of this sketch is selected
+    bool hasSketchSelection() const;
+
+    /// Usinix: redraws constraint icons when only the selection's constraints are shown
+    void refreshConstraintSelectionFilter();
+    bool constraintFilterWasOn {true};  // Usinix: last state of ShowOnlySelectedConstraintIcons
 
     //********* ViewProviderSketchDrawSketchHandlerAttorney **********//
     void setConstraintSelectability(bool enabled = true);

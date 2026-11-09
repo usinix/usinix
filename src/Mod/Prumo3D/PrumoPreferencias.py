@@ -13,6 +13,7 @@ import PrumoUI as UI
 
 PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/Prumo3D"
 UNIDADES_PATH = "User parameter:BaseApp/Preferences/Units"
+SKETCHER_PATH = "User parameter:BaseApp/Preferences/Mod/Sketcher/General"
 
 # (parâmetro, rótulo, padrão, vale só ao reabrir?)
 APARENCIA = [("TelaInicial", "Mostrar a tela inicial ao abrir", True, False),
@@ -40,6 +41,18 @@ ESQUEMAS_PT = {"Internal": "Padrão (mm, kg, s, graus)", "MKS": "MKS (m, kg, s, 
 
 def _p():
     return FreeCAD.ParamGet(PARAM_PATH)
+
+
+def redesenhar_esboco_aberto():
+    """Esboço em edição: liga e desliga o espaço virtual, o que refaz os ícones das restrições na hora."""
+    try:
+        gd = FreeCADGui.ActiveDocument
+        vp = gd.getInEdit() if gd else None
+        if vp is not None and vp.Object.TypeId == "Sketcher::SketchObject":
+            FreeCADGui.runCommand("Sketcher_SwitchVirtualSpace")
+            FreeCADGui.runCommand("Sketcher_SwitchVirtualSpace")
+    except Exception:
+        pass
 
 
 def _u():
@@ -71,7 +84,7 @@ class JanelaPreferencias(QtWidgets.QDialog):
         self._mouse()
         self._grupo("Aparência", "aparencia", APARENCIA)
         self._grupo("Painel lateral", "arvore", PAINEL)
-        self._grupo("Esboço", "esboco", ESBOCO)
+        self._modo_limpo(self._grupo("Esboço", "esboco", ESBOCO))
         self._unidades()
         self._atualizacao()
         self._programacao()
@@ -100,6 +113,19 @@ class JanelaPreferencias(QtWidgets.QDialog):
             self.campos[chave] = sw
         self.col.addWidget(c)
         return c
+
+    def _modo_limpo(self, cartao):
+        """Modo limpo do esboço: ícones de restrição só da geometria selecionada (as cotas ficam sempre).
+        É lido pelo próprio esboço (parâmetro do Sketcher), por isso fica fora da lista ESBOCO."""
+        g = FreeCAD.ParamGet(SKETCHER_PATH)
+        sw = UI.Interruptor(g.GetBool("ShowOnlySelectedConstraintIcons", True))
+
+        def mudar(on):
+            g.SetBool("ShowOnlySelectedConstraintIcons", bool(on))
+            redesenhar_esboco_aberto()
+        sw.toggled.connect(mudar)
+        cartao.linha("Ícones das restrições só da linha ou ponto selecionado (modo limpo)", sw)
+        self.campos["modo_limpo"] = sw
 
     def _aplicar(self, chave):
         """Opções que valem na hora."""

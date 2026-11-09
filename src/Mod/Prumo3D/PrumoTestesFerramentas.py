@@ -15871,6 +15871,114 @@ class T114DesenhoInserirPeca(unittest.TestCase):
         self.assertFalse(hasattr(p, "retrato"))
 
 
+class T115EsbocoModoLimpoECorSelecao(unittest.TestCase):
+    """Esboço: modo limpo (ícones de restrição só da geometria selecionada, cotas sempre) e cor de seleção que
+    não se confunde com as linhas, as restritas, as externas nem o realce."""
+
+    SK = "User parameter:BaseApp/Preferences/Mod/Sketcher/General"
+
+    def test_cor_de_selecao_destacada(self):
+        from PySide import QtGui
+        import PrumoEstilo as E
+        for tabela in (E.VIEW_COLORS, dict(E.VIEW_COLORS, **E.VIEW_COLORS_ESC)):
+            sel = QtGui.QColor(tabela["SelectionColor"])
+            for chave in ("SketchEdgeColor", "SketchVertexColor", "EditedEdgeColor", "FullyConstraintElementColor",
+                          "ConstructionColor", "ExternalColor", "HighlightColor", "InvalidSketchColor"):
+                outra = QtGui.QColor(tabela[chave])
+                d = abs(sel.hslHue() - outra.hslHue()) if outra.hslSaturation() > 40 else 180
+                d = min(d, 360 - d)
+                self.assertGreaterEqual(d, 25, "seleção %s parecida com %s %s" % (tabela["SelectionColor"], chave,
+                                                                                  tabela[chave]))
+        self.assertGreaterEqual(E.VIEW_COLORS_VERSION, 7, "versão das cores sobe para reaplicar em quem já tinha")
+
+    def test_preferencia_do_modo_limpo(self):
+        g = FreeCAD.ParamGet(self.SK)
+        antes = g.GetBool("ShowOnlySelectedConstraintIcons", True)
+        self.addCleanup(lambda: g.SetBool("ShowOnlySelectedConstraintIcons", antes))
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoPreferencias as P
+        j = P.JanelaPreferencias()
+        try:
+            sw = j.campos["modo_limpo"]
+            sw.setChecked(False)
+            self.assertFalse(g.GetBool("ShowOnlySelectedConstraintIcons", True))
+            sw.setChecked(True)
+            self.assertTrue(g.GetBool("ShowOnlySelectedConstraintIcons", False))
+        finally:
+            j.close()
+
+    def test_icones_so_da_selecao(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import time
+        import Part
+        import Sketcher
+        from PySide import QtWidgets
+        from pivy import coin
+        g = FreeCAD.ParamGet(self.SK)
+        antes = g.GetBool("ShowOnlySelectedConstraintIcons", True)
+        self.addCleanup(lambda: g.SetBool("ShowOnlySelectedConstraintIcons", antes))
+        g.SetBool("ShowOnlySelectedConstraintIcons", True)
+        V = FreeCAD.Vector
+        doc = novo_doc("PrumoTesteModoLimpo")
+        self.addCleanup(lambda: fechar(doc))
+        sk = doc.addObject("Sketcher::SketchObject", "Esboco")
+        p = [V(0, 0, 0), V(100, 0, 0), V(100, 60, 0), V(0, 60, 0)]
+        for i in range(4):
+            sk.addGeometry(Part.LineSegment(p[i], p[(i + 1) % 4]))
+        C = Sketcher.Constraint
+        for i in range(4):
+            sk.addConstraint(C("Coincident", i, 2, (i + 1) % 4, 1))
+        geo = [sk.addConstraint(C("Horizontal", 0)), sk.addConstraint(C("Horizontal", 2)),
+               sk.addConstraint(C("Vertical", 1)), sk.addConstraint(C("Vertical", 3))]
+        cota = sk.addConstraint(C("DistanceX", 0, 1, 0, 2, 100))
+        doc.recompute()
+
+        def esp(s=0.6):
+            fim = time.time() + s
+            while time.time() < fim:
+                QtWidgets.QApplication.processEvents()
+                time.sleep(0.02)
+
+        def ligados():
+            sa = coin.SoSearchAction()
+            sa.setType(coin.SoType.fromName("SmSwitchboard"))
+            sa.setInterest(coin.SoSearchAction.ALL)
+            sa.apply(FreeCADGui.ActiveDocument.ActiveView.getSceneGraph())   # nós da edição ficam na cena
+            for i in range(sa.getPaths().getLength()):
+                n = sa.getPaths()[i].getTail()
+                if n.enable.getNum() == len(sk.Constraints) == n.getNumChildren():
+                    return [bool(n.enable[k]) for k in range(n.enable.getNum())]
+            return None
+
+        FreeCADGui.ActiveDocument.setEdit(sk.Name)
+        self.addCleanup(lambda: FreeCADGui.ActiveDocument.resetEdit())
+        esp(1.5)
+        FreeCADGui.Selection.clearSelection()
+        esp()
+        vis = ligados()
+        self.assertIsNotNone(vis, "grupo das restrições na cena do esboço")
+        if all(vis[i] for i in geo):
+            self.skipTest("binário sem o modo limpo (C++ anterior à 1.4.2)")
+        self.assertTrue(vis[cota], "cota sempre à vista")
+        self.assertFalse(any(vis[i] for i in geo), "nada selecionado: sem ícones de restrição")
+        FreeCADGui.Selection.addSelection(doc.Name, sk.Name, "Edge1")          # linha de baixo
+        esp()
+        vis = ligados()
+        self.assertTrue(vis[geo[0]], "horizontal da linha selecionada aparece")
+        self.assertFalse(vis[geo[1]] or vis[geo[2]] or vis[geo[3]], "as das outras linhas não")
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(doc.Name, sk.Name, "Vertex2")        # fim da linha de baixo
+        esp()
+        vis = ligados()
+        self.assertTrue(vis[geo[0]] and vis[geo[2]], "ponto selecionado: restrições das duas linhas que chegam nele")
+        g.SetBool("ShowOnlySelectedConstraintIcons", False)
+        FreeCADGui.Selection.clearSelection()
+        esp()
+        self.assertTrue(all(ligados()[i] for i in geo), "modo desligado: todas as restrições")
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -15899,4 +16007,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T92BarraDeVarredura, T93MenusComAcento, T94Sombras, T95SemDependerDeBancada, T96BarraDeVistas, T97CatalogoDePerfis, T98CliqueSempreResponde,
            T99PlanosNoNovoEsboco, T100IdeiasDeOutrosCAD,
            T101AdicionarOuRemoverMaterial, T102Componentes, T103DutosHVAC, T104ModelagemDireta,
-           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca]
+           T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca, T115EsbocoModoLimpoECorSelecao]
