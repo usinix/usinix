@@ -21,10 +21,10 @@ ADDON_DIR = os.path.dirname(os.path.abspath(__file__))
 RES_DIR = os.path.join(ADDON_DIR, "Resources")
 ICON_PATH = os.path.join(RES_DIR, "icons", "prumo.png")
 SPLASH_SRC = os.path.join(RES_DIR, "splash_image.png")
-# Tema "Usinix Claro": pacote de preferências embutido (share/Gui/PreferencePacks). O pacote do programa ainda
-# se chama "Prumo Claro" (src/Gui/PreferencePacks): a 1.4.0 procurava só "Usinix Claro", não achava e a abertura
-# do Usinix parava com "falha ao carregar o branding". A cópia ao lado do módulo é aceita para quem roda o módulo
-# solto, fora do programa compilado.
+# Tema "Usinix Claro": pacote de preferências embutido (share/Gui/PreferencePacks). Até a 1.4.1 o pacote do
+# programa se chamava "Prumo Claro" e a 1.4.0 procurava só "Usinix Claro": a abertura parava com "falha ao
+# carregar o branding". Os dois nomes valem (o complemento novo pode rodar num programa antigo). A cópia ao lado
+# do módulo é aceita para quem roda o módulo solto, fora do programa compilado.
 def _caminhos_do_tema():
     for pasta in (os.path.join(FreeCAD.getResourceDir(), "Gui", "PreferencePacks"), ADDON_DIR):
         for nome in ("Usinix Claro", "Prumo Claro"):

@@ -224,7 +224,7 @@ def baixar(url, destino, digest="", progresso=None, cancelado=None, timeout=30):
 
 
 def pasta_download():
-    p = os.path.join(tempfile.gettempdir(), "Prumo3D-atualizacao")
+    p = os.path.join(tempfile.gettempdir(), "Usinix-atualizacao")
     os.makedirs(p, exist_ok=True)
     return p
 

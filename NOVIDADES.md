@@ -81,12 +81,12 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 
 ### O CAD 3D da metal-mecânica
 
-O Prumo escolhe um lado: é para quem projeta, fabrica e inspeciona peças, máquinas, caldeiraria e
+O Usinix escolhe um lado: é para quem projeta, fabrica e inspeciona peças, máquinas, caldeiraria e
 estruturas de aço.
 
 - **Saíram do pacote** as bancadas que não são do ofício: arquitetura e BIM, usinagem CNC (CAM),
   robótica, OpenSCAD, nuvem de pontos, engenharia reversa, inspeção por malha e os importadores IDF e JT.
-  Quem tem o Prumo instalado deixa de ter essas bancadas ao instalar esta versão.
+  Quem tem o Usinix instalado deixa de ter essas bancadas ao instalar esta versão.
 - **Ficam por baixo**, sem aba: Draft (texto no esboço, Importar DXF, matriz em caminho) e Malhas (STL).
 - **Simulação continua** com aba própria, junto com o Teste de pressão dos Vasos e o Assistente de
   estruturas.
@@ -118,7 +118,7 @@ estruturas de aço.
   comprimento, raio e diâmetro, área, volume, centro de massa, distância mínima com ΔX/ΔY/ΔZ, distância
   entre centros, ângulo e soma de comprimentos/áreas. A distância aparece numa linha amarela na vista.
 - **Arredondar qualquer face:** face com cantos para fora e para dentro (como a do lado de um corte) não dá
-  mais "BRep_API: command not done" — o Prumo faz em duas etapas, com o mesmo raio.
+  mais "BRep_API: command not done" — o Usinix faz em duas etapas, com o mesmo raio.
 - **Aba Início:** Colar grande em Arquivo; Começar logo depois; o grupo Editar saiu.
 - **Aba Peça:** a seção Modelagem direta saiu (Extrudar face saiu — a Extrusão faz o mesmo); Desenhar na
   face, Linha guia e Peça pelas guias foram para Adicionar material.
@@ -131,7 +131,7 @@ estruturas de aço.
 
 - **Começar pela aba Início:** sem documento aberto, botões grandes **Peça**, **Esboço** e **Montagem**.
 - **Aba Peça reorganizada:** Vínculo de forma, Vínculo de subforma e Clonar à vista (saíram do Mais);
-  Recalcular grande com ícone do Prumo; Loft grande, com Varredura, Barra de varredura e Hélice em coluna;
+  Recalcular grande com ícone do Usinix; Loft grande, com Varredura, Barra de varredura e Hélice em coluna;
   Modelagem direta logo depois de Adicionar material; Matriz de furação na setinha da Multitransformação.
 - **Dutos de ar-condicionado dentro de Tubos e conexões:** linhas **Duto retangular** e **Duto redondo** de
   chapa galvanizada, ao lado das de água e aço, com as mesmas ferramentas (traçado, Esboço 3D, curvas,
@@ -172,7 +172,7 @@ estruturas de aço.
   transições (redondo–oval, retangular–redondo, retangular–oval) e flexível, com flanges e isolamento. Peças
   paramétricas de **Francisco Rosa** (FreeCAD Parts Library, CC-BY 3.0), com painel em português; "Editar duto"
   muda bocas, comprimento ou ângulo, chapa, flanges e isolamento.
-- **Modelagem direta** (ideias da bancada Direct, de Sergio Uhry, reescritas para o Prumo):
+- **Modelagem direta** (ideias da bancada Direct, de Sergio Uhry, reescritas para o Usinix):
   - **Extrudar face** (aba Peça): a face plana vira o perfil de uma Extrusão; o contorno é copiado, sem ligar
     na face, para não quebrar quando a peça mudar.
   - **Desenhar na face:** peça nova com o esboço no plano da face, sem ligação com a outra peça.
@@ -183,7 +183,7 @@ estruturas de aço.
   - **Matriz leve:** repetição por vínculos (o arquivo fica leve), por intervalo, vão livre ou dimensão total.
   - **Matriz de furação** (aba Peça, Padrões): o furo em colunas e linhas, sem duplicar o esboço.
 - **Explosão animada** (aba Montagem, Apresentar; ideia da bancada Exploded Assembly, código novo): passos de
-  explosão com as peças selecionadas, parafusos e porcas do Prumo girando enquanto saem da rosca, barra de 0 a
+  explosão com as peças selecionadas, parafusos e porcas do Usinix girando enquanto saem da rosca, barra de 0 a
   100 %, Tocar, trajetórias, e Montada volta tudo exatamente ao lugar.
 
 ### Correções
@@ -199,7 +199,7 @@ estruturas de aço.
   Ferramentas) põe tudo de volta.
 - **Tamanhos na aba Peça:** Recalcular, Verificar geometria, Validar esboço, Propriedades de massa e Lista de
   materiais em botão grande; Variantes da peça e Modelo com regras em botão pequeno.
-- **Ícones no padrão do Prumo:** Barra de varredura (agora diferente da Varredura), Texto, Importar DXF e
+- **Ícones no padrão do Usinix:** Barra de varredura (agora diferente da Varredura), Texto, Importar DXF e
   Matriz em caminho.
 - **A faixa não muda de altura** ao trocar de aba em telas estreitas (perdia 2 px no modo mais compacto).
 
@@ -208,7 +208,7 @@ estruturas de aço.
 ### Novidades
 
 - **Bancada instalada já ganha aba.** Um complemento instalado (ex.: Solar, Movie) aparece como aba na faixa logo
-  ao abrir o Prumo, sem ir em Preferências nem escolher a bancada no menu; clicar na aba abre a bancada com as
+  ao abrir o Usinix, sem ir em Preferências nem escolher a bancada no menu; clicar na aba abre a bancada com as
   ferramentas dela.
 - **Barra de varredura** (aba Peça, Adicionar material), como a do ZW3D: escolha o esboço (comum ou Esboço 3D) e
   cada linha vira uma barra, redonda ou quadrada, maciça ou tubo; as que se cruzam ou se encontram ficam unidas
@@ -227,11 +227,11 @@ estruturas de aço.
   Sólidos também saiu, porque Unir, Subtrair e Interseção já estão ao lado.
 - **Medir só no topo**, ao lado de Salvar (vale em todas as abas e não some mais com a janela estreita). Saiu
   das abas Início, Peça, Desenho, Estruturas, Vasos e Superfícies, onde estava repetido.
-- **Folha ABNT só na aba Desenho** (saiu do grupo Prumo da aba Peça, onde estava repetida).
+- **Folha ABNT só na aba Desenho** (saiu do grupo Usinix da aba Peça, onde estava repetida).
 - **Sem botão "Mais" de uma opção só.** Quando o "Mais" de um grupo teria uma ferramenta só, ela aparece direto
   no grupo. Na aba Peça, Padrões mostra Multitransformação ao lado de Padrão linear e circular.
 - **Recalcular na aba Peça**, no grupo Corpo, logo abaixo de Vínculo de forma (saiu da aba Início).
-- **Ícones da aba Chapa no padrão do Prumo** (cores, contorno e destaque em âmbar como as demais abas).
+- **Ícones da aba Chapa no padrão do Usinix** (cores, contorno e destaque em âmbar como as demais abas).
 - **Barra de vistas na vista 3D**, pequena, embaixo e no meio (como a barra flutuante dos outros CAD):
   enquadrar tudo e a seleção, isométrica, frontal, superior, direita (as outras vistas no menu ao lado),
   estilo de exibição, plano de corte e sombras. Aparece em toda vista 3D aberta. Com várias vistas abertas, o
@@ -240,7 +240,7 @@ estruturas de aço.
   "Plano YZ: lateral (direita)", na janela de orientação e na lista do painel da aba Peça. No SolidWorks e no
   Fusion a "frente" é o XY; aqui Z aponta para cima e a frente é o XZ.
 - **Mouse como no programa que você já usa.** Na tela inicial (até a primeira escolha) e em Preferências do
-  Prumo, cartão "Mouse da vista 3D": SolidWorks, Inventor / Fusion, Onshape, Siemens NX ou Blender. Girar,
+  Usinix, cartão "Mouse da vista 3D": SolidWorks, Inventor / Fusion, Onshape, Siemens NX ou Blender. Girar,
   arrastar e aproximar a vista passam a ser como no programa escolhido, e a rodinha aproxima onde está o cursor.
 - **Tecla S abre a caixa de ferramentas no cursor** (como no SolidWorks, Fusion e Onshape): com o mouse na vista
   3D, S mostra ali as ferramentas principais da aba e uma linha de busca para todas. Dentro do esboço o S
@@ -253,14 +253,14 @@ estruturas de aço.
   esboço, medidas e fórmulas, mesma posição na árvore, e o que vinha depois (padrões, fórmulas que citavam a
   operação) passa a apontar para a nova. Os dois botões continuam na faixa.
 - **A ferramenta segue a seleção:** selecionou uma aresta ou face de outro corpo e clicou em Arredondar, Chanfro,
-  Padrão etc.? O Prumo ativa esse corpo (com aviso na barra de status) em vez de recusar com "a seleção não está
+  Padrão etc.? O Usinix ativa esse corpo (com aviso na barra de status) em vez de recusar com "a seleção não está
   no corpo ativo". Desliga com a preferência AtivarCorpoDaSelecao.
 - **Escolha do perfil como num catálogo** (Estrutura metálica e Trocar perfil): a lista mostra a miniatura
   de cada seção com as medidas e a massa; ao lado, a prévia do perfil escolhido com as cotas do catálogo
   (altura, largura, espessuras, raio), massa e área. Busca por nome (ex.: "200 x 15").
 - **Detalhes técnicos do perfil** (botão "Ver detalhes técnicos…"): desenho grande com todas as cotas,
   chamadas das espessuras, CG e grade, e as propriedades da seção (Ix, Iy, Wx, Wy, Zx, Zy, rx, ry, J)
-  calculadas pelo Prumo.
+  calculadas pelo Usinix.
 - **Perfil customizado:** na família "Customizado", escolha o tipo (I, U, cantoneira, tubo quadrado,
   retangular ou redondo, barra chata, quadrada ou redonda) e digite as medidas. A massa sai pela geometria
   (aço, 7.850 kg/m³) e as medidas ficam guardadas no nome do perfil (ex.: "Customizado I 200 x 100 x 6,3 x 8"),
@@ -269,7 +269,7 @@ estruturas de aço.
 - **Nenhum clique fica sem resposta.** Se a ferramenta não pode rodar agora (sem projeto aberto, sem a
   seleção que ela pede, com um esboço ou painel aberto, fora de um esboço) o botão continua com cara de
   desligado, mas o clique mostra um aviso embaixo da janela dizendo o porquê e o que fazer. Se a ferramenta
-  roda e dá erro, o aviso mostra o erro (em português quando o Prumo conhece a mensagem). Vale para a faixa,
+  roda e dá erro, o aviso mostra o erro (em português quando o Usinix conhece a mensagem). Vale para a faixa,
   a barra de vistas e a busca de comandos.
 - **Abas reposicionáveis:** segure uma aba da faixa e arraste para mudar a ordem; a ordem fica gravada.
 - **Sombras na vista 3D** (botão Sombras na barra de vistas, marca e desmarca; vem desmarcado). Marcado,
@@ -288,18 +288,18 @@ estruturas de aço.
 
 - **Montagem: junta que não abria** com "Cannot access attribute 'clearUndo' of deleted object" depois de
   fechar uma montagem com o painel de junta aberto.
-- **Textos do Prumo trocados de volta pelo inglês/português do FreeCAD** (ex.: "Sempre" em vez de
-  "Sempre fixar") depois de abrir certas bancadas; o tradutor do Prumo volta para cima sozinho.
+- **Textos do Usinix trocados de volta pelo inglês/português do FreeCAD** (ex.: "Sempre" em vez de
+  "Sempre fixar") depois de abrir certas bancadas; o tradutor do Usinix volta para cima sozinho.
 
 - **Tela de abertura com a versão antiga depois de atualizar só o complemento** (ex.: mostrava 1.2.0). O
-  complemento agora leva a tela de abertura com a versão dele, e o Prumo a usa no lugar da que veio na
+  complemento agora leva a tela de abertura com a versão dele, e o Usinix a usa no lugar da que veio na
   instalação.
 - **Aviso "Networkx dependency is missing" ao abrir (aba Chapa).** O planificador novo da Chapa precisa da
   biblioteca networkx, que não vinha no pacote; agora vem (e o empacotamento confere).
 
 - **Ferramentas presas às bancadas antigas.** Chapa, Planilha (Nova planilha, tabela de fator K), Desenho,
   Montagem e Superfícies só passavam a existir depois de entrar na aba delas; antes disso a busca de comandos,
-  o menu de contexto e os botões chamados de outro lugar não achavam a ferramenta. Agora o Prumo registra tudo
+  o menu de contexto e os botões chamados de outro lugar não achavam a ferramenta. Agora o Usinix registra tudo
   logo ao abrir (sem trocar de aba), e cada ferramenta funciona de qualquer aba.
 
 - **Aviso "Failed to disconnect (None) from signal linkActivated" no console** ao trocar o aviso do guia
@@ -327,7 +327,7 @@ estruturas de aço.
 ### Novidades
 
 - **Junta inteligente na montagem** (como no SolidWorks). Escolha duas faces, arestas ou pontos, um em cada peça,
-  e clique em Junta inteligente (ou clique nela antes e depois nos dois elementos): o Prumo entende a forma e põe
+  e clique em Junta inteligente (ou clique nela antes e depois nos dois elementos): o Usinix entende a forma e põe
   a junta certa, com a peça já no lugar — eixo e furo viram concêntrica; duas bordas redondas, concêntrica
   encostada (cabeça do parafuso no furo); duas faces planas, coincidente; cilindro ou esfera numa face plana,
   tangente; duas esferas, rótula. O painel mostra a junta escolhida e o porquê; dá para trocar antes do OK.
@@ -417,22 +417,22 @@ estruturas de aço.
 
 - **Atualização só do complemento (poucos MB).** A partir desta versão, cada versão nova publica também
   `Prumo3D_<versão>-complemento.zip` (cerca de 5 MB, contra centenas de MB do pacote completo). Em Ajuda →
-  Sobre → Verificar atualizações, quando ele serve, o Prumo baixa só esse arquivo, confere o SHA-256,
+  Sobre → Verificar atualizações, quando ele serve, o Usinix baixa só esse arquivo, confere o SHA-256,
   instala na pasta do usuário (sem pedir administrador) e oferece **Reabrir agora**. Proteções:
   - só aplica sobre a mesma base de FreeCAD e a partir do pacote completo mínimo; senão oferece o pacote
     completo, como antes;
   - se um pacote completo mais novo for instalado depois, ele volta a valer sozinho;
-  - se a versão atualizada não abrir, o Prumo abre com a instalada na mesma hora e não tenta mais com ela;
+  - se a versão atualizada não abrir, o Usinix abre com a instalada na mesma hora e não tenta mais com ela;
   - "Copiar informações do sistema" diz qual está valendo.
   Quem está na 1.1 baixa o pacote completo uma última vez: o atualizador da 1.1 ainda não conhece o
   complemento.
 - **Vasos: perímetro medido com fita métrica.** Em vaso existente não dá para medir o diâmetro por dentro:
   agora a medida do costado pode ser o perímetro externo, medido com fita em volta do vaso (é o padrão no
-  painel). O Prumo calcula Ø externo = P/π e Ø interno = Ø externo − 2·t (com a espessura adotada ou, sem ela,
+  painel). O Usinix calcula Ø externo = P/π e Ø interno = Ø externo − 2·t (com a espessura adotada ou, sem ela,
   a chapa comercial da mínima). A memória de cálculo mostra a conta. Projeto novo continua com o diâmetro
   interno.
 - **Desenho: solda, rugosidade e ajuste furo/eixo em português.** As três telas agora seguem o padrão de
-  cartões do Prumo, com o desenho de cada símbolo no botão:
+  cartões do Usinix, com o desenho de cada símbolo no botão:
   - *Solda*: clique na aresta, escolha o tipo (filete, V, meio-V, topo reto, U, J, cordão, tampão) e o lado
     (da seta, oposto ou os dois); a linha de chamada sai para fora da vista, com garganta, comprimento,
     solda em todo o contorno e solda de campo.
@@ -462,7 +462,7 @@ estruturas de aço.
   - *Parar no contato*: com a opção ligada, a peça que gira ou desliza para ao encostar em outra, em vez de
     atravessar (procura o ponto de contato com precisão de centésimos). A mensagem diz em qual peça encostou.
   - *Trajetória de um ponto*: clique num vértice (ou aresta redonda) da peça que se move e em Traçar
-    trajetória. O Prumo varre a junta na faixa dela (os limites ou uma volta), desenha a linha por onde o
+    trajetória. O Usinix varre a junta na faixa dela (os limites ou uma volta), desenha a linha por onde o
     ponto passa e devolve a montagem para onde estava. Serve para conferir folga e curso. Com o batente
     ligado, a linha termina no contato. Cancelar tira as trajetórias.
 
@@ -489,7 +489,7 @@ estruturas de aço.
   Abrir…). Nas abas que dependem de "estar dentro" de algo, aparece só o primeiro passo e uma dica: Desenho
   sem folha aberta (Folha ABNT, Paleta de vistas, Abrir folha), Montagem sem montagem aberta (Nova montagem,
   **Abrir montagem**), Simulação sem estudo (Assistente, Novo estudo) e Planilha sem planilha aberta. As ferramentas raras de cada grupo ficam no botão
-  **Mais**. Para ver tudo como antes: Preferências do Prumo, ou botão direito na faixa → desmarque "Mostrar só
+  **Mais**. Para ver tudo como antes: Preferências do Usinix, ou botão direito na faixa → desmarque "Mostrar só
   as ferramentas do momento".
 - **Aba Desenho na ordem do trabalho:** Folha → Vistas → Cotas → Anotação → Entregar, com **Cotas gerais**,
   **Salvar PDF** (com o número do desenho no nome do arquivo) e **Exportar DXF** em um clique.
@@ -525,7 +525,7 @@ estruturas de aço.
 ### Mudanças
 
 - **Painel lateral:** com a aba Árvore fechada, o painel que sobra continua com o nome em português.
-- **Sem a aba BIM:** o Prumo passa a focar na engenharia mecânica. A bancada BIM (arquitetura) sai de vista;
+- **Sem a aba BIM:** o Usinix passa a focar na engenharia mecânica. A bancada BIM (arquitetura) sai de vista;
   quem precisar pode religá-la em Preferências → Geral → Bancadas.
 
 ### Correções
@@ -546,7 +546,7 @@ estruturas de aço.
 
 ### Ajustes
 
-- **Testes automáticos (aba Prumo):** a dica dizia "cerca de 1 minuto", mas a bateria completa leva perto de
+- **Testes automáticos (aba Usinix):** a dica dizia "cerca de 1 minuto", mas a bateria completa leva perto de
   uma hora. Agora o botão avisa antes, pede para fechar os projetos abertos e mostra onde fica o relatório.
 
 ## 1.0.1 — 28/10/2026
@@ -554,16 +554,16 @@ estruturas de aço.
 ### Correções
 
 - **Atualização automática que parava em "Não foi possível apagar a pasta":** o instalador aberto pelo
-  Prumo herdava a pasta de trabalho do programa (dentro da pasta de instalação), e o Windows não deixa
+  Usinix herdava a pasta de trabalho do programa (dentro da pasta de instalação), e o Windows não deixa
   renomear uma pasta que algum programa usa como pasta de trabalho, nem mostra esse programa na lista. Agora
   o instalador abre a partir da pasta do download e, por garantia, sai sozinho da pasta antiga antes de
   trocá-la. Também tenta de novo por alguns segundos (antivírus) antes de perguntar.
-- **Nome da versão no instalador:** mostrava "Prumo 3D 1.1.4" (a versão do FreeCAD de base); agora mostra a
-  versão do Prumo.
+- **Nome da versão no instalador:** mostrava "Usinix 1.1.4" (a versão do FreeCAD de base); agora mostra a
+  versão do Usinix.
 
 ## 1.0.0 — 28/10/2026
 
-Primeira versão final do Prumo 3D, depois das versões de teste (0.1 a 0.9.12): faixa de ferramentas
+Primeira versão final do Usinix, depois das versões de teste (0.1 a 0.9.12): faixa de ferramentas
 só com abas, comandos em cartões no painel lateral, esboço com pontos-ímã, estruturas metálicas calculadas
 pela NBR 8800:2024 e NBR 8681:2025, detalhe de ligação por elementos finitos, vasos de pressão (ASME VIII-1),
 tubulação de PVC Tigre, chapa metálica, folhas ABNT, BIM e superfícies, tudo em português e com atualização
@@ -620,7 +620,7 @@ automática.
 
 - **Instalador não quebra mais a instalação anterior:** ele apagava a pasta antiga arquivo por arquivo; se algum
   arquivo estivesse preso (antivírus, Explorer, outro programa rodando de dentro da pasta), parava no meio e
-  deixava o Prumo inutilizável. Agora: espera também qualquer programa rodando de dentro da pasta (e diz qual,
+  deixava o Usinix inutilizável. Agora: espera também qualquer programa rodando de dentro da pasta (e diz qual,
   se não fechar); renomeia a pasta antiga de uma vez (se algo estiver preso, nada é apagado e a versão
   instalada continua funcionando); instala a nova numa pasta limpa e só então apaga a antiga (o que estiver
   preso sai na próxima reinicialização). Se a instalação for interrompida, a versão anterior volta ao lugar.
@@ -681,9 +681,9 @@ automática.
 ### Correções
 
 - **Atualização automática quebrava a instalação:** da 0.9.5 para a 0.9.6 o instalador abriu (pelo pedido
-  de permissão do Windows), mas o Prumo ainda estava terminando de fechar. O instalador começou a apagar a
+  de permissão do Windows), mas o Usinix ainda estava terminando de fechar. O instalador começou a apagar a
   pasta antiga, encontrou arquivos presos, parou no meio e deixou a instalação incompleta. Agora o
-  instalador espera o Prumo sair de vez (até 60 s) antes de mexer na pasta e, se algum arquivo ainda
+  instalador espera o Usinix sair de vez (até 60 s) antes de mexer na pasta e, se algum arquivo ainda
   estiver preso, oferece "Tentar de novo" em vez de abortar.
 
 ## 0.9.6 beta — 25/10/2026
@@ -711,9 +711,9 @@ automática.
 
 ### Correções
 
-- **Atualização automática (de novo):** da 0.9.3 para a 0.9.4 o Prumo baixou o instalador e fechou, mas o
-  instalador não abriu (o processo que esperava o Prumo fechar não chegou a abri-lo). Agora o instalador é
-  aberto pelo próprio Windows (com o pedido de permissão) logo depois que você aceita fechar o Prumo; o
+- **Atualização automática (de novo):** da 0.9.3 para a 0.9.4 o Usinix baixou o instalador e fechou, mas o
+  instalador não abriu (o processo que esperava o Usinix fechar não chegou a abri-lo). Agora o instalador é
+  aberto pelo próprio Windows (com o pedido de permissão) logo depois que você aceita fechar o Usinix; o
   caminho antigo fica só como reserva. Cada passo fica anotado em `atualizacao.log`, na pasta temporária
   `Prumo3D-atualizacao`, para achar o motivo se algo falhar.
 - **Mensagens de erro das operações em português:** o FreeCAD mostrava o erro cru em inglês (ex.: "Failed to
@@ -746,7 +746,7 @@ automática.
   a face tirado do desenho do catálogo, por isso "a conferir".
 - **Caixas de esgoto:** caixa sifonada (100 × 100 × 50, 150 × 150 × 50, 150 × 185 × 75), caixa de inspeção e
   caixa de gordura no nó de uma ponta do traçado; os trechos que chegam ali param na parede da caixa, e o
-  Prumo avisa quando o diâmetro do tubo passa da saída ou das entradas da caixa. Medidas do catálogo de
+  Usinix avisa quando o diâmetro do tubo passa da saída ou das entradas da caixa. Medidas do catálogo de
   esgoto (2008); inspeção e gordura "a conferir" (letras sem legenda na tabela).
 
 ### Correções
@@ -767,9 +767,9 @@ automática.
 
 ### Correções
 
-- **Atualização automática:** depois de baixar, o Prumo fechava e o instalador não abria (o instalador pede
+- **Atualização automática:** depois de baixar, o Usinix fechava e o instalador não abria (o instalador pede
   permissão de administrador e era aberto por um caminho que não mostra esse pedido). Agora um processo
-  à parte espera o Prumo fechar e abre o instalador com o pedido de permissão do Windows. Desistir de
+  à parte espera o Usinix fechar e abre o instalador com o pedido de permissão do Windows. Desistir de
   fechar (na pergunta de salvar) não abre nada.
 - O último trecho que lia os quadros do jeito antigo (rolagem de janelas grandes) foi trocado, como o do
   botão OK na 0.9.2.
@@ -778,14 +778,14 @@ automática.
 
 - Verificar geometria de uma caixa (6 faces, 12 arestas, 1.000 mm³); peso próprio criado pela faixa, em −Y
   e 9,81 m/s², e reaberto para editar.
-- Atualização: comando que espera o Prumo fechar e abre o instalador pelo Windows; desistir de fechar não
+- Atualização: comando que espera o Usinix fechar e abre o instalador pelo Windows; desistir de fechar não
   abre nada. Abertura na aba Início; Relatório e console fechados e ligados pela Preferência.
 
 ## 0.9.2 beta — 24/10/2026
 
 ### Melhorias
 
-- **Preferências do Prumo:** botão "Preferências" (abas Início e Prumo) abre uma janela em cartões com o
+- **Preferências do Usinix:** botão "Preferências" (abas Início e Usinix) abre uma janela em cartões com o
   que importa: tema claro/escuro, tela inicial, faixa contextual, painel lateral (único, propriedades e
   comandos em cartões, abas compactas), esboço (retirar relações automáticas que não cabem, referências
   automáticas, enquadrar ao sair), unidades (sistema em português e casas decimais) e atualizações. Cada
@@ -810,7 +810,7 @@ automática.
 
 ### Correções
 
-- Às vezes o Prumo deixava de "enxergar" o botão OK (ou outro botão) do painel de tarefa logo depois de
+- Às vezes o Usinix deixava de "enxergar" o botão OK (ou outro botão) do painel de tarefa logo depois de
   fechar outra tarefa: um resto de leitura antiga do layout era confundido com o botão novo no mesmo
   lugar da memória. A leitura dos quadros do painel, da faixa e do guia foi trocada por uma que não deixa
   esse resto.
@@ -833,8 +833,8 @@ automática.
 
 - **Linha ligando dois círculos ainda quebrava o esboço** (relatado na 0.8.1, com círculos de Ø50 e
   Ø30): ao desenhar, o FreeCAD punha tangente e duas "Vertical" (alinhamento com os centros), que não
-  cabiam juntas; no primeiro recálculo, ele jogava os círculos a bilhões de mm, e o Prumo retirava a
-  relação a partir desse desenho já estragado. Agora o Prumo guarda o desenho do instante em que as
+  cabiam juntas; no primeiro recálculo, ele jogava os círculos a bilhões de mm, e o Usinix retirava a
+  relação a partir desse desenho já estragado. Agora o Usinix guarda o desenho do instante em que as
   relações entram, testa cada opção de retirada sem mexer no esboço e fica com a que menos move o que já
   estava desenhado, preferindo tirar alinhamentos do cursor e manter a tangente. A retirada entra no
   desfazer (Ctrl+Z).
@@ -893,7 +893,7 @@ automática.
   1º diedro (a vista de baixo fica em cima, como na folha), com a direção da frontal dita em palavras
   ("de frente", "de cima"), a escala (da folha, automática ou escolhida, ex.: 1:5) e o arranjo do grupo.
 - **Atualização com janela de progresso:** barra, MB baixados, velocidade e tempo que falta, com
-  Cancelar. No fim, a mesma janela diz o próximo passo ("Fechar o Prumo e instalar" ou onde ficou o
+  Cancelar. No fim, a mesma janela diz o próximo passo ("Fechar o Usinix e instalar" ou onde ficou o
   arquivo) ou o erro, com "Tentar de novo". "Verificar atualizações" mostra "Procurando…" enquanto consulta.
 
 ### Correções
@@ -923,7 +923,7 @@ automática.
 ### Correções
 
 - **Linha ligando dois círculos quebrava o esboço:** ao desenhar, o FreeCAD põe relações automáticas
-  (tangente, vertical, horizontal) que às vezes não cabem juntas. Agora o Prumo retira na hora as
+  (tangente, vertical, horizontal) que às vezes não cabem juntas. Agora o Usinix retira na hora as
   automáticas que não cabem e avisa quais foram; o esboço continua resolvido. Relações postas à mão
   nunca saem sozinhas: o painel avisa o conflito e oferece apagar a mais recente.
 - **Assistentes de estruturas e de simulação:** quando o resumo de uma etapa ocupava duas linhas (ex.:
@@ -931,7 +931,7 @@ automática.
 
 ### Testes
 
-- Novo teste confere que nenhum painel do Prumo nem os assistentes têm texto cortado ou sobreposto.
+- Novo teste confere que nenhum painel do Usinix nem os assistentes têm texto cortado ou sobreposto.
 - Testes dos novos painéis: cada um abre em cartões e o OK grava o que foi mudado.
 
 ## 0.7.1 beta — 24/10/2026
@@ -955,12 +955,12 @@ automática.
 
 ### Novo
 
-- **Extrusão e Cavidade com painel no padrão Prumo:** ao criar ou editar, a aba do comando mostra os
+- **Extrusão e Cavidade com painel no padrão Usinix:** ao criar ou editar, a aba do comando mostra os
   cartões Lados (Um lado, Dois lados, Simétrica), Direção 1 e 2 (até onde vai em botões com ícone,
   medida, afastamento, ângulo de saída, inverter), Perfil e Acabamento, no lugar do formulário do
   FreeCAD. Quando o modo pede escolher na vista (Até a face, Até a peça), o quadro do FreeCAD aparece
   embaixo para a escolha; "Formulário completo do FreeCAD" mostra tudo quando quiser.
-- **Furo com painel no padrão Prumo:** cartões Furo (padrão de rosca, tamanho, diâmetro), Tipo (Passante,
+- **Furo com painel no padrão Usinix:** cartões Furo (padrão de rosca, tamanho, diâmetro), Tipo (Passante,
   Para rosca, Modelada, com a folga), Profundidade (Medida ou Através, ponta cônica), Cabeça (rebaixo,
   escareado… com diâmetro e profundidade) e Acabamento.
 - **Revolução e Ranhura** (eixo, até onde gira, ângulos, simétrico, inverter) e **Arredondar e Chanfro**
@@ -1006,9 +1006,9 @@ automática.
   cotas existentes e × para apagar; **Auxiliares**. As listas do FreeCAD continuam em "Lista completa".
 - **Abas compactas:** com o painel estreito, só a aba aberta mostra o nome; as outras ficam com o ícone
   (o nome aparece ao parar o mouse em cima).
-- **Atualização pelo próprio Prumo, sem obrigação:** em **Ajuda → Sobre**, o botão **Verificar
+- **Atualização pelo próprio Usinix, sem obrigação:** em **Ajuda → Sobre**, o botão **Verificar
   atualizações** e a chave **Verificar ao abrir** (no máximo uma vez por dia). Com versão nova, aparece
-  um aviso com "Atualizar agora", "Agora não" e "Pular esta versão". Ao atualizar no Windows, o Prumo
+  um aviso com "Atualizar agora", "Agora não" e "Pular esta versão". Ao atualizar no Windows, o Usinix
   baixa o instalador, confere o SHA-256 publicado, fecha (perguntando se quer salvar) e abre o
   instalador; no Linux, baixa o AppImage novo na mesma pasta. A consulta só lê a lista de versões
   públicas; nenhum dado é enviado. Primeira versão com o aviso: vale a partir da próxima atualização.
@@ -1020,9 +1020,9 @@ automática.
   lateral; Validar, Reorientar, Mesclar e Espelhar esboço ficaram num menu "Mais"; saiu o "Linha ↔
   construção" repetido (continua no menu do botão Linha).
 - **Mesmo visual em todo o sistema:** caixas de marcar viraram chaves liga/desliga (nas listas e
-  tabelas continua a caixa); os quadros dos comandos do FreeCAD e as seções dos painéis Prumo viraram
+  tabelas continua a caixa); os quadros dos comandos do FreeCAD e as seções dos painéis Usinix viraram
   cartões brancos de cantos arredondados; botões de opção marcados em azul claro; avisos sem a barra
-  lateral. Nos painéis Prumo saiu o quadro com título repetido (a aba já diz o nome do comando).
+  lateral. Nos painéis Usinix saiu o quadro com título repetido (a aba já diz o nome do comando).
 - **Tela inicial com a área Ajuda**, logo abaixo de Novo projeto: tutorial da primeira peça, tutorial da
   estrutura soldada e "Vem do SolidWorks ou do ZW3D?", em cartões com ícone como os demais.
 - **Painéis laterais não abrem mais junto com a tela inicial** quando o FreeCAD restaura o arranjo
@@ -1052,7 +1052,7 @@ automática.
   quando um comando abre e a Modelo volta quando ele fecha.
 - **Na abertura, só a tela inicial:** Modelo e Tarefas começam fechados, também na primeira vez depois de
   instalar; aparecem ao abrir ou criar um arquivo.
-- **Instalador do Windows com a marca do Prumo** (imagem lateral, cabeçalho e ícone), sem o logo do
+- **Instalador do Windows com a marca do Usinix** (imagem lateral, cabeçalho e ícone), sem o logo do
   FreeCAD.
 
 ## 0.4.0 beta — 23/10/2026
@@ -1155,7 +1155,7 @@ Primeira versão pública, para Windows e Linux. Baseada no FreeCAD 1.1.4.
   ícone, dica em cada campo e caixas de seleção que aceitam a seleção feita antes **ou depois** de
   abrir o comando. Subtrair, Unir e as outras booleanas também pedem a seleção se você chamar sem ela.
 - **Árvore do modelo** com nomes em português (Extrusão, Cavidade, Corpo...) e seleção em azul.
-- **Ícones do Prumo desde a primeira abertura**, sem precisar aplicar o tema e reiniciar.
+- **Ícones do Usinix desde a primeira abertura**, sem precisar aplicar o tema e reiniciar.
 - **Materiais usados no Brasil**: a biblioteca traz só aços estruturais (NBR 7007, NBR 6648, ASTM),
   chapas, aços para vaso de pressão, tubos, inox, construção mecânica, ferro fundido, alumínio e latão,
   com norma e fonte em cada um. Arquivos feitos no FreeCAD original abrem com o material certo
@@ -1211,7 +1211,7 @@ Primeira versão pública, para Windows e Linux. Baseada no FreeCAD 1.1.4.
   barras de contraventamento que saem do modelo quando comprimem, e as frequências naturais da
   estrutura com a forma de cada modo desenhada na tela.
 - **Detalhe da ligação por elementos finitos**: no painel da simulação, escolha "Detalhar nó" e clique
-  numa ligação ou apoio. O Prumo recorta o nó, aplica nos cortes os esforços da análise por barras e
+  numa ligação ou apoio. O Usinix recorta o nó, aplica nos cortes os esforços da análise por barras e
   calcula as tensões no sólido (CalculiX), com a zona de perigo comparada a fy/γa1 e a conferência
   com a teoria de barras. O resultado abre no Assistente de simulação (malha, convergência, relatório).
   As soldas das barras que chegam no nó (filete em todo o contorno: perna necessária, mínima e taxa

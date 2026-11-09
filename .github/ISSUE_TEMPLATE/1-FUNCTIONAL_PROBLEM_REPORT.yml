@@ -29,8 +29,8 @@ body:
     attributes:
       label: Área afetada
       options:
-        - Complemento Prumo (faixa, tela inicial, tradução, tema)
-        - Assistente de simulação Prumo
+        - Complemento Usinix (faixa, tela inicial, tradução, tema)
+        - Assistente de simulação Usinix
         - Tutorial da primeira peça
         - Instalador
         - Assembly (Montagem)

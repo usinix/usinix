@@ -81,7 +81,7 @@ def pasta_usuario():
 
 def pasta_trabalho():
     """Pasta de preparo, FORA de Mod (tudo o que está em Mod o FreeCAD carrega como módulo)."""
-    return os.path.join(FreeCAD.getUserAppDataDir(), "Prumo3D-complemento")
+    return os.path.join(FreeCAD.getUserAppDataDir(), "Usinix-complemento")
 
 
 def pasta_programa():

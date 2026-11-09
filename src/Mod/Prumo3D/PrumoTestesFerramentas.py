@@ -12973,7 +12973,7 @@ class T87AtualizacaoSoDoComplemento(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="prumo_comp_")
         self._orig = (PC.pasta_usuario, PC.pasta_trabalho)
         PC.pasta_usuario = lambda: os.path.join(self.tmp, "Mod", "Prumo3D")
-        PC.pasta_trabalho = lambda: os.path.join(self.tmp, "Prumo3D-complemento")
+        PC.pasta_trabalho = lambda: os.path.join(self.tmp, "Usinix-complemento")
 
     def tearDown(self):
         self.PC.pasta_usuario, self.PC.pasta_trabalho = self._orig
@@ -16121,7 +16121,7 @@ class T116AtualizacaoReabreESplashEsbocoSuave(unittest.TestCase):
 
 class T117AbrirNoLinuxETema(unittest.TestCase):
     """Linux Mint: o Usinix fechava ao abrir (falha em libfontconfig) e avisava "falha ao carregar o branding"
-    porque procurava o tema "Usinix Claro", que no programa ainda se chama "Prumo Claro"."""
+    porque procurava o tema "Usinix Claro", que no programa até a 1.4.1 se chamava "Prumo Claro"."""
 
     def test_tema_encontrado(self):
         import PrumoGui
@@ -16129,6 +16129,11 @@ class T117AbrirNoLinuxETema(unittest.TestCase):
         nomes = [os.path.basename(c) for c in PrumoGui._caminhos_do_tema()]
         self.assertIn("Prumo Claro.cfg", nomes)
         self.assertIn("Usinix Claro.cfg", nomes)
+        raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
+        pacotes = os.path.join(raiz, "src", "Gui", "PreferencePacks")
+        if os.path.isdir(pacotes):   # no código-fonte: o pacote já se chama Usinix Claro
+            self.assertTrue(os.path.isfile(os.path.join(pacotes, "Usinix Claro", "Usinix Claro.cfg")))
+            self.assertIn("<name>Usinix Claro</name>", open(os.path.join(pacotes, "package.xml"), encoding="utf-8").read())
 
     def test_primeira_abertura_sem_tema_nao_para(self):
         import inspect

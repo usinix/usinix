@@ -5,7 +5,7 @@
 | Windows 10/11 (64 bits) | `Usinix_…-installer.exe` | Rode o instalador. Instala ao lado de um FreeCAD já existente, sem substituí-lo. |
 | Windows (portátil) | `Usinix_…-Windows-….7z` | Descompacte e abra `bin\Usinix.exe`. Não precisa instalar. |
 | Linux (64 bits) | `Usinix_…-Linux-….AppImage` | Marque como executável (`chmod +x`) e abra. Em algumas distribuições é preciso instalar o pacote `libfuse2`. |
-| Já tem o Usinix 1.1 ou mais novo | `Usinix_…-complemento.zip` | Não precisa baixar à mão: em **Ajuda → Sobre → Verificar atualizações**, o Prumo baixa só este arquivo (poucos MB) e a versão nova vale ao abrir de novo. |
+| Já tem o Usinix 1.1 ou mais novo | `Usinix_…-complemento.zip` | Não precisa baixar à mão: em **Ajuda → Sobre → Verificar atualizações**, o Usinix baixa só este arquivo (poucos MB) e a versão nova vale ao abrir de novo. |
 
 Cada arquivo tem um `-SHA256.txt` com o código de verificação.
 
@@ -31,9 +31,9 @@ Clique em **Mais informações → Executar assim mesmo**. Confira o arquivo pel
 
 ### Limitações conhecidas
 
-- Arquivos com objetos do Prumo (estruturas, reforços, soldas, folhas ABNT) abertos no FreeCAD comum
+- Arquivos com objetos do Usinix (estruturas, reforços, soldas, folhas ABNT) abertos no FreeCAD comum
   mostram as formas, mas esses objetos não são recalculados lá.
-- Alguns perfis e tubos estão marcados **"a conferir"** (fonte secundária): o Prumo avisa na escolha
+- Alguns perfis e tubos estão marcados **"a conferir"** (fonte secundária): o Usinix avisa na escolha
   do perfil. Confira no catálogo do fabricante antes de usar em projeto.
 - Vasos de pressão: reforço de aberturas, pressão externa, vento, sismo e cargas nos suportes ainda
   não são calculados (o memorial avisa); o enquadramento na NR-13 fica com o responsável técnico.
@@ -43,7 +43,7 @@ Clique em **Mais informações → Executar assim mesmo**. Confira o arquivo pel
 
 ### Como relatar um problema
 
-No Prumo, abra **Ajuda → Sobre** e clique em **Copiar informações do sistema**. Cole esse texto junto
+No Usinix, abra **Ajuda → Sobre** e clique em **Copiar informações do sistema**. Cole esse texto junto
 com a descrição do problema (o que fez, o que esperava, o que aconteceu) e, se possível, um print da tela.
 
 ---

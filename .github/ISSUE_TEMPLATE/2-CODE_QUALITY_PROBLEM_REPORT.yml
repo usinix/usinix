@@ -25,7 +25,7 @@ body:
       label: Área afetada
       description: Escolha a área principal afetada.
       options:
-        - Complemento Prumo
+        - Complemento Usinix
         - Roteiros de compilação e instalador
         - Assembly (Montagem)
         - BIM
