@@ -16153,6 +16153,198 @@ class T117AbrirNoLinuxETema(unittest.TestCase):
         self.assertIn("USINIX_FONTCONFIG_EMBUTIDO", texto)
         self.assertLess(texto.index("LD_PRELOAD="), texto.index('MAIN="$HERE/usr/bin/usinix"'))
 
+
+class T118TrabalhosNaBarra(unittest.TestCase):
+    """1.5.0: corte das pontas soltas (horizontal, vertical, por plano) e furos na barra, sem virar corpo."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteTrabalhos")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def _escada(self, ang=45.0, comp=2000.0, perfil="U 152 x 12,2"):
+        import PrumoEstrutura as E
+        dx = comp * math.cos(math.radians(ang))
+        dz = comp * math.sin(math.radians(ang))
+        sk = esboco_linhas(self.doc, [((0, 0), (dx, dz))], "XZ")
+        if E.PrumoPerfis.perfil(perfil) is None:
+            perfil = E.PERFIL_PADRAO
+        est = E.criar(self.doc, sk, perfil)
+        return E, est, E.barras_de(est)[0]
+
+    def _faces_planas(self, b, normal):
+        n = FreeCAD.Vector(normal)
+        return [f for f in b.Shape.Faces if f.Surface.__class__.__name__ == "Plane"
+                and abs(abs(f.normalAt(0, 0).dot(n)) - 1) < 1e-6]
+
+    def test_pontas_horizontais(self):
+        E, est, b = self._escada()
+        self.assertAlmostEqual(b.CorteInicio.Value, 0.0, places=3)
+        E.definir_ponta(est, 0, 0, E.PONTA_HORIZONTAL)
+        E.definir_ponta(est, 0, 1, E.PONTA_HORIZONTAL)
+        self.doc.recompute()
+        self.assertTrue(b.Shape.isValid())
+        self.assertEqual(len(b.Shape.Solids), 1)
+        self.assertAlmostEqual(b.CorteInicio.Value, 45.0, places=3)
+        self.assertAlmostEqual(b.CorteFim.Value, 45.0, places=3)
+        bb = b.Shape.BoundBox
+        # apoio no piso e chegada no topo: faces horizontais rente às pontas da linha
+        self.assertAlmostEqual(bb.ZMin, 0.0, places=3)
+        self.assertAlmostEqual(bb.ZMax, 2000.0 * math.sin(math.radians(45)), places=3)
+        horiz = self._faces_planas(b, (0, 0, 1))
+        self.assertEqual(len(horiz), 2, "uma face de apoio em cada ponta")
+        self.assertGreater(b.ComprimentoCorte.Value, 2000.0)
+
+    def test_ponta_vertical_e_por_plano(self):
+        E, est, b = self._escada()
+        E.definir_ponta(est, 0, 0, E.PONTA_VERTICAL)
+        # topo: plano horizontal 100 mm acima da ponta da linha (a barra é prolongada até ele)
+        topo = 2000.0 * math.sin(math.radians(45))
+        E.definir_ponta(est, 0, 1, E.valor_plano(FreeCAD.Vector(0, 0, topo + 100), FreeCAD.Vector(0, 0, 1)))
+        self.doc.recompute()
+        self.assertTrue(b.Shape.isValid())
+        self.assertAlmostEqual(b.Shape.BoundBox.ZMax, topo + 100, places=3)
+        self.assertAlmostEqual(b.Shape.BoundBox.XMin, 0.0, places=3)     # vertical no início (x = 0)
+        self.assertEqual(len(self._faces_planas(b, (1, 0, 0))), 1)
+        # voltar ao reto apaga a linha e a ponta fica como antes
+        E.definir_ponta(est, 0, 0, E.PONTA_RETO)
+        self.assertEqual(len([l for l in est.Pontas if l.startswith("0:0")]), 0)
+        self.doc.recompute()
+        self.assertAlmostEqual(b.CorteInicio.Value, 0.0, places=3)
+
+    def test_ponta_presa_nao_muda(self):
+        """Corte de ponta só vale para ponta solta: no canto, manda o tratamento do canto."""
+        import PrumoEstrutura as E
+        sk = esboco_linhas(self.doc, [((0, 0), (1000, 0)), ((1000, 0), (1000, 600))], "XZ")
+        est = E.criar(self.doc, sk, E.PERFIL_PADRAO)
+        b0 = E.barras_de(est)[0]
+        antes = b0.CorteFim.Value
+        E.definir_ponta(est, 0, 1, E.PONTA_VERTICAL)
+        self.doc.recompute()
+        self.assertAlmostEqual(b0.CorteFim.Value, antes, places=6)
+
+    def test_furos_na_alma_e_lista(self):
+        E, est, b = self._escada()
+        vol = b.Shape.Volume
+        E.gravar_furos(est, [{"barras": [0], "face": "Alma", "diam": 14, "ref": "inicio", "dist": 100,
+                              "qtd": 2, "passo": 80, "filas": 1, "gab": 0, "desloc": 0, "parafuso": "M12"}])
+        self.doc.recompute()
+        self.assertTrue(b.Shape.isValid())
+        self.assertLess(b.Shape.Volume, vol)
+        self.assertEqual(b.Furacao, "2 × Ø14")
+        cil = [f for f in b.Shape.Faces if f.Surface.__class__.__name__ == "Cylinder"
+               and abs(f.Surface.Radius - 7.0) < 1e-6]
+        self.assertEqual(len(cil), 2)
+        linhas = E.lista_de_corte([est])
+        self.assertEqual(linhas[0][8], "2 × Ø14")
+        sh = E.gravar_lista_de_corte(self.doc, linhas)
+        self.assertEqual(sh.get("K1"), "Furação")
+        self.assertEqual(sh.get("K2"), "2 × Ø14")
+
+    def test_furos_nas_mesas_acompanham_a_ponta(self):
+        E, est, b = self._escada(perfil="W 150 x 13,0")
+        it = E.PrumoPerfis.perfil(b.Perfil)
+        gab = it["bf"] / 2.0
+        E.gravar_furos(est, [{"barras": [0], "face": "As duas mesas", "diam": 18, "ref": "fim", "dist": 60,
+                              "qtd": 1, "passo": 0, "filas": 2, "gab": gab, "desloc": 0}])
+        self.doc.recompute()
+        self.assertTrue(b.Shape.isValid())
+        self.assertEqual(b.Furacao, "4 × Ø18")
+        cil = [f for f in b.Shape.Faces if f.Surface.__class__.__name__ == "Cylinder"
+               and abs(f.Surface.Radius - 9.0) < 1e-6]
+        self.assertEqual(len(cil), 4)
+        # furo a 60 mm do fim da linha: o centro dos cilindros fica a 60 mm da ponta, medido na barra
+        e = E.arestas(est.Esqueleto)[0]
+        fim = e.valueAt(e.LastParameter)
+        t = E._dir(e, True)
+        for f in cil:
+            c = f.Surface.Center
+            self.assertAlmostEqual((fim - c).dot(t), 60.0, places=3)
+        # a alma não foi furada: o volume tirado é só o das mesas (4 furos × π r² tf)
+        vol_esperado = 4 * math.pi * 9.0 ** 2 * it["tf"]
+        est.Furos = []
+        self.doc.recompute()
+        v0 = b.Shape.Volume
+        E.gravar_furos(est, [{"barras": [0], "face": "As duas mesas", "diam": 18, "ref": "fim", "dist": 60,
+                              "qtd": 1, "passo": 0, "filas": 2, "gab": gab, "desloc": 0}])
+        self.doc.recompute()
+        self.assertAlmostEqual(v0 - b.Shape.Volume, vol_esperado, delta=vol_esperado * 0.02)
+
+    def test_painel_grava_carrega_e_cancela(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoTrabalhosBarra as T
+        from PySide import QtWidgets
+        E, est, b = self._escada()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(b)
+        pn = T.PainelTrabalhos().mostrar()
+        try:
+            self.assertEqual(pn.barras.valores(), [b])
+            pn.p0.definir(E.PONTA_HORIZONTAL)
+            pn.p1.definir(E.PONTA_HORIZONTAL)
+            pn.furar.setChecked(True)
+            pn.parafuso.setCurrentText("M12")
+            self.assertAlmostEqual(pn.diam.value(), 12 + T.folga_furo(), places=3)
+            pn.ref.setCurrentText("As duas pontas")
+            pn.qtd.setValue(2)
+            pn.passo.setValue(70)
+            pn.atualizar_previa()
+            self.assertIsNone(pn.pendencia())
+            self.assertAlmostEqual(b.CorteInicio.Value, 45.0, places=3)     # prévia já no desenho
+            self.assertEqual(b.Furacao, "4 × Ø13,5")
+            pn.accept()
+        finally:
+            FreeCADGui.Control.closeDialog()
+        self.assertEqual(sorted(est.Pontas), ["0:0=horizontal", "0:1=horizontal"])
+        self.assertEqual(len(est.Furos), 2)
+        # reabrir com a barra: o painel vem com o que está gravado e troca o grupo, sem duplicar
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(b)
+        pn = T.PainelTrabalhos().mostrar()
+        try:
+            self.assertEqual(pn.p0.valor(), E.PONTA_HORIZONTAL)
+            self.assertTrue(pn.furar.isChecked())
+            self.assertEqual(pn.ref.currentText(), "As duas pontas")
+            self.assertEqual(pn.qtd.value(), 2)
+            pn.qtd.setValue(3)
+            pn.atualizar_previa()
+            self.assertEqual(len(est.Furos), 2)
+            self.assertEqual(b.Furacao, "6 × Ø13,5")
+            pn.reject()                                  # cancelar volta ao que era
+        finally:
+            FreeCADGui.Control.closeDialog()
+        self.doc.recompute()
+        self.assertEqual(b.Furacao, "4 × Ø13,5")
+
+    def test_pela_face_de_outra_peca(self):
+        import PrumoTrabalhosBarra as T
+        E, est, b = self._escada()
+        topo = 2000.0 * math.sin(math.radians(45))
+        laje = self.doc.addObject("Part::Box", "Laje")
+        laje.Length, laje.Width, laje.Height = 800, 800, 120
+        laje.Placement.Base = FreeCAD.Vector(1000, -400, topo + 60)     # face de baixo 60 mm acima da ponta
+        self.doc.recompute()
+        baixo = [i for i, f in enumerate(laje.Shape.Faces, 1)
+                 if abs(f.CenterOfMass.z - (topo + 60)) < 1e-6][0]
+        pl = T.plano_da_face(laje, "Face%d" % baixo)
+        self.assertIsNotNone(pl)
+        self.assertEqual(T._filtro_face(b, ("Face1",)), [])          # face da própria barra não serve
+        T.aplicar([b], {1: "face"}, plano_face=pl)
+        self.doc.recompute()
+        self.assertTrue(b.Shape.isValid())
+        self.assertAlmostEqual(b.Shape.BoundBox.ZMax, topo + 60, places=3)   # prolongada até a laje
+        self.assertTrue(est.Pontas[0].startswith("0:1=plano:"))
+
+    def test_comando_na_faixa(self):
+        import PrumoRibbon
+        nomes = [c[0] for aba in PrumoRibbon.TABS if aba["id"] == "estruturas" for _n, cmds in aba["panels"]
+                 for c in cmds]
+        self.assertIn("Prumo_TrabalhosBarra", nomes)
+        if FreeCAD.GuiUp:
+            self.assertIn("Prumo_TrabalhosBarra", FreeCADGui.listCommands())
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -16183,4 +16375,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T101AdicionarOuRemoverMaterial, T102Componentes, T103DutosHVAC, T104ModelagemDireta,
            T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca, T115EsbocoModoLimpoECorSelecao,
            T116AtualizacaoReabreESplashEsbocoSuave,
-           T117AbrirNoLinuxETema]
+           T117AbrirNoLinuxETema,
+           T118TrabalhosNaBarra]

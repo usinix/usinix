@@ -67,6 +67,15 @@ ICONES = {
     "puxa": '<rect x="12" y="4" width="8" height="16" rx="1" fill="#D3E1EF"/><path d="M10 12H2M2 12l3-3'
             'M2 12l3 3" stroke="%s" stroke-width="2.4"/>' % AMBAR,
     "info": '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+    # trabalhos na barra: corte da ponta solta
+    "ponta_reta": '<path d="M5 15L14 6M9 19L18 10"/><path d="M14 6l4 4M5 15l4 4" stroke="%s" '
+                  'stroke-width="2.4"/>' % AMBAR,
+    "ponta_horizontal": '<path d="M5 19L14 6M10 19L19 6"/><path d="M5 19h5M14 6h5" stroke="%s" '
+                        'stroke-width="2.4"/>' % AMBAR,
+    "ponta_vertical": '<path d="M5 14L19 5M5 20L19 11"/><path d="M5 14v6M19 5v6" stroke="%s" '
+                      'stroke-width="2.4"/>' % AMBAR,
+    "ponta_face": '<rect x="3" y="4" width="18" height="4" fill="#D3E1EF"/><path d="M6 20L13 8M11 20L18 8"/>'
+                  '<path d="M13 8h5" stroke="%s" stroke-width="2.4"/>' % AMBAR,
 }
 
 

@@ -250,7 +250,7 @@ TABS = [
     {"id": "estruturas", "label": "Estruturas", "wb": None, "panels": [
         ("Estrutura soldada", [
             ("Prumo_Estrutura", L, "Estrutura\nsoldada"), ("Prumo_EditarEstrutura", L, "Editar\nestrutura"),
-            ("Prumo_Cantos", L, "Cantos"),
+            ("Prumo_Cantos", L, "Cantos"), ("Prumo_TrabalhosBarra", L, "Trabalhos\nna barra"),
             ("Prumo_TrocarPerfil", S, "Trocar perfil"), ("Prumo_AtualizarEstrutura", S, "Atualizar estrutura"),
             ("Prumo_SecaoPersonalizada", S, "Seção personalizada"),
         ]),

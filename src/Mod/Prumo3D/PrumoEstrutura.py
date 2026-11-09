@@ -40,6 +40,14 @@ TRAT_PASSA = "passa:"         # "passa:k": a barra k passa, a outra encosta cort
 TRAT_RETO = "reto"            # ligação em T: corte reto na face da que passa
 TRAT_CONTORNO = "contorno"    # ligação em T: recorte pelo contorno da que passa (boca de lobo)
 PERFIL_PADRAO = "W 150 x 13,0"
+# trabalhos na barra (1.5.0): corte das pontas soltas, guardado em Estrutura.Pontas como "i:k=valor"
+# (k = 0 ponta inicial, 1 final); valor: reto | horizontal | vertical | plano:qx,qy,qz,nx,ny,nz
+PONTA_RETO = "reto"
+PONTA_HORIZONTAL = "horizontal"
+PONTA_VERTICAL = "vertical"
+PONTA_PLANO = "plano:"
+# furos: Estrutura.Furos, uma linha JSON por grupo de furos (ver furos_de())
+FACES_FURO = ["Alma", "Mesa de cima", "Mesa de baixo", "As duas mesas"]
 
 
 # ============================================================================ geometria
@@ -552,6 +560,164 @@ def _maior_pedaco(sol, e):
     return sol
 
 
+# ============================================================================ trabalhos na barra
+def chave_ponta(i, k):
+    return "%d:%d" % (int(i), int(k))
+
+
+def ponta(est, i, k):
+    """Corte da ponta k (0 inicial, 1 final) da barra i: reto, horizontal, vertical ou plano:..."""
+    for linha in getattr(est, "Pontas", []) or []:
+        c, _s, v = linha.partition("=")
+        if c.strip() == chave_ponta(i, k):
+            return v.strip() or PONTA_RETO
+    return PONTA_RETO
+
+
+def definir_ponta(est, i, k, valor):
+    """Grava o corte da ponta (reto apaga a linha: é o normal)."""
+    chave = chave_ponta(i, k)
+    lst = [l for l in (getattr(est, "Pontas", []) or []) if l.partition("=")[0].strip() != chave]
+    if valor and valor != PONTA_RETO:
+        lst.append("%s=%s" % (chave, valor))
+    est.Pontas = lst
+
+
+def valor_plano(ponto, normal):
+    n = FreeCAD.Vector(normal)
+    if n.Length < 1e-9:
+        raise ValueError("normal nula")
+    n.normalize()
+    return PONTA_PLANO + ",".join("%.12g" % c for c in (ponto.x, ponto.y, ponto.z, n.x, n.y, n.z))
+
+
+def plano_da_ponta(e, k, valor):
+    """(ponto, normal) do plano de corte da ponta k da aresta e, ou None (reto = sem mudança)."""
+    p = e.valueAt(e.FirstParameter if k == 0 else e.LastParameter)
+    if valor == PONTA_HORIZONTAL:
+        return p, FreeCAD.Vector(0, 0, 1)
+    if valor == PONTA_VERTICAL:
+        t = _dir(e, True)
+        h = FreeCAD.Vector(t.x, t.y, 0)
+        if h.Length < 1e-6:
+            return None                 # barra vertical: "vertical" não define plano
+        return p, h.normalize()
+    if valor.startswith(PONTA_PLANO):
+        try:
+            c = [float(x) for x in valor[len(PONTA_PLANO):].split(",")]
+            return FreeCAD.Vector(*c[:3]), FreeCAD.Vector(*c[3:6]).normalize()
+        except Exception:
+            return None
+    return None
+
+
+def _corte_de_ponta(e, k, valor, sec):
+    """(prolongamento necessário, ponto, normal para dentro da barra, ângulo) ou None."""
+    pl = plano_da_ponta(e, k, valor)
+    if pl is None or not _reta(e):
+        return None
+    q, n = pl
+    p = e.valueAt(e.FirstParameter if k == 0 else e.LastParameter)
+    a = _dir(e, k == 0) * -1                       # para fora da barra, além da ponta
+    t = _dir(e, True)
+    c = n.dot(a)
+    if abs(c) < 0.05:                              # plano quase paralelo à barra: não corta
+        return None
+    s = (q - p).dot(n) / c                         # até onde a linha encontra o plano (para fora: +)
+    cos = abs(n.dot(t))
+    tan = math.sqrt(max(0.0, 1.0 - cos * cos)) / max(cos, 0.05)
+    raio = sec.larg + sec.alt + abs(sec.du) + abs(sec.dv)
+    ext = max(0.0, s) + raio * (tan + 1.0)
+    n_dentro = n * (-1 if c > 0 else 1)
+    return ext, q, n_dentro, angulo_corte(n, t)
+
+
+def furos_de(est):
+    """Grupos de furos da estrutura (dicionários). Campos: barras (índices), face (FACES_FURO), diam (mm),
+    ref ("inicio"/"fim"), dist (da ponta da linha, mm), qtd, passo (mm), filas (1/2), gab (entre filas, mm),
+    desloc (centro das filas em relação ao centro da face, mm), parafuso (texto, opcional)."""
+    import json
+    res = []
+    for linha in getattr(est, "Furos", []) or []:
+        try:
+            d = json.loads(linha)
+        except Exception:
+            continue
+        if isinstance(d, dict):
+            res.append(d)
+    return res
+
+
+def gravar_furos(est, lista):
+    import json
+    est.Furos = [json.dumps(d, ensure_ascii=False, sort_keys=True) for d in lista]
+
+
+def _pos_furos(e, f):
+    """Distâncias ao longo da barra (a partir do início da linha) dos furos do grupo f."""
+    qtd = max(1, int(f.get("qtd", 1)))
+    passo = float(f.get("passo", 0.0))
+    dist = float(f.get("dist", 0.0))
+    L = e.Length
+    pos = [dist + j * passo for j in range(qtd)]
+    if f.get("ref", "inicio") == "fim":
+        pos = [L - x for x in pos]
+    return pos
+
+
+def _cilindros_furos(e, sec, f):
+    """Cilindros (para subtrair) de um grupo de furos na barra da aresta e."""
+    import Part
+    r = float(f.get("diam", 0.0)) / 2.0
+    if r <= 0 or not _reta(e):
+        return []
+    face = f.get("face", "Alma")
+    filas = 2 if int(f.get("filas", 1)) >= 2 else 1
+    gab = float(f.get("gab", 0.0))
+    desloc = float(f.get("desloc", 0.0))
+    transv = [desloc] if filas == 1 else [desloc - gab / 2.0, desloc + gab / 2.0]
+    t, u, v = sec.t, sec.u, sec.v
+    p0 = e.valueAt(e.FirstParameter)
+    m = 5.0
+    cil = []
+    for x in _pos_furos(e, f):
+        if x < -1e-6 or x > e.Length + 1e-6:
+            continue
+        centro = p0 + t * x + u * sec.du + v * sec.dv    # centro da caixa da seção nesse ponto
+        for w in transv:
+            if face == "Alma":                           # atravessa na largura (eixo u)
+                base = centro + v * w - u * (sec.larg / 2.0 + m)
+                cil.append(Part.makeCylinder(r, sec.larg + 2 * m, base, u))
+                continue
+            lados = {"Mesa de cima": [1], "Mesa de baixo": [-1], "As duas mesas": [1, -1]}.get(face, [])
+            for sg in lados:                             # da face externa da mesa até o meio da seção
+                base = centro + u * w + v * (sg * (sec.alt / 2.0 + m))
+                cil.append(Part.makeCylinder(r, sec.alt / 2.0 + m, base, v * (-sg)))
+    return cil
+
+
+def furos_da_barra(est, i):
+    return [f for f in furos_de(est) if int(i) in [int(b) for b in f.get("barras", [])]]
+
+
+def descricao_furacao(est, i, eds=None):
+    """Texto curto da furação da barra i para a lista de corte (ex.: "4 × Ø14")."""
+    if eds is None:
+        eds = arestas(est.Esqueleto)
+    conta = {}
+    for f in furos_da_barra(est, i):
+        e = eds[i] if i < len(eds) else None
+        if e is None:
+            continue
+        n_pos = len([x for x in _pos_furos(e, f) if -1e-6 <= x <= e.Length + 1e-6])
+        filas = 2 if int(f.get("filas", 1)) >= 2 else 1
+        lados = 2 if f.get("face") == "As duas mesas" else 1
+        d = float(f.get("diam", 0.0))
+        conta[d] = conta.get(d, 0) + n_pos * filas * lados
+    return ", ".join("%d × Ø%s" % (n, fmt(d, 0) if abs(d - round(d)) < 1e-6 else fmt(d, 1))
+                     for d, n in sorted(conta.items()) if n)
+
+
 def calcular_barra(est, i, eds=None):
     """(sólido recortado, comprimento de corte, ângulo de corte no início, no fim, perfil)."""
     if eds is None:
@@ -565,6 +731,13 @@ def calcular_barra(est, i, eds=None):
     nome = sec.it["nome"]
     ligs = ligacoes(eds, i)
     ext = _extensoes(est, eds, i, normal, ligs)
+    cortes_ponta = {}
+    for k, lig in enumerate(ligs):                 # pontas soltas com corte horizontal, vertical ou por plano
+        if lig.tipo == "livre":
+            cp = _corte_de_ponta(e, k, ponta(est, i, k), sec)
+            if cp is not None:
+                cortes_ponta[k] = cp
+                ext[k] = max(ext[k], cp[0])
     sol = solido_bruto(e, sec.it, sec.giro, (sec.du, sec.dv), normal, ext[0], ext[1], sec.espelhar, sec.centro)
     tam = 4 * (e.Length + sec.larg + sec.alt) + 100 + sum(ext)
     t = _dir(e, True)
@@ -614,7 +787,17 @@ def calcular_barra(est, i, eds=None):
                 bruto = solido_bruto(eds[j], sj.it, sj.giro, (sj.du, sj.dv), normal, 0.0, 0.0, sj.espelhar,
                                      sj.centro)
                 sol = _maior_pedaco(sol.cut(bruto), e)
+    for k, (_ext, q, n_dentro, ang) in cortes_ponta.items():
+        sol = sol.common(_meio_espaco(q, n_dentro, tam))
+        angs[k] = ang
     sol = _maior_pedaco(sol, e)
+    cil = []
+    for f in furos_da_barra(est, i):
+        cil += _cilindros_furos(e, sec, f)
+    if cil:
+        furos = cil[0] if len(cil) == 1 else cil[0].fuse(cil[1:])
+        sol = sol.cut(furos)
+        sol = _maior_pedaco(sol, e)
     if sol.Solids and len(sol.Solids) == 1:
         sol = sol.Solids[0]
     proj = [(vx.Point - e.valueAt(e.FirstParameter)).dot(t) for vx in sol.Vertexes]
@@ -671,6 +854,10 @@ class Estrutura:
             "Grupo de cada linha do esqueleto (0 = padrão)")
         add("App::PropertyStringList", "Cantos", "Cantos",
             "Tratamento de cada canto: 'i-j=meia', 'i-j=passa:k', 'i-j=reto' ou 'i-j=contorno'")
+        add("App::PropertyStringList", "Pontas", "Trabalhos na barra",
+            "Corte das pontas soltas: 'i:k=horizontal', 'vertical', 'plano:...' (k = 0 início, 1 fim)")
+        add("App::PropertyStringList", "Furos", "Trabalhos na barra",
+            "Grupos de furos nas barras (uma linha JSON por grupo)")
 
     def onDocumentRestored(self, obj):
         obj.Proxy = self
@@ -690,7 +877,7 @@ class Estrutura:
     def onChanged(self, obj, prop):
         if prop in ("Esqueleto", "Perfil", "Rotacao", "Alinhamento", "Uniao", "Material",
                     "PerfisIndividuais", "RotacoesIndividuais", "Fixacao", "Espelhar", "Grupos",
-                    "GrupoDaAresta", "Cantos"):
+                    "GrupoDaAresta", "Cantos", "Pontas", "Furos"):
             try:
                 for b in barras_de(obj):
                     if prop == "Esqueleto" and b.Esqueleto != obj.Esqueleto:
@@ -735,6 +922,7 @@ class Barra:
         add("App::PropertyFloat", "Massa", "Barra", "Massa da barra (kg)", True)
         add("App::PropertyString", "Material", "Barra", "Material (vem da estrutura)", True)
         add("App::PropertyString", "SituacaoDados", "Barra", "Confirmado no catálogo ou a conferir", True)
+        add("App::PropertyString", "Furacao", "Barra", "Furos da barra (ex.: 4 × Ø14)", True)
 
     def onDocumentRestored(self, obj):
         obj.Proxy = self
@@ -761,6 +949,9 @@ class Barra:
         obj.Massa = it["massa"] * comp / 1000.0
         obj.Material = est.Material
         obj.SituacaoDados = "confirmado" if PrumoPerfis.confiavel(it) else "a conferir"
+        fu = descricao_furacao(est, obj.Indice, eds)
+        if obj.Furacao != fu:
+            obj.Furacao = fu
 
     def dumps(self):
         return None
@@ -1119,7 +1310,8 @@ NOME_LISTA = "ListaDeCorte"
 
 
 def lista_de_corte(objs):
-    """Linhas (perfil, comprimento mm, ângulo início, ângulo fim, qtd, massa unit., situação)."""
+    """Linhas (perfil, comprimento mm, ângulo início, ângulo fim, qtd, massa unit., situação, material,
+    furação)."""
     barras = []
     for o in objs:
         if eh_estrutura(o):
@@ -1133,10 +1325,11 @@ def lista_de_corte(objs):
     for b in barras:
         comp = round(b.ComprimentoCorte.Value, 1)
         a0, a1 = sorted([round(b.CorteInicio.Value, 1), round(b.CorteFim.Value, 1)])
-        chave = (b.Perfil, comp, a0, a1)
+        fu = getattr(b, "Furacao", "") or ""
+        chave = (b.Perfil, comp, a0, a1, fu)
         if chave not in grupos:
             grupos[chave] = [b.Perfil, comp, a0, a1, 0, b.MassaLinear * comp / 1000.0, b.SituacaoDados,
-                             b.Material]
+                             b.Material, fu]
             ordem.append(chave)
         grupos[chave][4] += 1
     linhas = [grupos[k] for k in ordem]
@@ -1152,18 +1345,20 @@ def gravar_lista_de_corte(doc, linhas):
     else:
         sheet.clearAll()
     cab = ["Item", "Perfil", "Comprimento (mm)", "Corte A", "Corte B", "Qtd.", "Massa unit. (kg)",
-           "Massa total (kg)", "Material", "Dados"]
-    cols = "ABCDEFGHIJ"
-    larg = [40, 200, 110, 60, 60, 40, 95, 100, 110, 80]
+           "Massa total (kg)", "Material", "Dados", "Furação"]
+    cols = "ABCDEFGHIJK"
+    larg = [40, 200, 110, 60, 60, 40, 95, 100, 110, 80, 120]
     for i, (c, w) in enumerate(zip(cab, larg)):
         sheet.set("%s1" % cols[i], c)
         sheet.setColumnWidth(cols[i], w)
-    sheet.setStyle("A1:J1", "bold")
-    sheet.setBackground("A1:J1", (0.0, 0.227, 0.439))
-    sheet.setForeground("A1:J1", (1.0, 1.0, 1.0))
+    sheet.setStyle("A1:K1", "bold")
+    sheet.setBackground("A1:K1", (0.0, 0.227, 0.439))
+    sheet.setForeground("A1:K1", (1.0, 1.0, 1.0))
     total = 0.0
     total_m = 0.0
-    for n, (perfil, comp, a0, a1, qtd, massa, sit, mat) in enumerate(linhas, 1):
+    for n, linha in enumerate(linhas, 1):
+        perfil, comp, a0, a1, qtd, massa, sit, mat = linha[:8]
+        fu = linha[8] if len(linha) > 8 else ""
         r = n + 1
         sheet.set("A%d" % r, str(n))
         sheet.set("B%d" % r, "'" + perfil)
@@ -1175,6 +1370,7 @@ def gravar_lista_de_corte(doc, linhas):
         sheet.set("H%d" % r, "'" + fmt(massa * qtd, 2))
         sheet.set("I%d" % r, "'" + (mat or "—"))
         sheet.set("J%d" % r, "'" + sit)
+        sheet.set("K%d" % r, "'" + (fu or "—"))
         total += massa * qtd
         total_m += comp * qtd / 1000.0
     r = len(linhas) + 2
