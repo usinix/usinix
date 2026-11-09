@@ -726,7 +726,7 @@ def executavel():
 def reabrir(popen=None, fechar=True, iniciar_destacado=None):
     """Fecha o Usinix (ele pergunta se quer salvar) e, se fechou, abre de novo assim que o processo terminar.
 
-    1.4.1: no Windows o PowerShell lançado pelo subprocess (DETACHED_PROCESS, sem console) não abria o
+    1.4.2: no Windows o PowerShell lançado pelo subprocess (DETACHED_PROCESS, sem console) não abria o
     programa de novo — o mesmo defeito que já tinha aparecido com o instalador na 0.9.3. Agora vai pelo
     QProcess.startDetached, o mesmo caminho da troca de tema, que funciona; o subprocess fica de reserva,
     com um console próprio (escondido pelo -WindowStyle Hidden)."""

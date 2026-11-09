@@ -33,7 +33,9 @@ TENTATIVAS_MAX = 2
 # bibliotecas do pacote mudam: aí só o pacote completo serve)
 # 1.4.0: o programa passou a se chamar Usinix (outro executável e outra pasta de configurações): quem vem
 # do Prumo 3D precisa do instalador completo
-BASE_MINIMA = "1.4.0"
+# 1.4.2: C++ novo (modo limpo do esboço), AppRun do Linux com a biblioteca de fontes do sistema e o tema
+# renomeado: só o complemento não traria isso
+BASE_MINIMA = "1.4.2"
 
 _estado = {"aqui": None, "usuario": False, "delegou": None, "motivo": ""}
 

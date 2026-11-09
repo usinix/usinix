@@ -320,7 +320,7 @@ def _suave(t):
 def centralizar_suave(doc_nome, nome, duracao_ms=260):
     """Espera o FreeCAD terminar de girar a vista para o esboço e desliza até a origem dele.
 
-    1.4.1: antes esperava 900 ms fixos e pulava para o centro — a vista parava e dava um tranco. Agora
+    1.4.2: antes esperava 900 ms fixos e pulava para o centro — a vista parava e dava um tranco. Agora
     percebe o fim do giro pela câmera parada (a cada 20 ms) e emenda um deslize curto."""
     import time
     est = {"ori": None, "parada": 0, "ini": time.time(), "fase": "esperar", "t0": 0.0, "de": None,

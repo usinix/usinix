@@ -13011,14 +13011,14 @@ class T87AtualizacaoSoDoComplemento(unittest.TestCase):
 
     def test_instala_na_pasta_do_usuario(self):
         PC = self.PC
-        self.assertEqual(PC.instalar_zip(self._zip("9.9.9"), "1.4.0"), "9.9.9")
+        self.assertEqual(PC.instalar_zip(self._zip("9.9.9"), PC.BASE_MINIMA), "9.9.9")
         dest = PC.pasta_usuario()
         self.assertEqual(PC.ler_versao(dest), "9.9.9")
         self.assertTrue(os.path.isfile(os.path.join(dest, "Resources", "acentuação.txt")))
         # nada de pasta de preparo dentro de Mod (o FreeCAD carregaria como módulo)
         self.assertEqual(os.listdir(os.path.dirname(dest)), ["Prumo3D"])
         # versão nova por cima da anterior
-        self.assertEqual(PC.instalar_zip(self._zip("9.9.10"), "1.4.0"), "9.9.10")
+        self.assertEqual(PC.instalar_zip(self._zip("9.9.10"), PC.BASE_MINIMA), "9.9.10")
         self.assertEqual(PC.ler_versao(dest), "9.9.10")
         self.assertEqual(os.listdir(os.path.dirname(dest)), ["Prumo3D"])
         self.assertTrue(PC.remover_copia_do_usuario())
@@ -13027,24 +13027,24 @@ class T87AtualizacaoSoDoComplemento(unittest.TestCase):
     def test_recusa_o_que_nao_serve(self):
         PC = self.PC
         with self.assertRaisesRegex(ValueError, "base FreeCAD"):
-            PC.instalar_zip(self._zip("9.9.9", freecad="0.0.1"), "1.4.0")
+            PC.instalar_zip(self._zip("9.9.9", freecad="0.0.1"), PC.BASE_MINIMA)
         with self.assertRaisesRegex(ValueError, "igual ou mais novo"):
-            PC.instalar_zip(self._zip("1.0.0"), "1.4.0")
+            PC.instalar_zip(self._zip("1.0.0"), PC.BASE_MINIMA)
         with self.assertRaisesRegex(ValueError, "caminho inválido"):
-            PC.instalar_zip(self._zip("9.9.9", extra={"Prumo3D/../../fora.py": "x"}), "1.4.0")
+            PC.instalar_zip(self._zip("9.9.9", extra={"Prumo3D/../../fora.py": "x"}), PC.BASE_MINIMA)
         with self.assertRaisesRegex(ValueError, "caminho inválido"):
-            PC.instalar_zip(self._zip("9.9.9", extra={"OutroModulo/Init.py": "x"}), "1.4.0")
+            PC.instalar_zip(self._zip("9.9.9", extra={"OutroModulo/Init.py": "x"}), PC.BASE_MINIMA)
         self.assertFalse(os.path.isdir(PC.pasta_usuario()), "nada instalado quando recusa")
 
     def test_volta_ao_programa_quando_a_copia_ficou_para_tras_ou_falhou(self):
         PC = self.PC
-        PC.instalar_zip(self._zip("9.9.9"), "1.4.0")
+        PC.instalar_zip(self._zip("9.9.9"), PC.BASE_MINIMA)
         dest = PC.pasta_usuario()
         self.assertEqual(PC.motivo_para_voltar(dest), "")
         with open(os.path.join(dest, PC.CONTADOR), "w") as f:
             f.write('{"tentativas": 2}')
         self.assertIn("não abriu", PC.motivo_para_voltar(dest))
-        PC.instalar_zip(self._zip("9.9.10"), "1.4.0")      # instalar de novo zera as tentativas
+        PC.instalar_zip(self._zip("9.9.10"), PC.BASE_MINIMA)      # instalar de novo zera as tentativas
         self.assertEqual(PC.motivo_para_voltar(dest), "")
         velho = os.path.join(self.tmp, "velho")
         shutil.copytree(dest, velho)
@@ -13077,7 +13077,7 @@ class T87AtualizacaoSoDoComplemento(unittest.TestCase):
         with open(os.path.join(self.tmp, "Usinix_9.9.9-complemento.json")) as f:
             self.assertEqual(json.load(f), man)
         self.assertTrue(os.path.isfile(z + "-SHA256.txt"))
-        self.assertEqual(self.PC.instalar_zip(z, "1.4.0"), "9.9.9")
+        self.assertEqual(self.PC.instalar_zip(z, self.PC.BASE_MINIMA), "9.9.9")
 
     def test_atualizar_baixa_so_o_complemento_e_oferece_reabrir(self):
         if not FreeCAD.GuiUp:
@@ -15990,7 +15990,7 @@ class T115EsbocoModoLimpoECorSelecao(unittest.TestCase):
 
 
 class T116AtualizacaoReabreESplashEsbocoSuave(unittest.TestCase):
-    """1.4.1: Reabrir agora não abria o Usinix no Windows; a 1ª abertura mostrava a versão antiga na splash;
+    """1.4.2: Reabrir agora não abria o Usinix no Windows; a 1ª abertura mostrava a versão antiga na splash;
     o esboço novo dava um tranco antes de centralizar."""
 
     def _win(self, f):

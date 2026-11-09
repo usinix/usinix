@@ -15,6 +15,42 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.4.2 — 09/11/2026
+
+![Esboço: antes, ícones de todas as restrições; agora, só os da linha selecionada, em magenta](.github/images/novidades/1.4.2.webp)
+
+### Esboço mais limpo e atualização que reabre sozinha
+
+### Novidades
+
+- **Esboço em modo limpo:** os ícones das restrições (horizontal, igual, coincidente...) só aparecem para a linha
+  ou o ponto selecionado; as cotas continuam sempre à vista. Sem nada selecionado, o desenho fica só com as
+  cotas. Para ver todos como antes: Preferências do Usinix, cartão Esboço, desligue "modo limpo".
+- **Seleção em magenta:** linhas e pontos selecionados ficam em magenta, bem diferente das cores do desenho.
+- **Mais Usinix, menos Prumo:** o tema se chama "Usinix Claro" e as pastas da atualização, "Usinix-atualizacao"
+  e "Usinix-complemento".
+
+### Correções
+
+- **Atualizar e reabrir:** o botão dizia que ia abrir a versão nova, mas no Windows o Usinix não abria de novo
+  e era preciso abrir à mão. Agora ele reabre sozinho; se o programa antigo demorar a fechar, abre depois de
+  90 s assim mesmo. O resultado fica anotado em `atualizacao.log`.
+- **Número da versão na tela de abertura:** na primeira abertura depois de atualizar, a imagem ainda mostrava o
+  número antigo. Agora a imagem nova é copiada na hora da instalação.
+- **Esboço novo no centro, sem tranco:** a vista parava e pulava para a origem do esboço. Agora desliza logo
+  depois de girar.
+- **Linux (Mint 22, Kubuntu 24.04 e outros atualizados):** o Usinix podia fechar ao abrir, com falha na
+  biblioteca de fontes que vinha junto. Agora usa a do sistema.
+- **Primeira abertura sem o tema:** desde a 1.4.0, numa instalação nova, aparecia "falha ao carregar o
+  branding" e a preparação inicial não terminava.
+- **Esboço 3D:** arrastar a ponta de uma linha às vezes não começava (o clique caía na linha em vez do ponto).
+
+### Observação
+
+- Esta versão traz partes novas do programa (o modo limpo do esboço e a correção do Linux), então a
+  atualização baixa o **instalador completo**, não só o complemento. No Linux, baixe o AppImage novo na
+  página de versões.
+
 ## 1.4.1 — 08/11/2026
 
 ![Desenho › Inserir peça ou montagem: a estrutura marcada na lista e a folha que sai na escala que cabe](.github/images/novidades/1.4.1.webp)
