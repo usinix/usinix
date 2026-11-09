@@ -15,6 +15,34 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.6.0 — 09/11/2026
+
+![Janela Conectar IA do Usinix: liga a conexão e mostra a configuração para o assistente](.github/images/novidades/1.6.0.webp)
+
+### Conecte uma IA ao Usinix
+
+### Novidades
+
+- **Usinix › Conectar IA:** o Claude Desktop e outros assistentes compatíveis com MCP passam a usar as
+  ferramentas do Usinix. Peça em português e ele monta: esboço de linhas, estrutura com perfis do catálogo,
+  trabalhos na barra (cortes de ponta, furos, parafusos), lista de corte, lista de materiais e folha ABNT; ele
+  também vê a vista 3D para conferir e pode desfazer.
+  - A janela mostra a configuração pronta para colar no assistente (botão Copiar). No Windows usa o Python
+    que já vem no Usinix: não precisa instalar nada.
+  - Segurança: vem desligada e só liga no botão (ou ao abrir, se marcar); aceita só o próprio computador,
+    com código secreto; recusa pedidos de páginas da internet; código Python solto fica desligado, a não
+    ser que você marque a opção. Cada ação da IA é um passo do Desfazer.
+  - Passo a passo no site: https://usinix.com.br/ia.html
+
+### Correções
+
+- **Esboço em modo limpo:** clicar num canto agora mostra as restrições das duas linhas que chegam nele (o
+  canto são dois pontos ligados por coincidência; antes contava só o ponto clicado).
+
+### Observação
+
+- A atualização baixa o **instalador completo** (traz parte nova do programa). No Linux, baixe o AppImage novo.
+
 ## 1.5.0 — 09/11/2026
 
 ![Trabalhos na barra: banzo de escada a 45° com as pontas cortadas na horizontal, furos e parafusos](.github/images/novidades/1.5.0.webp)
