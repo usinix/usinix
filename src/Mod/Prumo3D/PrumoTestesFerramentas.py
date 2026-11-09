@@ -13936,7 +13936,12 @@ class T100IdeiasDeOutrosCAD(unittest.TestCase):
                     recusa["texto"] = m.windowTitle()
                     m.reject()
             from PySide import QtCore
-            QtCore.QTimer.singleShot(1500, fechar_recusa)   # app antigo: a recusa é uma janela modal
+            # app antigo: a recusa é uma janela modal. Timer próprio, parado no fim: um singleShot solto
+            # disparava já no teste seguinte e fechava a janela de orientação do novo esboço.
+            tm_recusa = QtCore.QTimer()
+            tm_recusa.setSingleShot(True)
+            tm_recusa.timeout.connect(fechar_recusa)
+            tm_recusa.start(1500)
             FreeCADGui.runCommand("PartDesign_Fillet", 0)
             self.assertNotIn("texto", recusa, "recusou: %s" % recusa.get("texto"))
             fim = time.time() + 2
@@ -13948,6 +13953,10 @@ class T100IdeiasDeOutrosCAD(unittest.TestCase):
             self.assertEqual(v.getActiveObject("pdbody"), corpos[1][0],
                              "o corpo da seleção vira o ativo (em vez de recusar)")
         finally:
+            try:
+                tm_recusa.stop()
+            except Exception:
+                pass
             try:
                 FreeCADGui.Control.closeDialog()
             except Exception:
@@ -16109,6 +16118,36 @@ class T116AtualizacaoReabreESplashEsbocoSuave(unittest.TestCase):
             FreeCADGui.ActiveDocument.resetEdit()
             fechar(doc)
 
+
+class T117AbrirNoLinuxETema(unittest.TestCase):
+    """Linux Mint: o Usinix fechava ao abrir (falha em libfontconfig) e avisava "falha ao carregar o branding"
+    porque procurava o tema "Usinix Claro", que no programa ainda se chama "Prumo Claro"."""
+
+    def test_tema_encontrado(self):
+        import PrumoGui
+        self.assertTrue(os.path.isfile(PrumoGui.PACK_CFG), PrumoGui.PACK_CFG)
+        nomes = [os.path.basename(c) for c in PrumoGui._caminhos_do_tema()]
+        self.assertIn("Prumo Claro.cfg", nomes)
+        self.assertIn("Usinix Claro.cfg", nomes)
+
+    def test_primeira_abertura_sem_tema_nao_para(self):
+        import inspect
+        import PrumoGui
+        fonte = inspect.getsource(PrumoGui.startup)
+        i = fonte.index("apply_theme()")
+        self.assertIn("try:", fonte[max(0, i - 80):i], "o tema da 1ª abertura fica num try")
+
+    def test_apprun_usa_fontconfig_do_sistema(self):
+        raiz = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))))
+        apprun = os.path.join(raiz, "package", "rattler-build", "linux", "AppDir", "AppRun")
+        if not os.path.isfile(apprun):
+            self.skipTest("fonte do pacote não disponível")
+        texto = open(apprun, encoding="utf-8").read()
+        self.assertIn("LD_PRELOAD=", texto)
+        self.assertIn("libfontconfig.so.1", texto)
+        self.assertIn("USINIX_FONTCONFIG_EMBUTIDO", texto)
+        self.assertLess(texto.index("LD_PRELOAD="), texto.index('MAIN="$HERE/usr/bin/usinix"'))
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -16138,4 +16177,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T99PlanosNoNovoEsboco, T100IdeiasDeOutrosCAD,
            T101AdicionarOuRemoverMaterial, T102Componentes, T103DutosHVAC, T104ModelagemDireta,
            T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca, T115EsbocoModoLimpoECorSelecao,
-           T116AtualizacaoReabreESplashEsbocoSuave]
+           T116AtualizacaoReabreESplashEsbocoSuave,
+           T117AbrirNoLinuxETema]

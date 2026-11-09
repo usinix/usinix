@@ -21,15 +21,17 @@ ADDON_DIR = os.path.dirname(os.path.abspath(__file__))
 RES_DIR = os.path.join(ADDON_DIR, "Resources")
 ICON_PATH = os.path.join(RES_DIR, "icons", "prumo.png")
 SPLASH_SRC = os.path.join(RES_DIR, "splash_image.png")
-# Tema "Usinix Claro": pacote de preferências embutido (share/Gui/PreferencePacks);
-# a cópia ao lado do módulo é aceita para quem roda o módulo solto, fora do programa compilado.
-PACK_CFG = next(
-    (c for c in (
-        os.path.join(FreeCAD.getResourceDir(), "Gui", "PreferencePacks", "Usinix Claro", "Usinix Claro.cfg"),
-        os.path.join(ADDON_DIR, "Usinix Claro", "Usinix Claro.cfg"),
-    ) if os.path.isfile(c)),
-    os.path.join(FreeCAD.getResourceDir(), "Gui", "PreferencePacks", "Usinix Claro", "Usinix Claro.cfg"),
-)
+# Tema "Usinix Claro": pacote de preferências embutido (share/Gui/PreferencePacks). O pacote do programa ainda
+# se chama "Prumo Claro" (src/Gui/PreferencePacks): a 1.4.0 procurava só "Usinix Claro", não achava e a abertura
+# do Usinix parava com "falha ao carregar o branding". A cópia ao lado do módulo é aceita para quem roda o módulo
+# solto, fora do programa compilado.
+def _caminhos_do_tema():
+    for pasta in (os.path.join(FreeCAD.getResourceDir(), "Gui", "PreferencePacks"), ADDON_DIR):
+        for nome in ("Usinix Claro", "Prumo Claro"):
+            yield os.path.join(pasta, nome, nome + ".cfg")
+
+
+PACK_CFG = next((c for c in _caminhos_do_tema() if os.path.isfile(c)), next(_caminhos_do_tema()))
 
 
 def _params():
@@ -1381,6 +1383,9 @@ def startup():
     if _params().GetBool("FirstRun", True):
         _params().SetBool("FirstRun", False)
         if _params().GetBool("ApplyThemeOnFirstRun", True):
-            apply_theme()
-            FreeCAD.Console.PrintMessage(
-                "Usinix: tema aplicado na primeira execução — reabra o FreeCAD.\n")
+            try:
+                apply_theme()
+                FreeCAD.Console.PrintMessage(
+                    "Usinix: tema aplicado na primeira execução — reabra o FreeCAD.\n")
+            except Exception as exc:   # sem o tema o Usinix abre do mesmo jeito
+                FreeCAD.Console.PrintWarning("Usinix: tema não aplicado: {}\n".format(exc))

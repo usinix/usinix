@@ -9,6 +9,20 @@ export PATH_TO_FREECAD_LIBDIR=${HERE}/usr/lib
 export FONTCONFIG_FILE=/etc/fonts/fonts.conf
 export FONTCONFIG_PATH=/etc/fonts
 
+# Fontconfig do sistema no lugar do embutido: o embutido lê a configuração e o cache de fontes do sistema e,
+# em distribuições atualizadas (Linux Mint 22, Kubuntu 24.04...), o Usinix fechava ao abrir com falha de
+# segmentação em libfontconfig (FcCharSetHasChar). Mesmo defeito do AppImage do FreeCAD (issues 32926 e
+# 33377); o contorno conferido lá é carregar a biblioteca do sistema. USINIX_FONTCONFIG_EMBUTIDO=1 desliga.
+if [ "${USINIX_FONTCONFIG_EMBUTIDO:-0}" != 1 ]; then
+    for fc in /usr/lib/x86_64-linux-gnu/libfontconfig.so.1 /usr/lib64/libfontconfig.so.1 \
+              /usr/lib/libfontconfig.so.1 /lib/x86_64-linux-gnu/libfontconfig.so.1; do
+        if [ -e "$fc" ]; then
+            export LD_PRELOAD="$fc${LD_PRELOAD:+:$LD_PRELOAD}"
+            break
+        fi
+    done
+fi
+
 # Fix: Use X to run on Wayland
 export QT_QPA_PLATFORM=xcb
 
