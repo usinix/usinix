@@ -194,7 +194,7 @@ def criar_baloes(page, vista=None, objs=None):
         o, _sh = por_item[n]
         a = ancoras[n]
         b = doc.addObject("TechDraw::DrawViewBalloon", "Balao")
-        b.addProperty("App::PropertyLink", PROP, "Usinix", "Peça que o balão numera (item da lista de materiais)")
+        b.addProperty("App::PropertyLinkGlobal", PROP, "Usinix", "Peça que o balão numera (item da lista de materiais)")
         setattr(b, PROP, o)
         b.SourceView = vista
         b.Text = str(n)
