@@ -926,6 +926,7 @@ def register_commands():
                              ("PrumoPiso", lambda m: m.registrar_comandos()),
                              ("PrumoProtecao", lambda m: m.registrar_comandos()),
                              ("PrumoEscada", lambda m: m.registrar_comandos()),
+                             ("PrumoCorteEstrutura", lambda m: m.registrar_comandos()),
                              ("PrumoMemorialNR13", lambda m: m.registrar_comandos()),
                              ("PrumoBuscaComandos", lambda m: m.registrar_comandos()),
                              ("PrumoAnotacoes", lambda m: m.registrar_comandos()),

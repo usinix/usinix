@@ -108,9 +108,9 @@ def _em_corpo(obj):
 POR_TIPO = {
     "folha": ["Prumo_EditarLegenda", "Prumo_CotasGerais", "Prumo_Baloes", "Separator", "Prumo_SalvarPDF",
               "Prumo_ExportarDXF"],
-    "barra": ["Prumo_TrabalhosBarra", "Prumo_TrocarPerfil", "Prumo_Cantos", "Separator", "Prumo_ListaDeCorte",
+    "barra": ["Prumo_TrabalhosBarra", "Prumo_CorteEstrutura", "Prumo_TrocarPerfil", "Prumo_Cantos", "Separator", "Prumo_ListaDeCorte",
               "Prumo_FolhasBarras"],
-    "estrutura": ["Prumo_EditarEstrutura", "Prumo_TrabalhosBarra", "Prumo_Cantos", "Separator",
+    "estrutura": ["Prumo_EditarEstrutura", "Prumo_TrabalhosBarra", "Prumo_CorteEstrutura", "Prumo_Cantos", "Separator",
                   "Prumo_ListaDeCorte", "Prumo_FolhasBarras", "Prumo_ExportarExcel"],
     "parafusos": ["Prumo_TrabalhosBarra", "Prumo_ListaMateriais"],
     "chapa": ["Prumo_FolhaChapa", "Prumo_ChapaDXF", "Prumo_DXFLote"],

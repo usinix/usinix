@@ -17004,6 +17004,89 @@ class T127Escada(unittest.TestCase):
             p.form.deleteLater()
 
 
+class T128CortarBarras(unittest.TestCase):
+    """1.13.0: corte ou furo feito uma vez e aplicado em várias barras (escopo), ligado à ferramenta."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteCorteEstrutura")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def _quadro(self):
+        import PrumoEstrutura as E
+        sk = esboco_linhas(self.doc, [((0, 0), (1000, 0)), ((1000, 0), (1000, 600)), ((1000, 600), (0, 600)),
+                                      ((0, 600), (0, 0))], "XY")
+        est = E.criar(self.doc, sk, "Tubo □ 50 x 50 x 2" if E.PrumoPerfis.perfil("Tubo □ 50 x 50 x 2")
+                      else E.PERFIL_PADRAO)
+        return E, est, E.barras_de(est)
+
+    def test_furo_atravessa_duas_barras(self):
+        import PrumoCorteEstrutura as C
+        E, est, bs = self._quadro()
+        vols = {b.Name: b.Shape.Volume for b in bs}
+        cil = self.doc.addObject("Part::Cylinder", "Furo")
+        cil.Radius, cil.Height = 8, 1200
+        cil.Placement = FreeCAD.Placement(FreeCAD.Vector(500, -100, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), -90))
+        self.doc.recompute()
+        c = C.criar(self.doc, cil)                       # escopo automático: as que o cilindro atravessa
+        self.assertTrue(c.Automatico)
+        atingidas = C.barras_do_corte(c)
+        self.assertEqual(len(atingidas), 2)                 # barra de baixo e de cima
+        for b in bs:
+            if b in atingidas:
+                self.assertLess(b.Shape.Volume, vols[b.Name] - 100)
+                self.assertTrue(b.Shape.isValid())
+                self.assertEqual(len(b.Shape.Solids), 1)
+            else:
+                self.assertAlmostEqual(b.Shape.Volume, vols[b.Name], delta=1e-3)
+        # ferramenta ligada: mover o cilindro move o furo
+        antes = [b.Shape.copy() for b in atingidas]
+        cil.Placement.Base = FreeCAD.Vector(300, -100, 0)
+        self.doc.recompute()
+        for b, a in zip(atingidas, antes):
+            self.assertFalse(b.Shape.isEqual(a))
+            self.assertLess(b.Shape.Volume, vols[b.Name] - 100)
+        # escopo à mão: só uma barra
+        C.editar(c, barras=[atingidas[0]])
+        self.assertEqual(C.barras_do_corte(c), [atingidas[0]])
+        self.assertAlmostEqual(atingidas[1].Shape.Volume, vols[atingidas[1].Name], delta=1e-3)
+        # apagar o corte devolve as barras
+        C.remover(c)
+        self.doc.removeObject(c.Name)
+        self.doc.recompute()
+        for b in bs:
+            self.assertAlmostEqual(b.Shape.Volume, vols[b.Name], delta=1e-3)
+
+    def test_esboco_vira_ferramenta_passante(self):
+        import Part
+        import PrumoCorteEstrutura as C
+        E, est, bs = self._quadro()
+        # retângulo no plano XZ cortando as duas barras laterais (x = 0 e x = 1000)? não: corta as de y = 0 e 600
+        sk = self.doc.addObject("Sketcher::SketchObject", "Recorte")
+        sk.Placement = FreeCAD.Placement(FreeCAD.Vector(0, 0, 0), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
+        pts = [(450, -10), (550, -10), (550, 10), (450, 10)]
+        for i in range(4):
+            a, b = pts[i], pts[(i + 1) % 4]
+            sk.addGeometry(Part.LineSegment(FreeCAD.Vector(a[0], a[1], 0), FreeCAD.Vector(b[0], b[1], 0)))
+        self.doc.recompute()
+        c = C.criar(self.doc, sk)
+        self.assertEqual(c.Ferramenta.TypeId, "Part::Extrusion")
+        self.assertEqual(len(C.barras_do_corte(c)), 2)
+        if FreeCAD.GuiUp:
+            self.assertFalse(sk.ViewObject.Visibility)
+            self.assertIn("Prumo_CorteEstrutura", FreeCADGui.listCommands())
+
+    def test_sem_barra_atingida(self):
+        import PrumoCorteEstrutura as C
+        E, est, bs = self._quadro()
+        cx = self.doc.addObject("Part::Box", "Longe")
+        cx.Placement.Base = FreeCAD.Vector(5000, 5000, 0)
+        self.doc.recompute()
+        with self.assertRaises(ValueError):
+            C.criar(self.doc, cx)
+
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -17770,4 +17853,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T122DoModeloParaAFabrica,
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
-           T126DiferencialSework, T127Escada]
+           T126DiferencialSework, T127Escada, T128CortarBarras]

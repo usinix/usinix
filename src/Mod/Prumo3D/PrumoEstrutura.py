@@ -963,6 +963,29 @@ class Estrutura:
         return None
 
 
+def aplicar_cortes_estrutura(barra, sol):
+    """Tira da barra os cortes feitos na estrutura (Cortar barras) que a incluem no escopo."""
+    cortes = [c for c in (getattr(barra, "CortesEstrutura", None) or []) if c is not None]
+    if not cortes:
+        return sol
+    try:
+        import PrumoCorteEstrutura as C
+    except ImportError:
+        return sol
+    for c in cortes:
+        try:
+            ferr = C.forma_ferramenta(c)
+        except Exception as exc:
+            FreeCAD.Console.PrintWarning("Usinix: %s: %s\n" % (c.Label, exc))
+            continue
+        if ferr is None or not ferr.BoundBox.intersect(sol.BoundBox):
+            continue
+        r = sol.cut(ferr)
+        if r.Solids:
+            sol = max(r.Solids, key=lambda x: x.Volume) if len(r.Solids) > 1 else r.Solids[0]
+    return sol
+
+
 class Barra:
     """Uma barra da estrutura. A forma vem de calcular_barra(estrutura, indice)."""
 
@@ -993,6 +1016,9 @@ class Barra:
         add("App::PropertyString", "Material", "Barra", "Material (vem da estrutura)", True)
         add("App::PropertyString", "SituacaoDados", "Barra", "Confirmado no catálogo ou a conferir", True)
         add("App::PropertyString", "Furacao", "Barra", "Furos da barra (ex.: 4 × Ø14)", True)
+        add("App::PropertyLinkList", "CortesEstrutura", "Trabalhos na barra",
+            "Cortes feitos na estrutura que passam por esta barra (Cortar barras)")
+        obj.setEditorMode("CortesEstrutura", 1)
 
     def onDocumentRestored(self, obj):
         obj.Proxy = self
@@ -1009,6 +1035,7 @@ class Barra:
         if obj.Indice in sem_barra(est):
             return   # a sincronização apaga esta barra
         sol, comp, a0, a1, nome = calcular_barra(est, obj.Indice, eds)
+        sol = aplicar_cortes_estrutura(obj, sol)
         obj.Shape = sol
         obj.Perfil = nome
         obj.ComprimentoCorte = comp
