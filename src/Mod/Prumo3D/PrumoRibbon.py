@@ -263,6 +263,9 @@ TABS = [
         ("Pisos e fechamentos", [
             ("Prumo_Piso", L, "Piso e\nfechamento"),
         ]),
+        ("Acessos", [
+            ("Prumo_Escada", L, "Escada"),
+        ]),
         ("Segurança de máquinas", [
             ("Prumo_ProtecaoNR12", L, "Proteção\nNR-12"), ("Prumo_RelatorioProtecao", S, "Relatório das proteções"),
         ]),

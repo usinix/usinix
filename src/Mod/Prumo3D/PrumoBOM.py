@@ -186,6 +186,15 @@ def coletar(objs, densidade_padrao=None, mapa=None):
                 linhas[chave].qtd += qtd
                 marcar(obj, chave, sh)
             continue
+        if "Itens" in base.PropertiesList and hasattr(getattr(base, "Proxy", None), "linhas_bom"):
+            # peças que se contam por item (degraus e rodapés da escada)
+            for chave, den, mat, dim, qtd, massa, obs in base.Proxy.linhas_bom(base):
+                if chave not in linhas:
+                    linhas[chave] = Linha(chave, den, mat or "—", dim, massa, obs)
+                    ordem.append(chave)
+                linhas[chave].qtd += qtd
+                marcar(obj, chave, sh)
+            continue
         if "ItensParafusos" in base.PropertiesList:
             # parafusos nos furos de uma barra (Trabalhos na barra): parafuso, arruela e porca contados à parte
             import PrumoFixadores as F

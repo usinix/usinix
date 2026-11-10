@@ -636,6 +636,32 @@ def f_memorial(vaso, caminho, classe=None, pressao_operacao=None, tag=None, clie
             "pv_mpa_m3": round(e["pv"], 4), "avisos": avisos}
 
 
+@ferramenta("escada", "Cria uma escada industrial num objeto só: duas vigas (banzos), degraus e guarda-corpo, e "
+            "confere a NR-12 (Anexo III). desnivel e largura_util em mm, angulo em graus; degrau: grade, xadrez ou "
+            "espelho; perfil_banzo (ex.: I 8\" x 27,3 kg/m); lados: dois, esquerdo, direito ou nenhum; x, y, z: pé.",
+            {"desnivel": {"type": "number"}, "angulo": {"type": "number"}, "largura_util": {"type": "number"},
+             "degrau": {"type": "string"}, "perfil_banzo": {"type": "string"}, "lados": {"type": "string"},
+             "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
+             "giro": {"type": "number"}}, ["desnivel"])
+def f_escada(desnivel, angulo=45.0, largura_util=800.0, degrau="grade", perfil_banzo=None, lados="dois",
+             x=0.0, y=0.0, z=0.0, giro=0.0):
+    import PrumoEscada as PE
+    doc = _doc()
+    tipo = {"grade": PE.TIPOS_DEGRAU[0], "xadrez": PE.TIPOS_DEGRAU[1], "espelho": PE.TIPOS_DEGRAU[2]}.get(
+        str(degrau).lower().split()[0] if degrau else "grade", PE.TIPOS_DEGRAU[0])
+    ld = {"dois": PE.LADOS[0], "esquerdo": PE.LADOS[1], "direito": PE.LADOS[2], "nenhum": PE.LADOS[3]}.get(
+        str(lados).lower(), PE.LADOS[0])
+    kw = {"Desnivel": desnivel, "Angulo": angulo, "LarguraUtil": largura_util, "TipoDegrau": tipo,
+          "LadosGuarda": ld,
+          "Posicao": FreeCAD.Placement(FreeCAD.Vector(x, y, z), FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), giro))}
+    if perfil_banzo:
+        kw["PerfilBanzo"] = perfil_banzo
+    e = PE.criar(doc, **kw)
+    return {"objeto": e.Name, "conforme": bool(e.Conforme), "degraus": e.Degraus,
+            "altura_degrau_mm": round(e.AlturaEspelho, 1), "profundidade_mm": round(e.ProfundidadeLivre, 1),
+            "verificacao": list(e.Verificacao)}
+
+
 @ferramenta("capturar_vista", "Imagem da vista 3D (PNG) para conferir o que foi feito. vista: iso, frente, topo, "
             "direita, atual.", {"vista": {"type": "string"}, "largura": {"type": "integer"}}, muda=False)
 def f_captura(vista="iso", largura=900):

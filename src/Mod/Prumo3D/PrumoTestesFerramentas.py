@@ -12740,6 +12740,7 @@ class T85SoldaRugosidadeAjuste(unittest.TestCase):
         de_proposito = {"PrumoSelecao.PainelSelecao._preencher_com_selecao",   # enche as caixas em ordem
                         "PrumoPiso.PainelPiso._atualizar_previa",       # chama super() e depois mostra área e peso
                         "PrumoProtecao.PainelProtecao._atualizar_previa",   # chama super() e mostra a verificação
+                        "PrumoEscada.PainelEscada._atualizar_previa",   # chama super() e mostra a NR-12
                         "PrumoInserirDesenho.PainelInserir._preencher_com_selecao"}  # a seleção só marca a lista
         ruins = []
         for cls in todas(P.PainelTarefa):
@@ -16911,6 +16912,98 @@ class T126DiferencialSework(unittest.TestCase):
                 self.assertIn(c, cmds)
 
 
+class T127Escada(unittest.TestCase):
+    """1.12.0: escada industrial num objeto só (banzos, degraus, guarda-corpo) com a NR-12, Anexo III."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteEscada")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_escada_45_graus(self):
+        import PrumoEscada as PE
+        import PrumoEstrutura as E
+        import PrumoBOM
+        e = PE.criar(self.doc, Desnivel=2400, Angulo=45, LarguraUtil=800)
+        self.assertTrue(e.Conforme, "\n".join(e.Verificacao))
+        self.assertEqual(e.Degraus, 10)
+        self.assertAlmostEqual(e.AlturaEspelho, 2400 / 11.0, places=3)
+        m = PE.Medidas(e)
+        self.assertTrue(600 <= m.g + 2 * m.h <= 660)
+        # banzos: duas vigas I com a altura no plano vertical e pontas horizontais no piso e no topo
+        bs = E.barras_de(e.Banzos)
+        self.assertEqual(len(bs), 2)
+        n = FreeCAD.Vector(-m.sen, 0, m.cos)
+        for b in bs:
+            self.assertTrue(b.Shape.isValid())
+            ds = [v.Point.dot(n) for v in b.Shape.Vertexes]
+            self.assertAlmostEqual(max(ds) - min(ds), m.alt, delta=0.5)
+            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 0.0, places=3)
+            self.assertAlmostEqual(b.Shape.BoundBox.ZMax, 2400.0, places=3)
+        self.assertEqual(list(e.GuardaCorpo.Avisos), [])
+        # tudo num objeto: a escada contém as partes
+        for parte in (e.Banzos, e.GuardaCorpo, e.PecasDegraus):
+            self.assertIn(parte, e.Group)
+        # lista de materiais: degraus pela quantidade
+        linhas = {l.denominacao: l for l in PrumoBOM.coletar([e])}
+        deg = [l for d, l in linhas.items() if d.startswith("Degrau")]
+        self.assertEqual(len(deg), 1)
+        self.assertEqual(deg[0].qtd, 10)
+        self.assertTrue(any(d.startswith("Rodapé") for d in linhas))
+
+    def test_edicao_e_nr12(self):
+        import PrumoEscada as PE
+        e = PE.criar(self.doc, Desnivel=2400, Angulo=45, LarguraUtil=800)
+        e.Desnivel = 3200
+        e.LarguraUtil = 550
+        PE.reconstruir(e)
+        self.assertFalse(e.Conforme)
+        ruins = [v for v in e.Verificacao if v.startswith("✗")]
+        self.assertTrue(any("patamar" in v for v in ruins))
+        self.assertTrue(any("Largura útil" in v for v in ruins))
+        # escada com espelho a 60°: fora da Figura 1
+        e.TipoDegrau = PE.TIPOS_DEGRAU[2]
+        e.Angulo, e.Desnivel, e.LarguraUtil = 60, 2000, 800
+        PE.reconstruir(e)
+        self.assertTrue(any("com espelho" in v and v.startswith("✗") for v in e.Verificacao))
+        # sem guarda-corpo: some a estrutura e a verificação acusa
+        e.TipoDegrau, e.Angulo, e.LadosGuarda = PE.TIPOS_DEGRAU[0], 45, PE.LADOS[3]
+        PE.reconstruir(e)
+        self.assertIsNone(e.GuardaCorpo)
+        self.assertTrue(any("Sem guarda-corpo" in v for v in e.Verificacao))
+
+    def test_escada_deitada_e_posicao(self):
+        import PrumoEscada as PE
+        import PrumoEstrutura as E
+        e = PE.criar(self.doc, Desnivel=1200, Angulo=22, LarguraUtil=700,
+                     Posicao=FreeCAD.Placement(FreeCAD.Vector(1000, 500, 300), FreeCAD.Rotation(0, 0, 0)))
+        m = PE.Medidas(e)
+        n = FreeCAD.Vector(-m.sen, 0, m.cos)
+        b = E.barras_de(e.Banzos)[0]
+        ds = [v.Point.dot(n) for v in b.Shape.Vertexes]
+        self.assertAlmostEqual(max(ds) - min(ds), m.alt, delta=0.5)
+        self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 300.0, places=3)
+        self.assertAlmostEqual(e.PecasDegraus.Shape.BoundBox.XMin, 1000.0, places=3)
+        self.assertAlmostEqual(e.PecasDegraus.Shape.BoundBox.YMin, 500.0 - 800.0 / 2 + 5.0 - 200.0, delta=300)
+
+    def test_painel_e_ia(self):
+        import PrumoEscada as PE
+        import PrumoIA
+        r = PrumoIA.executar("escada", {"desnivel": 1800, "angulo": 40})
+        self.assertTrue(r["conforme"], r)
+        if not FreeCAD.GuiUp:
+            return
+        self.assertIn("Prumo_Escada", FreeCADGui.listCommands())
+        e = self.doc.getObject(r["objeto"])
+        p = PE.PainelEscada().editar_objeto(e)
+        try:
+            self.assertEqual(p.desnivel.value(), 1800)
+            self.assertIn("Confere", p.resultado.text() or "Confere")
+        finally:
+            p.form.deleteLater()
+
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -17677,4 +17770,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T122DoModeloParaAFabrica,
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
-           T126DiferencialSework]
+           T126DiferencialSework, T127Escada]

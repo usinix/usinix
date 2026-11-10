@@ -15,6 +15,27 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.12.0 — 10/11/2026
+
+![Escada a 45° com vigas I, degraus de grade e guarda-corpo, conferida pela NR-12](.github/images/novidades/1.12.0.webp)
+
+### Escada industrial
+
+- **Escada** (aba Estruturas › Acessos): informe o desnível, o ângulo, a largura útil e o perfil das vigas, e o
+  Usinix monta **num objeto só** as duas vigas (banzos), os degraus (grade de piso, chapa xadrez dobrada ou com
+  espelho), o guarda-corpo com montantes, travessão superior e intermediário, e o rodapé.
+- **Degraus calculados:** a quantidade e a altura saem do desnível, com g + 2h perto de 630 mm; dá para fixar o
+  número de subidas.
+- **Vigas certas:** a altura da viga fica no plano da escada e as pontas saem cortadas na horizontal no piso e
+  no topo, sem ajuste à mão.
+- **Edição por duplo clique** (ou no painel Propriedades): muda o desnível, o ângulo, a largura ou um perfil e a
+  escada inteira se refaz. Posição do pé e giro em planta no próprio painel.
+- **Conferência ao vivo pela NR-12, Anexo III** (Portaria MTP n.º 4.219/2022): ângulo pela Figura 1, largura útil,
+  profundidade e altura dos degraus, g + 2h, patamar a cada 3,00 m e guarda-corpo (1,10 m a 1,20 m,
+  intermediário a 0,70 m, rodapé de 0,20 m).
+- **Lista de materiais:** vigas e tubos pela lista de corte; degraus e rodapés pela quantidade.
+- **Conectar IA:** ferramenta nova `escada`.
+
 ## 1.11.1 — 10/11/2026
 
 ### Correções
