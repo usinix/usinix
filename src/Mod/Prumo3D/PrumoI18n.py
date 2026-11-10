@@ -743,7 +743,57 @@ def install():
         _state["tr"] = PrumoTranslator(EXTRA, qm if os.path.isfile(qm) else "")
     raise_priority()
     vigiar_idioma()
+    instalar_listas_traduzidas()
     QtCore.QTimer.singleShot(1500, retitle_docks)
+
+
+class _ListasDoEditor(QtCore.QObject):
+    """A lista que abre num valor de enumeração do editor de propriedades (ex.: Tipo da vista: Front,
+    FrontTopRight…) é montada sem tradução; o valor mostrado já é traduzido. Traduz o texto das opções na hora
+    em que a lista abre — o dado de cada opção (o valor gravado) continua o original."""
+
+    def eventFilter(self, obj, ev):
+        try:
+            if ev.type() == QtCore.QEvent.Show and isinstance(obj, QtWidgets.QMenu) and _do_editor(obj):
+                traduzir_menu_de_enum(obj)
+        except Exception:
+            pass
+        return False
+
+
+def _do_editor(menu):
+    w = menu.parentWidget()
+    while w is not None:
+        if "PropertyEditor" in w.metaObject().className() or "PropertyEditor" in type(w).__name__:
+            return True
+        w = w.parentWidget()
+    return False
+
+
+def traduzir_menu_de_enum(menu):
+    from PrumoEnums import ENUMS
+    n = 0
+    for a in menu.actions():
+        if a.menu() is not None:
+            n += traduzir_menu_de_enum(a.menu())
+            continue
+        t = a.text()
+        pt = ENUMS.get(t)
+        if pt and pt != t:
+            if a.data() in (None, ""):
+                a.setData(t)               # sem dado, o editor usaria o texto: guarda o original
+            a.setText(pt)
+            n += 1
+    return n
+
+
+def instalar_listas_traduzidas():
+    from PySide import QtWidgets as _QW
+    globals()["QtWidgets"] = _QW
+    if _state.get("listas") is None:
+        f = _ListasDoEditor(_app())
+        _app().installEventFilter(f)
+        _state["listas"] = f
 
 
 DOCK_TITULOS = {"Report view": "Relatório", "Python console": "Console Python"}

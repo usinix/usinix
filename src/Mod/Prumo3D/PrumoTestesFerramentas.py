@@ -17275,6 +17275,66 @@ class T123AcabamentoEVisual(unittest.TestCase):
         finally:
             pn.close()
 
+    def test_vistas_e_listas_em_portugues(self):
+        import PrumoInspetor as I
+        import PrumoNomes as N
+        self.assertEqual(I.enum_pt("FrontTopRight"), "Isométrica superior direita")
+        self.assertEqual(I.enum_pt("Front"), "Frontal")
+        self.assertEqual(I.enum_pt("Shaded"), "Sólido", "o texto curto do painel continua valendo")
+        self.assertEqual(I.TIPO_PT["TechDraw::DrawProjGroupItem"], "Vista do grupo")
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import Part
+        import PrumoFolhas as F
+        from PySide import QtWidgets
+        N.install()
+        o = self.doc.addObject("Part::Feature", "Bloco")
+        o.Shape = Part.makeBox(100, 60, 40)
+        self.doc.recompute()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        for _ in range(20):
+            QtWidgets.QApplication.processEvents()
+        g = [v for v in p.Views if v.isDerivedFrom("TechDraw::DrawProjGroup")][0]
+        rot = {v.Type: v.Label for v in g.Views}
+        self.assertEqual(rot.get("Front"), "Frontal", "na árvore a vista aparece em português")
+        self.assertNotIn("Top", rot.values())
+        self.assertTrue(all(v.Type in N.PROJECOES for v in g.Views), "o tipo gravado continua o original")
+
+    def test_duplo_clique_na_anotacao_abre_a_edicao(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoAnotacao as A
+        import PrumoContexto as C
+        import PrumoFolhas as F
+        from PySide import QtWidgets
+        p = F.nova_folha(self.doc, "A4", "NBR16752", False, {}, None)
+        an = self.doc.addObject("TechDraw::DrawViewAnnotation", "Anotacao")
+        an.Text = ["NOTA 1", "Soldar todo o contorno"]
+        p.addView(an)
+        self.doc.recompute()
+        self.assertEqual(C.tipo_do_objeto(an), "anotacao")
+        self.assertIn("Prumo_EditarAnotacao", C.itens_para([(an, [])]))
+        A.install()
+        F._abrir_folha(p)
+        for _ in range(30):
+            QtWidgets.QApplication.processEvents()
+        A._instalar_nas_folhas()
+        vps = [gv.viewport() for gv in FreeCADGui.getMainWindow().findChildren(QtWidgets.QGraphicsView)
+               if gv.isVisible()]
+        self.assertTrue(any(vp.property("prumo_anotacao") for vp in vps), "a folha escuta o duplo clique")
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(an)
+        A._abrir_da_selecao()
+        js = [w for w in QtWidgets.QApplication.topLevelWidgets() if isinstance(w, A.JanelaAnotacao) and w.isVisible()]
+        self.assertEqual(len(js), 1, "duplo clique com a anotação selecionada abre a edição")
+        j = js[0]
+        self.assertEqual(j.texto.toPlainText(), "NOTA 1\nSoldar todo o contorno")
+        j.texto.setPlainText("NOTA 1\nSoldar com eletrodo E7018")
+        j.tamanho.setValue(3.5)
+        j.accept()
+        self.assertEqual(list(an.Text), ["NOTA 1", "Soldar com eletrodo E7018"])
+        self.assertAlmostEqual(float(an.TextSize), 3.5)
+
     def test_grade_na_area_de_trabalho(self):
         import PrumoGrade as G
         self.assertEqual(G.passo_para(200), 10.0)

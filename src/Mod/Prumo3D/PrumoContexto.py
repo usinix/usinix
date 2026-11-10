@@ -116,6 +116,7 @@ POR_TIPO = {
     "chapa": ["Prumo_FolhaChapa", "Prumo_ChapaDXF", "Prumo_DXFLote"],
     "vaso": ["Prumo_MemoriaVaso", "Prumo_DesenhoVaso"],
     "tubulacao": ["Prumo_IsometricoTubulacao", "Prumo_ListaMateriais"],
+    "anotacao": ["Prumo_EditarAnotacao"],
     "montagem": ["Prumo_ListaMateriais", "Prumo_ExportarExcel", "Prumo_DXFLote", "Prumo_FolhasLote"],
 }
 
@@ -133,6 +134,8 @@ def tipo_do_objeto(o):
         props = o.PropertiesList
         if o.isDerivedFrom("TechDraw::DrawPage"):
             return "folha"
+        if o.TypeId == "TechDraw::DrawViewAnnotation":
+            return "anotacao"
         if "Indice" in props and "Estrutura" in props and "ComprimentoCorte" in props:
             return "barra"
         if "Esqueleto" in props and "Uniao" in props:

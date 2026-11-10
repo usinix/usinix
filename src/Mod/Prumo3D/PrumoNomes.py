@@ -55,6 +55,17 @@ NOMES = {
     "Joints": "Juntas", "GroundedJoint": "Fixação", "Measure": "Medida",
 }
 
+# vistas do grupo de projeção: o TechDraw dá a cada uma o tipo como rótulo ("Front", "FrontTopRight")
+PROJECOES = {
+    "Front": "Frontal", "Rear": "Posterior", "Top": "Superior", "Bottom": "Inferior",
+    "Left": "Lateral esquerda", "Right": "Lateral direita",
+    "FrontTopLeft": "Isométrica superior esquerda", "FrontTopRight": "Isométrica superior direita",
+    "FrontBottomLeft": "Isométrica inferior esquerda", "FrontBottomRight": "Isométrica inferior direita",
+}
+
+# rótulos que o pt-BR do FreeCAD dá (diferentes dos nomes da faixa e da Paleta de vistas)
+PROJECOES_QM = {"Frente", "Topo", "Esquerda", "Direito", "Direita", "Traseira", "De baixo", "Fundo"}
+
 _RE = re.compile(r"^(.*?)(\d{3})?$")
 
 
@@ -96,7 +107,34 @@ def renomear(obj, original):
         return False
 
 
+def renomear_projecao(obj):
+    """Vista de grupo de projeção com o rótulo igual ao tipo em inglês ganha o nome em português."""
+    try:
+        if obj is None or obj.TypeId != "TechDraw::DrawProjGroupItem":
+            return False
+        novo = PROJECOES.get(obj.Type)
+        if novo and obj.Label != novo and (obj.Label == obj.Type or obj.Label in PROJECOES_QM):
+            obj.Label = novo
+            return True
+    except Exception:
+        pass
+    return False
+
+
 class Observador:
+    def slotChangedObject(self, obj, prop):
+        # o grupo de projeção cria a vista e só depois põe o tipo como rótulo
+        if prop != "Label" or not _ligado():
+            return
+        try:
+            if obj.TypeId != "TechDraw::DrawProjGroupItem" \
+                    or (obj.Label not in PROJECOES and obj.Label not in PROJECOES_QM) \
+                    or _documento_ocupado(obj.Document):
+                return
+        except Exception:
+            return
+        QtCore.QTimer.singleShot(0, lambda o=obj: renomear_projecao(o))
+
     def slotCreatedObject(self, obj):
         if not _ligado():
             return

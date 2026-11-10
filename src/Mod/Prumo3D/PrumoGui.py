@@ -913,6 +913,7 @@ def register_commands():
                              ("PrumoBaloes", lambda m: m.registrar_comandos()),
                              ("PrumoFolhaPeca", lambda m: m.registrar_comandos()),
                              ("PrumoFabrica", lambda m: m.registrar_comandos()),
+                             ("PrumoAnotacao", lambda m: m.registrar_comandos()),
                              ("PrumoArredondar", lambda m: m.registrar_comandos()),
                              ("PrumoBarraVarredura", lambda m: m.registrar_comandos()),
                              ("PrumoSombras", lambda m: m.registrar_comandos()),
@@ -1067,7 +1068,7 @@ def _start_ribbon():
 
 def _start_ferramentas():
     """Menu de contexto pela seleção e duplo clique para as cotas da operação."""
-    for modulo in ("PrumoContexto", "PrumoCotas", "PrumoGrade"):
+    for modulo in ("PrumoContexto", "PrumoCotas", "PrumoGrade", "PrumoAnotacao"):
         try:
             __import__(modulo).install()
         except Exception as exc:

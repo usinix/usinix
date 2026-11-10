@@ -30,6 +30,19 @@ ENUM_PT = {
     "ObjectXZ": "Plano XZ do objeto", "ObjectYZ": "Plano YZ do objeto", "ThreePointsPlane": "Por 3 pontos",
     "NormalToEdge": "Normal à aresta", "TangentPlane": "Tangente", "Concentric": "Concêntrico", "Offset": "Espaçamento", "Extent": "Extensão", "Spacing": "Espaçamento",
 }
+
+
+def enum_pt(e):
+    """Texto na tela de um valor de lista: o curto do painel, senão a tradução geral (PrumoEnums)."""
+    if e in ENUM_PT:
+        return ENUM_PT[e]
+    try:
+        from PrumoEnums import ENUMS
+        return ENUMS.get(e, e)
+    except Exception:
+        return e
+
+
 ENUM_ICONE = {
     "Length": "medida", "ThroughAll": "atraves", "UpToFirst": "ate_primeira", "UpToLast": "ate_fim",
     "UpToFace": "ate_face", "UpToShape": "solido", "One side": "seta_cima", "Two sides": "dois_lados",
@@ -37,6 +50,14 @@ ENUM_ICONE = {
     "Wireframe": "exibicao_arame", "Points": "exibicao_pontos",
 }
 TIPO_PT = {
+    "TechDraw::DrawPage": "Folha", "TechDraw::DrawProjGroup": "Grupo de vistas",
+    "TechDraw::DrawProjGroupItem": "Vista do grupo", "TechDraw::DrawViewPart": "Vista",
+    "TechDraw::DrawBrokenView": "Vista interrompida", "TechDraw::DrawViewSection": "Corte",
+    "TechDraw::DrawViewDetail": "Detalhe", "TechDraw::DrawViewDimension": "Cota",
+    "TechDraw::DrawViewBalloon": "Balão", "TechDraw::DrawViewAnnotation": "Anotação",
+    "TechDraw::DrawRichAnno": "Anotação", "TechDraw::DrawLeaderLine": "Linha de chamada",
+    "TechDraw::DrawViewSpreadsheet": "Tabela", "TechDraw::DrawSVGTemplate": "Modelo de folha",
+    "TechDraw::DrawHatch": "Hachura", "TechDraw::DrawGeomHatch": "Hachura",
     "PartDesign::Body": "Corpo", "Sketcher::SketchObject": "Esboço", "PartDesign::Pad": "Extrusão",
     "PartDesign::Pocket": "Cavidade", "PartDesign::Revolution": "Revolução", "PartDesign::Groove": "Ranhura",
     "PartDesign::Hole": "Furo", "PartDesign::Fillet": "Arredondamento", "PartDesign::Chamfer": "Chanfro",
@@ -452,8 +473,8 @@ class Propriedades(QtWidgets.QWidget):
             w.toggled.connect(lambda on, p=prop, r=rotulo: self._mudar(p, bool(on), r))
         elif tipo == "lista":
             opcoes = [e for e in obj.getEnumerationsOfProperty(prop) if not str(e).startswith("?")]
-            if 1 < len(opcoes) <= 6 and all(len(ENUM_PT.get(e, e)) <= 14 for e in opcoes):
-                w = UI.Segmentado([(e, ENUM_PT.get(e, e), ENUM_ICONE.get(e)) for e in opcoes], valor,
+            if 1 < len(opcoes) <= 6 and all(len(enum_pt(e)) <= 14 for e in opcoes):
+                w = UI.Segmentado([(e, enum_pt(e), ENUM_ICONE.get(e)) for e in opcoes], valor,
                                   colunas=4 if len(opcoes) != 6 else 3)
                 w.mudou.connect(lambda k, p=prop, r=rotulo: self._mudar(p, k, r))
                 # botões ocupam a largura do cartão; o rótulo vai em cima, pequeno
@@ -470,7 +491,7 @@ class Propriedades(QtWidgets.QWidget):
                 w = QtWidgets.QComboBox()
                 w.setObjectName("PrumoLista")
                 for e in opcoes:
-                    w.addItem(ENUM_PT.get(e, e), e)
+                    w.addItem(enum_pt(e), e)
                 i = w.findData(valor)
                 w.setCurrentIndex(max(0, i))
                 w.setMaximumWidth(170)
@@ -740,7 +761,7 @@ class Aparencia(QtWidgets.QWidget):
         if tem("DisplayMode"):
             modos = [m for m in vo.getEnumerationsOfProperty("DisplayMode") if m]
             if 1 < len(modos) <= 6:
-                seg = UI.Segmentado([(m, ENUM_PT.get(m, m), ENUM_ICONE.get(m)) for m in modos], vo.DisplayMode,
+                seg = UI.Segmentado([(m, enum_pt(m), ENUM_ICONE.get(m)) for m in modos], vo.DisplayMode,
                                     colunas=4 if len(modos) != 6 else 3)
                 seg.mudou.connect(lambda m: self._todos("DisplayMode", m, "modo de exibição"))
                 c.widget(seg)

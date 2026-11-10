@@ -60,6 +60,8 @@ ENUMS = {
     "Page": "Folha", "Portrait": "Retrato", "Landscape": "Paisagem",
     "First angle": "1º diedro", "Third angle": "3º diedro",
     "Front": "Frontal", "Rear": "Posterior", "Top": "Superior", "Bottom": "Inferior",
+    "FrontTopLeft": "Isométrica superior esquerda", "FrontTopRight": "Isométrica superior direita",
+    "FrontBottomLeft": "Isométrica inferior esquerda", "FrontBottomRight": "Isométrica inferior direita",
     "Filled arrow": "Seta cheia", "Open arrow": "Seta aberta", "Tick": "Traço oblíquo", "Dot": "Ponto",
     "Open circle": "Círculo aberto", "Fork": "Forquilha", "Filled triangle": "Triângulo cheio",
     "Circular": "Circular", "Rectangle": "Retângulo", "Square": "Quadrado", "Hexagon": "Hexágono",
