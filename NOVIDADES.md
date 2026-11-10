@@ -15,9 +15,30 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
-## 1.9.1 — 10/11/2026
+## 1.10.0 — 10/11/2026
 
-### Ajustes na folha
+![Rolamentos na janela Componentes e a lista de classes do fixador](.github/images/novidades/1.10.0.webp)
+
+### Bibliotecas brasileiras
+
+- **Classe do fixador em lista:** parafuso 4.6, 5.8, 8.8, 10.9 e 12.9; porca classe 5, 8, 10 e 12;
+  arruela 200 HV e 300 HV; com zincado, galvanizado a fogo e inox A2/A4. Ao trocar o tipo, a classe vai para a
+  equivalente (parafuso 10.9 → porca classe 10). Ainda dá para digitar outra.
+- **Rolamentos:** nova categoria Transmissão em Componentes (botão Rolamentos na aba Componentes), com rolamentos
+  rígidos de esferas das séries 60, 62 e 63 (furo de 10 a 60 mm). Medidas d, D e B conferidas em duas fontes;
+  desenho simplificado, para leiaute e lista de materiais.
+- **Perfis de aço:** barras redondas, quadradas e chatas conferidas na ABNT NBR 16683:2018 (versão corrigida de
+  23/04/2020, em vigor); as quatro barras chatas que estavam "a conferir" agora têm a massa da norma. Perfis U
+  enrijecido conferidos na ABNT NBR 6355:2012 (em vigor).
+
+### Conectar IA
+
+- **Instalar no Claude Desktop com um clique:** em Usinix › Conectar IA, o botão acha o arquivo de configuração
+  do Claude Desktop (também na versão da Microsoft Store), guarda uma cópia, acrescenta só a entrada do Usinix e
+  confere o arquivo antes de salvar. Arquivo com erro não é tocado. Se a conexão estiver desligada, oferece ligar
+  agora e sempre ao abrir. Ninguém precisa editar arquivo à mão.
+
+## 1.9.1 — 10/11/2026
 
 ### Novidades
 

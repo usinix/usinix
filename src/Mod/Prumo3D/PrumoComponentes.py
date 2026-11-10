@@ -404,6 +404,46 @@ def bomba(dn):
                     "Medidas": "representativas"}
 
 
+# Rolamentos rígidos de esferas, uma carreira (séries 60, 62 e 63): furo d, diâmetro externo D e largura B
+# em mm. Medidas de contorno conferidas em duas fontes cada (10/11/2026):
+#   séries 60 e 62: Emerson Bearing (tabelas das séries 6000 e 6200) e catálogo das séries 6000 e 6200
+#   (cdn.shopify.com/.../6000_series.pdf e 6200_series.pdf); série 63: Emerson Bearing (série 6300) e
+#   MRO Supply (ball bearings size chart). A tabela da MRO Supply tinha erros nas séries 60/62 (6205 com furo
+#   47, 6208 com largura 15): nesses casos valeu a concordância das outras duas fontes.
+# O desenho é simplificado (anéis e esferas representativos); a massa não vem do catálogo.
+ROLAMENTOS = {
+    "6000": (10, 26, 8), "6001": (12, 28, 8), "6002": (15, 32, 9), "6003": (17, 35, 10), "6004": (20, 42, 12),
+    "6005": (25, 47, 12), "6006": (30, 55, 13), "6007": (35, 62, 14), "6008": (40, 68, 15), "6009": (45, 75, 16),
+    "6010": (50, 80, 16), "6011": (55, 90, 18), "6012": (60, 95, 18),
+    "6200": (10, 30, 9), "6201": (12, 32, 10), "6202": (15, 35, 11), "6203": (17, 40, 12), "6204": (20, 47, 14),
+    "6205": (25, 52, 15), "6206": (30, 62, 16), "6207": (35, 72, 17), "6208": (40, 80, 18), "6209": (45, 85, 19),
+    "6210": (50, 90, 20), "6211": (55, 100, 21), "6212": (60, 110, 22),
+    "6300": (10, 35, 11), "6301": (12, 37, 12), "6302": (15, 42, 13), "6303": (17, 47, 14), "6304": (20, 52, 15),
+    "6305": (25, 62, 17), "6306": (30, 72, 19), "6307": (35, 80, 21), "6308": (40, 90, 23), "6309": (45, 100, 25),
+    "6310": (50, 110, 27), "6311": (55, 120, 29), "6312": (60, 130, 31),
+}
+TAMANHOS_ROLAMENTO = ["%s  (%d × %d × %d)" % (k, d, D, B) for k, (d, D, B) in ROLAMENTOS.items()]
+
+
+def rolamento(tam):
+    """Rolamento rígido de esferas com o eixo em Z, face de baixo em z = 0 e centro em (0, 0)."""
+    cod = tam.split()[0]
+    d, D, B = ROLAMENTOS[cod]
+    e = (D - d) / 2.0                         # altura da seção
+    esp = e * 0.28                            # parede de cada anel (representativa)
+    import Part
+    ext = cilindro(D / 2.0, B).cut(cilindro(D / 2.0 - esp, B))
+    inn = cilindro(d / 2.0 + esp, B).cut(cilindro(d / 2.0, B))
+    rp = (D + d) / 4.0                        # círculo das esferas
+    re = min(e - 2 * esp, B) * 0.48
+    n = max(6, int(math.pi * rp / (re * 1.25)))
+    esferas = [esfera(re, (rp * math.cos(2 * math.pi * i / n), rp * math.sin(2 * math.pi * i / n), B / 2.0))
+               for i in range(n)]
+    return [(ext, "metal"), (inn, "metal"), (Part.makeCompound(esferas), "escuro")], {
+        "Rolamento": cod, "Furo d": "%d mm" % d, "Diâmetro externo D": "%d mm" % D, "Largura B": "%d mm" % B,
+        "Medidas": "d, D e B conferidas em duas fontes; desenho simplificado"}
+
+
 TALHA_T = {"0,5 t": 0.5, "1 t": 1.0, "2 t": 2.0, "5 t": 5.0}
 
 
@@ -499,6 +539,9 @@ CATALOGO = [
         ("pessoa_pe", "Funcionário em pé (com capacete)", ALTURAS, lambda t: pessoa(t)),
         ("pessoa_sentado", "Funcionário sentado", ALTURAS, lambda t: pessoa(t, sentado=True, capacete=False)),
     ]),
+    ("transmissao", "Transmissão", [
+        ("rolamento_esferas", "Rolamento rígido de esferas (uma carreira)", TAMANHOS_ROLAMENTO, rolamento),
+    ]),
     ("outros", "Outros", [
         ("bomba", "Motobomba centrífuga", BOMBA_DN, bomba),
         ("ventilador", "Ventilador centrífugo", ["250", "400", "630", "800"], ventilador),
@@ -512,7 +555,8 @@ CATALOGO = [
 UNIDADE_TAMANHO = {"compressor_pistao": "L", "compressor_parafuso": "kW", "caldeira_flamotubular": "kg/h de vapor",
                    "secador_refrigeracao": "m³/min", "secador_adsorcao": "m³/min", "reservatorio": "L",
                    "valvula_esfera": "DN", "valvula_gaveta": "DN", "valvula_globo": "DN", "valvula_retencao": "DN",
-                   "valvula_borboleta": "DN", "bomba": "DN", "ventilador": "mm", "motor_iec": "carcaça"}
+                   "valvula_borboleta": "DN", "bomba": "DN", "ventilador": "mm", "motor_iec": "carcaça",
+                   "rolamento_esferas": "série"}
 MODELOS = {m[0]: (cat, m) for cat, _n, ms in CATALOGO for m in ms}
 
 
@@ -631,7 +675,7 @@ def inserir(doc, modelo, tamanho, posicao=None):
 ICONE_CATEGORIA = {"motores": "comp_motor.svg", "compressores": "comp_compressor.svg",
                    "valvulas": "comp_valvula.svg", "caldeiras": "comp_caldeira.svg", "altura": "comp_trole.svg",
                    "ar": "comp_ar.svg", "secadores": "comp_secador.svg", "pessoas": "comp_pessoa.svg",
-                   "outros": "comp_outros.svg"}
+                   "transmissao": "comp_rolamento.svg", "outros": "comp_outros.svg"}
 
 
 def ponto_da_selecao():
@@ -786,7 +830,8 @@ if FreeCAD.GuiUp:
             import PrumoUtil
             ic = ICONE_CATEGORIA.get(self.categoria, "componentes.svg")
             return {"Pixmap": PrumoUtil.icone(ic), "MenuText": self.nome,
-                    "ToolTip": "Inserir %s pronto no projeto (modelo para leiaute; medidas representativas)."
+                    "ToolTip": "Inserir %s pronto no projeto (modelo para leiaute; medidas representativas, exceto as de "
+                               "contorno dos rolamentos, conferidas em catálogo)."
                                % (self.nome.lower() if self.categoria else "componente")}
 
         def IsActive(self):

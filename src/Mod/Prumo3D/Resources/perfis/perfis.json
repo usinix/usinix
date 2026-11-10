@@ -315264,7 +315264,7 @@
   {
    "id": "UE",
    "nome": "Perfil U enrijecido (Ue, dobrado)",
-   "norma": "ABNT NBR 6355:2012, Tabela A.3 (edição vigente a checar); dimensionamento pela NBR 14762",
+   "norma": "ABNT NBR 6355:2012, Tabela A.3 (em vigor; confirmada em 11/02/2025 — catálogo ABNT/Confea, consultado em 10/11/2026); dimensionamento pela NBR 14762",
    "fonte": {
     "chave": "F_NBR6355",
     "nome": "Perfis U enrijecidos dobrados - ABNT NBR 6355:2012 (Segunda edição, 30.11.2012); convertido da bancada Steel Structures de Marcos Roberto da Silva (github.com/marcos-rds/steel-structures, LGPL-2.1)",
@@ -337206,7 +337206,7 @@
   {
    "id": "BR",
    "nome": "Barra redonda",
-   "norma": "ABNT NBR 16683:2018, versão corrigida de 23/04/2020 (edição vigente a checar)",
+   "norma": "ABNT NBR 16683:2018, versão corrigida de 23/04/2020 (em vigor; confirmada em 23/10/2023 — catálogo ABNT/Confea, consultado em 10/11/2026)",
    "fonte": {
     "chave": "F_NBR16683",
     "nome": "ABNT NBR 16683:2018 — Aço Maciço (Versão corrigida 23.04.2020); convertido da bancada Steel Structures de Marcos Roberto da Silva (github.com/marcos-rds/steel-structures, LGPL-2.1)",
@@ -351581,7 +351581,7 @@
   {
    "id": "BQ",
    "nome": "Barra quadrada",
-   "norma": "ABNT NBR 16683:2018, versão corrigida de 23/04/2020 (edição vigente a checar)",
+   "norma": "ABNT NBR 16683:2018, versão corrigida de 23/04/2020 (em vigor; confirmada em 23/10/2023 — catálogo ABNT/Confea, consultado em 10/11/2026)",
    "fonte": {
     "chave": "F_NBR16683",
     "nome": "ABNT NBR 16683:2018 — Aço Maciço (Versão corrigida 23.04.2020); convertido da bancada Steel Structures de Marcos Roberto da Silva (github.com/marcos-rds/steel-structures, LGPL-2.1)",
@@ -352182,7 +352182,7 @@
   {
    "id": "BC",
    "nome": "Barra chata",
-   "norma": "ABNT NBR 16683:2018, versão corrigida de 23/04/2020 (edição vigente a checar)",
+   "norma": "ABNT NBR 16683:2018, versão corrigida de 23/04/2020 (em vigor; confirmada em 23/10/2023 — catálogo ABNT/Confea, consultado em 10/11/2026)",
    "fonte": {
     "chave": "F_NBR16683",
     "nome": "ABNT NBR 16683:2018 — Aço Maciço (Versão corrigida 23.04.2020); convertido da bancada Steel Structures de Marcos Roberto da Silva (github.com/marcos-rds/steel-structures, LGPL-2.1)",
@@ -353267,17 +353267,16 @@
       ]
      ],
      "furos": [],
-     "massa": 2.216,
-     "status": "a checar",
-     "derivado": [
-      "massa"
-     ],
+     "massa": 1.966,
+     "status": "confirmado",
+     "derivado": [],
      "origem": "catalogo",
      "fonte": "F_NBR16683",
      "macica": true,
      "forma": "chata",
      "b": 44.45,
-     "esp": 6.35
+     "esp": 6.35,
+     "obs": "massa da Tabela A.1 da NBR 16683 (cerca de 0,25 kg/m abaixo de largura × espessura × 7,85)"
     },
     {
      "nome": "Barra chata 44,45 x 12,7",
@@ -353301,17 +353300,16 @@
       ]
      ],
      "furos": [],
-     "massa": 4.431,
-     "status": "a checar",
-     "derivado": [
-      "massa"
-     ],
+     "massa": 4.181,
+     "status": "confirmado",
+     "derivado": [],
      "origem": "catalogo",
      "fonte": "F_NBR16683",
      "macica": true,
      "forma": "chata",
      "b": 44.45,
-     "esp": 12.7
+     "esp": 12.7,
+     "obs": "massa da Tabela A.1 da NBR 16683 (cerca de 0,25 kg/m abaixo de largura × espessura × 7,85)"
     },
     {
      "nome": "Barra chata 50,8 x 3,18",
@@ -353847,17 +353845,16 @@
       ]
      ],
      "furos": [],
-     "massa": 6.964,
-     "status": "a checar",
-     "derivado": [
-      "massa"
-     ],
+     "massa": 6.714,
+     "status": "confirmado",
+     "derivado": [],
      "origem": "catalogo",
      "fonte": "F_NBR16683",
      "macica": true,
      "forma": "chata",
      "b": 69.85,
-     "esp": 12.7
+     "esp": 12.7,
+     "obs": "massa da Tabela A.1 da NBR 16683 (cerca de 0,25 kg/m abaixo de largura × espessura × 7,85)"
     },
     {
      "nome": "Barra chata 76,2 x 6,35",
@@ -354265,17 +354262,16 @@
       ]
      ],
      "furos": [],
-     "massa": 8.863,
-     "status": "a checar",
-     "derivado": [
-      "massa"
-     ],
+     "massa": 8.59,
+     "status": "confirmado",
+     "derivado": [],
      "origem": "catalogo",
      "fonte": "F_NBR16683",
      "macica": true,
      "forma": "chata",
      "b": 88.9,
-     "esp": 12.7
+     "esp": 12.7,
+     "obs": "massa da Tabela A.1 da NBR 16683 (cerca de 0,25 kg/m abaixo de largura × espessura × 7,85)"
     },
     {
      "nome": "Barra chata 88,9 x 15,88",

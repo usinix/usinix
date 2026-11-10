@@ -302,8 +302,8 @@ TABS = [
         ("Tubulação e ar", [
             ("Prumo_Componentes_valvulas", L, "Válvulas"), ("Prumo_Componentes_ar", L, "Ar\ncomprimido"),
         ]),
-        ("Fixação", [
-            ("Prumo_Fixador", L, "Parafuso,\nporca, arruela"),
+        ("Fixação e transmissão", [
+            ("Prumo_Fixador", L, "Parafuso,\nporca, arruela"), ("Prumo_Componentes_transmissao", L, "Rolamentos"),
         ]),
         ("Segurança e pessoas", [
             ("Prumo_Componentes_altura", L, "Trabalho\nem altura"), ("Prumo_Componentes_pessoas", L, "Pessoas"),

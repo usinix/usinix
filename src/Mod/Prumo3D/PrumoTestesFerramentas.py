@@ -905,7 +905,10 @@ class T16Perfis(unittest.TestCase):
                 a = PrumoPerfis.area_secao(it)
                 a_cat = it["massa"] / 7850.0 * 1e6
                 self.assertGreater(a, 0, it["nome"])
-                self.assertLess(a, a_cat * 1.06, it["nome"])
+                # barras chatas em que a NBR 16683 (Tabela A.1) dá massa abaixo de largura × espessura × 7,85:
+                # vale a massa da norma, com a observação no item
+                folga = 1.15 if "Tabela A.1 da NBR 16683" in it.get("obs", "") else 1.06
+                self.assertLess(a, a_cat * folga, it["nome"])
                 self.assertGreater(a, a_cat * 0.85, it["nome"])
 
     def test_face_valida_para_todos(self):
@@ -16732,6 +16735,118 @@ def QtCore_Checked():
     from PySide import QtCore
     return QtCore.Qt.Checked
 
+
+class T125InstalarNoClaude(unittest.TestCase):
+    """Conectar IA › Instalar no Claude Desktop: mexe só na entrada do Usinix, com cópia e conferência do JSON."""
+
+    def setUp(self):
+        import tempfile
+        import PrumoIA
+        self.IA = PrumoIA
+        self.pasta = tempfile.mkdtemp(prefix="usinix-claude-")
+        self.arq = os.path.join(self.pasta, "Claude", "claude_desktop_config.json")
+        self.entrada = {"command": "python3", "args": ["/x/usinix_mcp.py", "--conexao", "/x/usinix-ia.json"]}
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.pasta, ignore_errors=True)
+
+    def _escrever(self, texto, bom=False):
+        os.makedirs(os.path.dirname(self.arq), exist_ok=True)
+        with open(self.arq, "w", encoding="utf-8-sig" if bom else "utf-8") as fh:
+            fh.write(texto)
+
+    def _ler(self):
+        import json
+        with open(self.arq, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def _copias(self):
+        return [f for f in os.listdir(os.path.dirname(self.arq)) if f.endswith(".bak")]
+
+    def test_arquivo_novo(self):
+        r = self.IA.instalar_config(self.arq, self.entrada)
+        self.assertEqual(r["situacao"], "instalado")
+        self.assertIsNone(r["copia"])
+        self.assertEqual(self._ler(), {"mcpServers": {"usinix": self.entrada}})
+
+    def test_preserva_o_resto_e_faz_copia(self):
+        import json
+        orig = {"preferences": {"tema": "escuro"}, "mcpServers": {"outro": {"command": "node", "args": ["a.js"],
+                                                                           "env": {"CHAVE": "ç"}}},
+                "globalShortcut": "Ctrl+Space"}
+        texto = json.dumps(orig, indent=4, ensure_ascii=False)
+        self._escrever(texto, bom=True)
+        r = self.IA.instalar_config(self.arq, self.entrada)
+        self.assertEqual(r["situacao"], "instalado")
+        novo = self._ler()
+        self.assertEqual(novo["preferences"], orig["preferences"])
+        self.assertEqual(novo["globalShortcut"], "Ctrl+Space")
+        self.assertEqual(novo["mcpServers"]["outro"], orig["mcpServers"]["outro"])
+        self.assertEqual(novo["mcpServers"]["usinix"], self.entrada)
+        self.assertEqual(list(novo), list(orig))                       # ordem das chaves mantida
+        with open(r["copia"], encoding="utf-8-sig") as fh:
+            self.assertEqual(fh.read(), texto)                         # cópia idêntica ao original
+        # de novo: nada muda, nenhuma cópia nova
+        self.assertEqual(self.IA.instalar_config(self.arq, self.entrada)["situacao"], "igual")
+        self.assertEqual(len(self._copias()), 1)
+        # caminho do Usinix mudou (reinstalação): atualiza
+        e2 = dict(self.entrada, args=["/y/usinix_mcp.py", "--conexao", "/y/usinix-ia.json"])
+        self.assertEqual(self.IA.instalar_config(self.arq, e2)["situacao"], "atualizado")
+        self.assertEqual(self._ler()["mcpServers"]["usinix"], e2)
+        self.assertEqual(self._ler()["mcpServers"]["outro"], orig["mcpServers"]["outro"])
+        # remover tira só o Usinix
+        self.assertTrue(self.IA.remover_config(self.arq))
+        self.assertEqual(self._ler()["mcpServers"], orig["mcpServers"])
+        self.assertFalse(self.IA.remover_config(self.arq))
+
+    def test_json_quebrado_nao_e_tocado(self):
+        texto = '{"mcpServers": {"outro": {"command": "node",}}'
+        self._escrever(texto)
+        with self.assertRaises(ValueError) as cm:
+            self.IA.instalar_config(self.arq, self.entrada)
+        self.assertIn("Nada foi alterado", str(cm.exception))
+        with open(self.arq, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), texto)
+        self.assertEqual(self._copias(), [])
+        self._escrever('{"mcpServers": []}')
+        with self.assertRaises(ValueError):
+            self.IA.instalar_config(self.arq, self.entrada)
+
+    def test_arquivo_vazio(self):
+        self._escrever("  \n")
+        self.assertEqual(self.IA.instalar_config(self.arq, self.entrada)["situacao"], "instalado")
+        self.assertEqual(self._ler(), {"mcpServers": {"usinix": self.entrada}})
+
+    def test_sem_temporarios_esquecidos(self):
+        self.IA.instalar_config(self.arq, self.entrada)
+        self.assertEqual([f for f in os.listdir(os.path.dirname(self.arq)) if f.startswith(".usinix-")], [])
+
+    def test_pastas_do_windows_com_versao_da_loja(self):
+        local = os.path.join(self.pasta, "Local")
+        os.makedirs(os.path.join(local, "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude"))
+        amb = {"LOCALAPPDATA": local, "APPDATA": os.path.join(self.pasta, "Roaming")}
+        ps = self.IA.pastas_do_claude(sistema="win32", ambiente=amb, casa=self.pasta)
+        self.assertEqual(ps[0], os.path.join(local, "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming",
+                                             "Claude"))
+        self.assertEqual(ps[-1], os.path.join(self.pasta, "Roaming", "Claude"))
+        arqs = self.IA.arquivos_do_claude(sistema="win32", ambiente=amb, casa=self.pasta)
+        self.assertEqual(len(arqs), 1)                                 # só a da loja existe
+        self.assertTrue(arqs[0].endswith(os.path.join("LocalCache", "Roaming", "Claude", "claude_desktop_config.json")))
+        mac = self.IA.pastas_do_claude(sistema="darwin", ambiente={}, casa="/Users/u")
+        self.assertEqual(mac, [os.path.join("/Users/u", "Library", "Application Support", "Claude")])
+
+    def test_botao_na_janela(self):
+        from PySide import QtWidgets
+        j = self.IA.JanelaIA()
+        try:
+            textos = [b.text() for b in j.findChildren(QtWidgets.QPushButton)]
+            self.assertIn("Instalar no Claude Desktop", textos)
+            self.assertIn("Copiar configuração", textos)
+        finally:
+            j.deleteLater()
+
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -17395,6 +17510,71 @@ class T123AcabamentoEVisual(unittest.TestCase):
         w.close()
 
 
+class T124Bibliotecas(unittest.TestCase):
+    """1.10.0: classe de resistência dos fixadores (lista por tipo e equivalência parafuso/porca/arruela) e
+    rolamentos rígidos de esferas (séries 60, 62, 63) com medidas de contorno conferidas."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteBibliotecas")
+
+    def tearDown(self):
+        try:
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        fechar(self.doc)
+
+    def test_classes_dos_fixadores(self):
+        import PrumoFixadores as F
+        self.assertIn("Aço classe 8.8", F.classes("sextavado"))
+        self.assertIn("Aço classe 10.9", F.classes("allen"))
+        self.assertIn("Aço classe 8", F.classes("porca"))
+        self.assertNotIn("Aço classe 8.8", F.classes("porca"))
+        self.assertIn("Aço 200 HV", F.classes("arruela"))
+        self.assertEqual(F.classe_equivalente("Aço classe 8.8 zincado", "porca"), "Aço classe 8 zincado")
+        self.assertEqual(F.classe_equivalente("Aço classe 10.9", "porca"), "Aço classe 10")
+        self.assertEqual(F.classe_equivalente("Aço classe 10.9", "arruela"), "Aço 300 HV")
+        self.assertEqual(F.classe_equivalente("Inox A4-80", "porca"), "Inox A4-80")
+        self.assertEqual(F.classe_equivalente("Aço classe 8.8 galvanizado a fogo", "arruela"),
+                         "Aço 200 HV galvanizado a fogo")
+
+    def test_painel_do_fixador_lista_as_classes(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoFixadores as F
+        p = F.PainelFixador("M12")
+        try:
+            p.material.setEditText("Aço classe 8.8 zincado")
+            p.tipo.setCurrentIndex(p.tipo.findData("porca"))
+            itens = [p.material.itemText(i) for i in range(p.material.count())]
+            self.assertIn("Aço classe 8", itens)
+            self.assertEqual(p.material.currentText(), "Aço classe 8 zincado", "a porca acompanha o parafuso")
+            p.material.setEditText("aço especial do cliente")
+            self.assertEqual(p.valores()[3], "aço especial do cliente", "texto livre continua valendo")
+        finally:
+            p.close() if hasattr(p, "close") else None
+
+    def test_rolamentos(self):
+        import PrumoComponentes as C
+        self.assertEqual(C.ROLAMENTOS["6205"], (25, 52, 15))
+        self.assertEqual(C.ROLAMENTOS["6208"], (40, 80, 18))
+        self.assertEqual(C.ROLAMENTOS["6310"], (50, 110, 27))
+        self.assertEqual(len(C.ROLAMENTOS), 39)
+        for k, (d, D, B) in C.ROLAMENTOS.items():
+            self.assertLess(d, D, k)
+            self.assertGreater(B, 0, k)
+        tam = [t for t in C.TAMANHOS_ROLAMENTO if t.startswith("6205")][0]
+        o = C.inserir(self.doc, "rolamento_esferas", tam)
+        self.doc.recompute()
+        bb = o.Shape.BoundBox
+        raios = [abs(f.Surface.Radius) for f in o.Shape.Faces if "Cylinder" in type(f.Surface).__name__]
+        self.assertAlmostEqual(max(raios), 26.0, places=6, msg="diâmetro externo de 52 mm")
+        self.assertAlmostEqual(bb.ZLength, 15.0, places=3, msg="largura")
+        furo = min(raios)
+        self.assertAlmostEqual(furo, 12.5, places=3, msg="furo de 25 mm")
+        self.assertIn("transmissao", [c[0] for c in C.CATALOGO])
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -17431,4 +17611,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T120ConectarIA,
            T121FolhaPronta,
            T122DoModeloParaAFabrica,
-           T123AcabamentoEVisual]
+           T123AcabamentoEVisual,
+           T124Bibliotecas, T125InstalarNoClaude]

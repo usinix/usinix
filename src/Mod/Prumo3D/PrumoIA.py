@@ -87,6 +87,140 @@ def permitir_codigo():
     return FreeCAD.ParamGet(PARAM).GetBool("IAPermitirCodigo", False)
 
 
+# ============================================================================ instalar no Claude Desktop
+NOME_SERVIDOR = "usinix"
+ARQUIVO_CLAUDE = "claude_desktop_config.json"
+
+
+def pastas_do_claude(sistema=None, ambiente=None, casa=None):
+    """Pastas onde o Claude Desktop guarda a configuração, na ordem em que valem.
+
+    Windows: a versão da Microsoft Store/WinGet/MSIX lê a cópia virtualizada em
+    %LOCALAPPDATA%\\Packages\\Claude_<código>\\LocalCache\\Roaming\\Claude; o instalador comum lê %APPDATA%\\Claude.
+    macOS: ~/Library/Application Support/Claude. Linux (versões não oficiais): ~/.config/Claude."""
+    import glob
+    sistema = sistema or sys.platform
+    ambiente = os.environ if ambiente is None else ambiente
+    casa = casa or os.path.expanduser("~")
+    if sistema.startswith("win"):
+        res = []
+        local = ambiente.get("LOCALAPPDATA") or os.path.join(casa, "AppData", "Local")
+        for pac in sorted(glob.glob(os.path.join(local, "Packages", "Claude_*"))):
+            res.append(os.path.join(pac, "LocalCache", "Roaming", "Claude"))
+        res.append(os.path.join(ambiente.get("APPDATA") or os.path.join(casa, "AppData", "Roaming"), "Claude"))
+        return res
+    if sistema == "darwin":
+        return [os.path.join(casa, "Library", "Application Support", "Claude")]
+    return [os.path.join(ambiente.get("XDG_CONFIG_HOME") or os.path.join(casa, ".config"), "Claude")]
+
+
+def arquivos_do_claude(**kw):
+    """Arquivos de configuração do Claude Desktop instalado (a pasta do Claude existe). Vazio se não achar."""
+    pastas = pastas_do_claude(**kw)
+    achados = [p for p in pastas if os.path.isdir(p)]
+    # MSIX: o Claude da loja só enxerga a cópia virtualizada; a pasta comum pode ser resto de outra instalação
+    return [os.path.join(p, ARQUIVO_CLAUDE) for p in achados]
+
+
+def _ler_config(caminho):
+    """Configuração atual (dict) ou {} se o arquivo não existe ou está vazio. ValueError se o JSON está quebrado."""
+    if not os.path.isfile(caminho):
+        return {}
+    with open(caminho, "r", encoding="utf-8-sig") as fh:
+        texto = fh.read()
+    if not texto.strip():
+        return {}
+    try:
+        dados = json.loads(texto)
+    except ValueError as exc:
+        raise ValueError("O arquivo %s não é um JSON válido (%s). Nada foi alterado: corrija o arquivo ou use "
+                         "Copiar configuração." % (caminho, exc))
+    if not isinstance(dados, dict):
+        raise ValueError("O arquivo %s não tem o formato esperado (um objeto JSON). Nada foi alterado." % caminho)
+    if "mcpServers" in dados and not isinstance(dados["mcpServers"], dict):
+        raise ValueError("Em %s, \"mcpServers\" não é um objeto. Nada foi alterado." % caminho)
+    return dados
+
+
+def _gravar_config(caminho, dados):
+    """Grava num arquivo temporário da mesma pasta, confere o JSON lido de volta e só então troca o arquivo."""
+    pasta = os.path.dirname(caminho)
+    os.makedirs(pasta, exist_ok=True)
+    texto = json.dumps(dados, indent=2, ensure_ascii=False) + "\n"
+    fd, tmp = tempfile.mkstemp(prefix=".usinix-", suffix=".json", dir=pasta)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(texto)
+        with open(tmp, "r", encoding="utf-8") as fh:
+            if json.load(fh) != dados:
+                raise ValueError("a conferência do arquivo gravado falhou")
+        os.replace(tmp, caminho)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _copia_de_seguranca(caminho):
+    if not os.path.isfile(caminho):
+        return None
+    import shutil
+    destino = "%s.usinix-%s.bak" % (caminho, time.strftime("%Y%m%d-%H%M%S"))
+    n = 1
+    while os.path.exists(destino):
+        n += 1
+        destino = "%s.usinix-%s-%d.bak" % (caminho, time.strftime("%Y%m%d-%H%M%S"), n)
+    shutil.copy2(caminho, destino)
+    return destino
+
+
+def instalar_config(caminho, entrada=None, nome=NOME_SERVIDOR):
+    """Põe (ou atualiza) a entrada do Usinix em mcpServers, sem mexer no resto do arquivo.
+
+    Devolve {"situacao": "instalado" | "atualizado" | "igual", "arquivo": ..., "copia": caminho da cópia ou None}.
+    Arquivo quebrado: ValueError e nada é alterado."""
+    entrada = entrada or config_cliente()["mcpServers"][NOME_SERVIDOR]
+    dados = _ler_config(caminho)
+    servidores = dados.get("mcpServers") or {}
+    if servidores.get(nome) == entrada:
+        return {"situacao": "igual", "arquivo": caminho, "copia": None}
+    situacao = "atualizado" if nome in servidores else "instalado"
+    copia = _copia_de_seguranca(caminho)
+    servidores = dict(servidores)
+    servidores[nome] = entrada
+    dados["mcpServers"] = servidores
+    _gravar_config(caminho, dados)
+    return {"situacao": situacao, "arquivo": caminho, "copia": copia}
+
+
+def remover_config(caminho, nome=NOME_SERVIDOR):
+    """Tira a entrada do Usinix (com cópia de segurança). Devolve True se havia o que tirar."""
+    dados = _ler_config(caminho)
+    servidores = dados.get("mcpServers") or {}
+    if nome not in servidores:
+        return False
+    _copia_de_seguranca(caminho)
+    servidores = dict(servidores)
+    del servidores[nome]
+    dados["mcpServers"] = servidores
+    _gravar_config(caminho, dados)
+    return True
+
+
+def instalado_no_claude():
+    """Algum Claude Desktop desta máquina já tem a entrada do Usinix igual à atual?"""
+    entrada = config_cliente()["mcpServers"][NOME_SERVIDOR]
+    for arq in arquivos_do_claude():
+        try:
+            if (_ler_config(arq).get("mcpServers") or {}).get(NOME_SERVIDOR) == entrada:
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
 # ============================================================================ linha da interface
 class _Despachante(QtCore.QObject):
     """Leva o pedido da linha da rede para a linha da interface (FreeCAD só pode ser mexido nela)."""
@@ -601,6 +735,85 @@ def ligada():
     return _estado["servidor"] is not None
 
 
+def claude_aberto():
+    """O Claude Desktop está rodando? (ele pode regravar a configuração ao sair). None se não deu para saber."""
+    import subprocess
+    try:
+        if sys.platform.startswith("win"):
+            sai = subprocess.run(["tasklist", "/FI", "IMAGENAME eq claude.exe", "/NH"], capture_output=True,
+                                 text=True, timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            return "claude.exe" in sai.stdout.lower()
+        sai = subprocess.run(["pgrep", "-x", "Claude" if sys.platform == "darwin" else "claude"],
+                             capture_output=True, text=True, timeout=10)
+        return sai.returncode == 0
+    except Exception:
+        return None
+
+
+def instalar_no_claude_desktop(janela=None):
+    """Botão "Instalar no Claude Desktop": acha o arquivo, avisa se o Claude está aberto, instala e explica o resto."""
+    caixa = QtWidgets.QMessageBox
+    pai = janela or FreeCADGui.getMainWindow()
+    arquivos = arquivos_do_claude()
+    if not arquivos:
+        r = caixa.question(pai, "Instalar no Claude Desktop",
+                           "Não achei o Claude Desktop neste computador (pasta de configuração do Claude).\n\n"
+                           "Instale e abra o Claude Desktop uma vez e clique de novo. Se ele está instalado em outro "
+                           "lugar, escolha o arquivo claude_desktop_config.json.\n\nEscolher o arquivo agora?",
+                           caixa.Yes | caixa.No, caixa.No)
+        if r != caixa.Yes:
+            return None
+        arq, _f = QtWidgets.QFileDialog.getOpenFileName(pai, "Arquivo de configuração do Claude Desktop", "",
+                                                        "Configuração do Claude (claude_desktop_config.json);;"
+                                                        "JSON (*.json)")
+        if not arq:
+            return None
+        arquivos = [arq]
+    if claude_aberto():
+        r = caixa.question(pai, "Instalar no Claude Desktop",
+                           "Parece que o Claude Desktop está aberto. Ele pode regravar a configuração ao fechar e apagar a "
+                           "entrada do Usinix.\n\nFeche o Claude Desktop pelo ícone perto do relógio › Sair (fechar a "
+                           "janela não basta) e clique em Repetir. Se ele já está fechado, clique em Ignorar.",
+                           caixa.Retry | caixa.Ignore | caixa.Cancel, caixa.Retry)
+        if r == caixa.Cancel:
+            return None
+        if r == caixa.Retry:
+            return instalar_no_claude_desktop(janela)
+    feitos, erros = [], []
+    for arq in arquivos:
+        try:
+            feitos.append(instalar_config(arq))
+        except (OSError, ValueError) as exc:
+            erros.append("%s\n%s" % (arq, exc))
+    if erros and not feitos:
+        caixa.warning(pai, "Instalar no Claude Desktop", "Não foi possível instalar.\n\n" + "\n\n".join(erros))
+        return None
+    linhas = []
+    for r in feitos:
+        txt = {"instalado": "Instalado em", "atualizado": "Atualizado em", "igual": "Já estava instalado em"}[
+            r["situacao"]]
+        linhas.append("%s:\n%s" % (txt, r["arquivo"]))
+        if r["copia"]:
+            linhas.append("Cópia do arquivo anterior:\n%s" % r["copia"])
+    linhas.append("Agora abra o Claude Desktop (se estava aberto, saia pelo ícone perto do relógio e abra de novo). "
+                  "As ferramentas do Usinix aparecem no Claude com o nome \"usinix\".")
+    if erros:
+        linhas.append("Não deu em:\n" + "\n\n".join(erros))
+    texto = "\n\n".join(linhas)
+    if not ligada():
+        r = caixa.question(pai, "Instalar no Claude Desktop", texto + "\n\nO Claude só alcança o Usinix com a conexão "
+                           "ligada. Ligar agora e sempre que abrir o Usinix?", caixa.Yes | caixa.No, caixa.Yes)
+        if r == caixa.Yes:
+            FreeCAD.ParamGet(PARAM).SetBool("IALigarAoAbrir", True)
+            try:
+                ligar()
+            except Exception as exc:
+                caixa.warning(pai, "Conectar IA", "A conexão não ligou: %s" % exc)
+    else:
+        caixa.information(pai, "Instalar no Claude Desktop", texto)
+    return feitos
+
+
 # ============================================================================ janela
 class JanelaIA(QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -628,8 +841,18 @@ class JanelaIA(QtWidgets.QDialog):
         self.codigo.setChecked(permitir_codigo())
         self.codigo.toggled.connect(lambda on: g.SetBool("IAPermitirCodigo", bool(on)))
         lay.addWidget(self.codigo)
-        lay.addWidget(QtWidgets.QLabel("Configuração para o assistente (Claude Desktop: Configurações › Desenvolvedor › "
-                                       "Editar configuração):"))
+        claude = QtWidgets.QHBoxLayout()
+        self.bt_claude = QtWidgets.QPushButton("Instalar no Claude Desktop")
+        self.bt_claude.setObjectName("PrumoPrimario")
+        self.bt_claude.setToolTip("Acrescenta o Usinix na configuração do Claude Desktop (claude_desktop_config.json), "
+                                  "com cópia de segurança, sem mexer no resto do arquivo.")
+        self.bt_claude.clicked.connect(self._instalar_claude)
+        claude.addWidget(self.bt_claude)
+        self.st_claude = QtWidgets.QLabel()
+        claude.addWidget(self.st_claude, 1)
+        lay.addLayout(claude)
+        lay.addWidget(QtWidgets.QLabel("Outros assistentes, ou para colocar à mão (Claude Desktop: Configurações › "
+                                       "Desenvolvedor › Editar configuração):"))
         self.cfg = QtWidgets.QPlainTextEdit(json.dumps(config_cliente(), indent=2, ensure_ascii=False))
         self.cfg.setReadOnly(True)
         self.cfg.setMinimumHeight(150)
@@ -652,7 +875,20 @@ class JanelaIA(QtWidgets.QDialog):
             QtWidgets.QMessageBox.warning(self, "Conectar IA", str(exc))
         self._atualizar()
 
+    def _instalar_claude(self):
+        instalar_no_claude_desktop(self)
+        self._atualizar()
+
     def _atualizar(self):
+        try:
+            ok = instalado_no_claude()
+        except Exception:
+            ok = False
+        self.st_claude.setText("✓ instalado no Claude Desktop" if ok else "")
+        self.ao_abrir.blockSignals(True)
+        self.ao_abrir.setChecked(FreeCAD.ParamGet(PARAM).GetBool("IALigarAoAbrir", False))
+        self.ao_abrir.blockSignals(False)
+        self.bt_claude.setText("Atualizar no Claude Desktop" if ok else "Instalar no Claude Desktop")
         if ligada():
             self.status.setText("● Ligada — porta local %d. Chamadas: %d%s" % (
                 _estado["porta"], _estado["chamadas"], (" (última: %s)" % _estado["ultima"]) if _estado["ultima"] else ""))
@@ -665,8 +901,8 @@ class JanelaIA(QtWidgets.QDialog):
 class CmdConectarIA:
     def GetResources(self):
         return {"Pixmap": PrumoUtil.icone("conectar_ia.svg"), "MenuText": "Conectar IA",
-                "ToolTip": "Liga a conexão local para um assistente de IA (MCP) usar as ferramentas do Usinix e mostra "
-                           "a configuração para o Claude Desktop."}
+                "ToolTip": "Liga a conexão local para um assistente de IA (MCP) usar as ferramentas do Usinix e "
+                           "instala o Usinix no Claude Desktop com um clique."}
 
     def IsActive(self):
         return True

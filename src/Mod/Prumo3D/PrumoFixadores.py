@@ -106,6 +106,51 @@ def confirmado(tipo, m):
     return medidas(tipo, m).get("status") == "confirmado"
 
 
+# classes de resistência (designações da ISO 898-1 para parafusos, ISO 898-2 para porcas e ISO 3506 para inox)
+# e acabamentos mais usados; a lista é só sugestão: o campo aceita qualquer texto
+CLASSES_PARAFUSO = ["Aço classe 4.6", "Aço classe 5.8", "Aço classe 8.8", "Aço classe 8.8 zincado",
+                    "Aço classe 8.8 galvanizado a fogo", "Aço classe 10.9", "Aço classe 12.9",
+                    "Inox A2-70", "Inox A4-70", "Inox A4-80"]
+CLASSES_PORCA = ["Aço classe 5", "Aço classe 8", "Aço classe 8 zincado", "Aço classe 8 galvanizado a fogo",
+                 "Aço classe 10", "Aço classe 12", "Inox A2-70", "Inox A4-80"]
+CLASSES_ARRUELA = ["Aço 200 HV", "Aço 200 HV zincado", "Aço 200 HV galvanizado a fogo", "Aço 300 HV",
+                   "Inox A2", "Inox A4"]
+
+
+def classes(tipo):
+    t = str(tipo or "")
+    if "arruela" in t:
+        return list(CLASSES_ARRUELA)
+    if "porca" in t:
+        return list(CLASSES_PORCA)
+    return list(CLASSES_PARAFUSO)
+
+
+def classe_equivalente(classe, tipo):
+    """Classe sugerida para outro tipo de fixador mantendo a família: zincado continua zincado, galvanizado
+    continua galvanizado, inox continua inox (ex.: parafuso 8.8 zincado -> porca 8 zincada)."""
+    novas = classes(tipo)
+    c = (classe or "").lower()
+    def acha(*palavras):
+        return next((x for x in novas if all(p in x.lower() for p in palavras)), None)
+    if "inox" in c:
+        return acha("a4") if "a4" in c and acha("a4") else (acha("inox") or novas[0])
+    for acab in ("zincado", "galvanizado"):
+        if acab in c and acha(acab):
+            return acha(acab)
+    if "porca" in str(tipo):
+        for par, porca in (("10.9", "Aço classe 10"), ("12.9", "Aço classe 12")):
+            if par in c:
+                return porca
+    if "arruela" in str(tipo) and ("10.9" in c or "12.9" in c):
+        return "Aço 300 HV"
+    padrao = {"porca": "Aço classe 8", "arruela": "Aço 200 HV"}
+    for k, v in padrao.items():
+        if k in str(tipo):
+            return v
+    return "Aço classe 8.8"
+
+
 def denominacao(tipo, m, comp=None):
     if tem_comprimento(tipo) and comp:
         return "%s %s %s × %s" % (TIPOS[tipo], NORMA[tipo], m, fmt_dim(comp))
@@ -416,10 +461,12 @@ class PainelFixador(P.PainelTarefa):
         self.comp = s1.linha("comprimento", QtWidgets.QComboBox(), "Comprimento nominal (da cabeça à ponta, "
                              "no sextavado e no allen). Pode digitar.", "Comprimento (mm)")
         self.comp.setEditable(True)
-        self.material = s1.linha("material", QtWidgets.QLineEdit(
-            FreeCAD.ParamGet(PrumoUtil.PARAM_PATH).GetString("UltimoMaterialFixador", "")),
-            "Classe e acabamento (vai para a lista de materiais).", "Material")
-        self.material.setPlaceholderText("ex.: aço classe 8.8, zincado")
+        self.material = s1.linha("material", QtWidgets.QComboBox(),
+                                 "Classe de resistência e acabamento (vai para a lista de materiais). Escolha "
+                                 "na lista ou digite.", "Classe / material")
+        self.material.setEditable(True)
+        self.material.lineEdit().setPlaceholderText("ex.: aço classe 8.8, zincado")
+        self._ultimo_material = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH).GetString("UltimoMaterialFixador", "")
         self.aviso = s1.texto("")
         self.tipo.currentIndexChanged.connect(self._tipo)
         self.diam.currentIndexChanged.connect(self._diam)
@@ -470,7 +517,21 @@ class PainelFixador(P.PainelTarefa):
         i = self.diam.findText(atual)
         self.diam.setCurrentIndex(i if i >= 0 else 0)
         self.diam.blockSignals(False)
+        self._classes()
         self._diam()
+
+    def _classes(self):
+        """Classes do tipo escolhido na lista (o texto digitado pelo usuário fica)."""
+        atual = self.material.currentText() or self._ultimo_material
+        novas = classes(self.tipo.currentData())
+        sugeridas = set(CLASSES_PARAFUSO) | set(CLASSES_PORCA) | set(CLASSES_ARRUELA)
+        if atual in sugeridas and atual not in novas:
+            atual = classe_equivalente(atual, self.tipo.currentData())
+        self.material.blockSignals(True)
+        self.material.clear()
+        self.material.addItems(novas)
+        self.material.setEditText(atual)
+        self.material.blockSignals(False)
 
     def _diam(self, *_a):
         t, m = self.tipo.currentData(), self.diam.currentText()
@@ -495,7 +556,7 @@ class PainelFixador(P.PainelTarefa):
         comp = self.comprimento_valido()
         if comp is None:
             raise ValueError("comprimento inválido: %s" % self.comp.currentText())
-        return t, self.diam.currentText(), comp, self.material.text().strip()
+        return t, self.diam.currentText(), comp, self.material.currentText().strip()
 
     def carregar(self, obj):
         i = self.tipo.findData(obj.Tipo)
@@ -505,7 +566,7 @@ class PainelFixador(P.PainelTarefa):
         c = obj.Comprimento.Value if hasattr(obj.Comprimento, "Value") else float(obj.Comprimento)
         if self.comp.isEnabled() and c:
             self.comp.setEditText(fmt_dim(c))
-        self.material.setText(obj.Material)
+        self.material.setEditText(obj.Material)
 
     def props_edicao(self):
         tipo, m, comp, mat = self.valores()
