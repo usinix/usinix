@@ -15,6 +15,32 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.7.0 — 10/11/2026
+
+![Folha da barra: viga interrompida com comprimento real, furação cotada, seção ampliada e tabela](.github/images/novidades/1.7.0.webp)
+
+### Folha pronta
+
+### Novidades
+
+- **Cotas gerais com a furação:** além do comprimento, altura e profundidade, a folha ganha um ⌀ por grupo de
+  furos iguais ("4× ⌀14") e a posição de cada linha e coluna de furos a partir do canto. Vale no botão Cotas
+  gerais, na Paleta de vistas e nas Folhas em lote.
+- **Balões da lista (aba Desenho):** um balão numerado em cada peça da montagem, na isométrica, com o mesmo
+  número do item da lista de materiais. Quando a lista muda, os números acompanham.
+- **Folhas das barras (abas Estruturas e Desenho):** uma folha por barra diferente da estrutura, com marca
+  (B01, B02…), vista pela alma e por cima, seção ampliada, comprimento, furação cotada e tabela com perfil,
+  ângulos das pontas, quantidade e massa. Barra comprida sai com vista interrompida e as cotas em medida real.
+- **Folha da chapa (abas Chapa e Desenho):** a peça de chapa planificada com as cotas e a furação, as linhas
+  de dobra, a isométrica ao lado e a tabela com espessura, desenvolvimento, dobras e fator K. A planificação
+  acompanha a peça quando ela muda.
+- **Conectar IA:** novas ferramentas para o assistente cotar a folha, pôr balões, fazer as folhas das barras e
+  a folha da chapa.
+
+### Correções
+
+- **Cotas gerais em peça redonda:** a vista de topo de um eixo não ficava mais esperando o cálculo terminar.
+
 ## 1.6.0 — 09/11/2026
 
 ![Janela Conectar IA do Usinix: liga a conexão e mostra a configuração para o assistente](.github/images/novidades/1.6.0.webp)
