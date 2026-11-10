@@ -205,7 +205,7 @@ def coletar(objs, densidade_padrao=None, mapa=None):
                 linhas[chave].qtd += qtd
                 marcar(obj, chave, sh)
             continue
-        if "TipoPiso" in base.PropertiesList:
+        if "TipoPiso" in base.PropertiesList or "ProtecaoNR12" in base.PropertiesList:
             # piso/fechamento (chapa expandida, perfurada, xadrez): um item por chapa, com área e peso
             chave = ("piso", base.Document.Name, base.Name)
             linhas[chave] = Linha(chave, str(base.Denominacao or base.Label), str(base.Material),

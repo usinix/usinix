@@ -263,6 +263,9 @@ TABS = [
         ("Pisos e fechamentos", [
             ("Prumo_Piso", L, "Piso e\nfechamento"),
         ]),
+        ("Segurança de máquinas", [
+            ("Prumo_ProtecaoNR12", L, "Proteção\nNR-12"), ("Prumo_RelatorioProtecao", S, "Relatório das proteções"),
+        ]),
         ("Solda", [
             ("Prumo_Solda", L, "Cordão de\nsolda"), ("Prumo_ListaSoldas", S, "Lista de soldas"),
             ("Prumo_ListaDeCorte", S, "Lista de corte"), ("Prumo_TabelaFuros", S, "Tabela de furos"),
@@ -317,7 +320,8 @@ TABS = [
             ("Prumo_Vaso", L, "Vaso de\npressão"),
         ]),
         ("Cálculo", [
-            ("Prumo_MemoriaVaso", L, "Memória de\ncálculo"), ("Prumo_TesteVaso", L, "Simular teste\nde pressão"),
+            ("Prumo_MemoriaVaso", L, "Memória de\ncálculo"), ("Prumo_MemorialNR13", L, "Memorial\nNR-13"),
+            ("Prumo_TesteVaso", L, "Simular teste\nde pressão"),
         ]),
         ("Desenho", [
             ("Prumo_DesenhoVaso", L, "Desenho\ndo vaso"),

@@ -12739,6 +12739,7 @@ class T85SoldaRugosidadeAjuste(unittest.TestCase):
                 yield from todas(s)
         de_proposito = {"PrumoSelecao.PainelSelecao._preencher_com_selecao",   # enche as caixas em ordem
                         "PrumoPiso.PainelPiso._atualizar_previa",       # chama super() e depois mostra área e peso
+                        "PrumoProtecao.PainelProtecao._atualizar_previa",   # chama super() e mostra a verificação
                         "PrumoInserirDesenho.PainelInserir._preencher_com_selecao"}  # a seleção só marca a lista
         ruins = []
         for cls in todas(P.PainelTarefa):
@@ -13564,9 +13565,7 @@ class T96BarraDeVistas(unittest.TestCase):
             self.skipTest("sem interface")
         from PySide import QtWidgets
         import PrumoBarraVista as B
-        import PrumoSombras
         doc = novo_doc("PrumoTesteBarraVista")
-        antes = PrumoSombras.ligado()
         try:
             doc.addObject("Part::Box", "Caixa")
             doc.recompute()
@@ -13576,7 +13575,7 @@ class T96BarraDeVistas(unittest.TestCase):
             barra = gv.findChild(QtWidgets.QFrame, B.NOME)
             self.assertIsNotNone(barra, "a vista 3D não ganhou a barra de vistas")
             for c in ("Std_ViewFitAll", "Std_ViewIsometric", "Std_ViewFront", "Std_ViewTop", "Std_ViewRight",
-                      "Std_DrawStyle", "Std_ToggleClipPlane", "Prumo_Sombras", "menu:Outras vistas"):
+                      "Std_DrawStyle", "Std_ToggleClipPlane", "menu:Outras vistas"):
                 self.assertIn(c, barra.botoes)
             barra.reposicionar()
             g = barra.geometry()
@@ -13596,7 +13595,7 @@ class T96BarraDeVistas(unittest.TestCase):
             # a mesma vista): nenhum botão pode dar erro, e as vistas padrão giram a câmera
             esperado = {"Std_ViewFront": (0.7071, 0, 0, 0.7071), "Std_ViewTop": (0, 0, 0, 1),
                         "Std_ViewRight": (0.5, 0.5, 0.5, 0.5), "Std_ViewBottom": (1, 0, 0, 0)}
-            nomes = [it[0] for it in B.ITENS if it != "|" and it[0] not in ("menu", "Prumo_Sombras", "Std_DrawStyle",
+            nomes = [it[0] for it in B.ITENS if it != "|" and it[0] not in ("menu", "Std_DrawStyle",
                                                                              "Std_ToggleClipPlane")]
             nomes += [n for it in B.ITENS if it != "|" and it[0] == "menu" for n, _d in it[3]]
             for _rodada in (1, 2):
@@ -13613,12 +13612,8 @@ class T96BarraDeVistas(unittest.TestCase):
                         q = [abs(x) for x in v.getCameraOrientation().Q]
                         for a_, b_ in zip(q, esperado[n]):
                             self.assertAlmostEqual(a_, abs(b_), places=2, msg=n)
-            barra.botoes["Prumo_Sombras"].click()
-            self.assertEqual(PrumoSombras.ligado(), not antes)
-            barra.botoes["Prumo_Sombras"].click()
-            self.assertEqual(PrumoSombras.ligado(), antes)
+            self.assertNotIn("Prumo_Sombras", barra.botoes, "as sombras saíram na 1.11")
         finally:
-            PrumoSombras.definir(antes)
             fechar(doc)
 
 
@@ -13768,11 +13763,6 @@ class T99PlanosNoNovoEsboco(unittest.TestCase):
             except Exception:
                 pass
             fechar(doc)
-
-    def test_pecas_so_projetam_sombra(self):
-        import PrumoSombras as S
-        self.assertIn("style CASTS_SHADOW }", S.TEXTO)
-        self.assertNotIn("CASTS_SHADOW_AND_SHADOWED", S.TEXTO)
 
 
 class T100IdeiasDeOutrosCAD(unittest.TestCase):
@@ -14423,23 +14413,6 @@ class T106RevisaoDaFaixa(unittest.TestCase):
                        if caixa.lista.item(i).icon().isNull()]
                 caixa.hide()
                 self.assertEqual(sem, [], "aba %s" % aba)
-        finally:
-            fechar(doc)
-
-    def test_sombras_saem_na_edicao_e_piso_so_de_solidos(self):
-        if not FreeCAD.GuiUp:
-            self.skipTest("sem interface")
-        import PrumoSombras as S
-        doc = novo_doc("PrumoTesteSombraEdicao")
-        try:
-            b = doc.addObject("PartDesign::Body", "Body")
-            doc.recompute()
-            pl = [f for f in b.Origin.OriginFeatures if f.Role == "XY_Plane"][0]
-            self.assertFalse(S._conta_para_o_piso(pl), "plano da origem não define o piso")
-            cx = doc.addObject("Part::Box", "Caixa")
-            doc.recompute()
-            self.assertTrue(S._conta_para_o_piso(cx))
-            self.assertFalse(S.em_edicao())
         finally:
             fechar(doc)
 
@@ -15109,87 +15082,18 @@ class T93MenusComAcento(unittest.TestCase):
                 pass
 
 
-class T94Sombras(unittest.TestCase):
-    """Sombras na vista 3D: vem desmarcado, liga e desliga sem estragar a vista, a seleção nem as peças."""
+class T94SemSombras(unittest.TestCase):
+    """1.11: as sombras na vista 3D saíram (davam violação de acesso em algumas placas de vídeo no Windows)."""
 
-    def setUp(self):
-        if not FreeCAD.GuiUp:
-            self.skipTest("sem interface")
-        import PrumoSombras as S
-        self.S = S
-        self.antes = S.ligado()
-        self.doc = novo_doc("PrumoTesteSombras")
-        FreeCAD.setActiveDocument(self.doc.Name)
-
-    def tearDown(self):
-        self.S.definir(self.antes)
-        fechar(self.doc)
-
-    def test_vem_desmarcado(self):
-        g = FreeCAD.ParamGet(self.S.PARAM)
-        valor = g.GetBool("Sombras", False)
-        g.RemBool("Sombras")
-        try:
-            self.assertFalse(self.S.ligado())
-        finally:
-            g.SetBool("Sombras", valor)
-        self.assertIn("Prumo_Sombras", FreeCADGui.listCommands())
-
-    def test_liga_desliga_e_a_vista_continua_igual(self):
-        S = self.S
-        b = self.doc.addObject("Part::Box", "Caixa")
-        self.doc.recompute()
-        v = FreeCADGui.getDocument(self.doc.Name).ActiveView
-        v.viewIsometric(); v.fitAll()
-        raiz = S._no_da_vista(v)
-        pai0, i0 = S._pai(v, raiz)
-        self.assertIsNotNone(pai0)
-        S.definir(True)
-        g = S._grupo_sombra(v)
-        self.assertIsNotNone(g, "a vista não ficou com sombras")
-        self.assertEqual(g.getTypeId().getName().getString(), "ShadowGroup")
-        S.definir(True)                                   # ligar de novo não embrulha duas vezes
-        self.assertEqual(S._pai(v, S._grupo_sombra(v))[0].getName().getString() != S.NOME_GRUPO, True)
-        # a seleção pelo clique continua achando a peça
-        FreeCADGui.updateGui()
-        sz = v.getSize()
-        achou = None
-        for fx in (0.5, 0.45, 0.55, 0.4, 0.6):
-            info = v.getObjectInfo((int(sz[0] * fx), int(sz[1] * 0.5)))
-            if info and info.get("Object") == b.Name:
-                achou = info
-                break
-        self.assertIsNotNone(achou, "com sombras o clique não acha a peça")
-        # peça nova e peça apagada com sombras ligadas
-        c = self.doc.addObject("Part::Cylinder", "Cil")
-        self.doc.recompute()
-        self.assertTrue(c.ViewObject.Visibility)
-        self.doc.removeObject(c.Name)
-        self.doc.recompute()
-        S.definir(False)
-        self.assertIsNone(S._grupo_sombra(v))
-        pai1, i1 = S._pai(v, raiz)
-        self.assertEqual((pai1.getName().getString(), i1), (pai0.getName().getString(), i0))
-        self.assertFalse(S.ligado())
-
-    def test_piso_acompanha_o_modelo(self):
-        S = self.S
-        b = self.doc.addObject("Part::Box", "Caixa")
-        b.Placement.Base = FreeCAD.Vector(0, 0, 50)
-        self.doc.recompute()
-        v = FreeCADGui.getDocument(self.doc.Name).ActiveView
-        S.definir(True)
-        from pivy import coin
-        g = S._grupo_sombra(v)
-        _i, piso = S._filhos_por_nome(g, S.NOME_GRUPO + "Piso")
-        tr = [piso.getChild(k) for k in range(piso.getNumChildren())
-              if piso.getChild(k).isOfType(coin.SoTransform.getClassTypeId())][0]
-        self.assertAlmostEqual(tr.translation.getValue()[2], 50, delta=1)
-        b.Placement.Base = FreeCAD.Vector(0, 0, -100)
-        self.doc.recompute()
-        S.aplicar()
-        self.assertAlmostEqual(tr.translation.getValue()[2], -100, delta=1)
-
+    def test_sombras_removidas(self):
+        import importlib.util
+        import PrumoBarraVista as B
+        import PrumoRibbon as R
+        self.assertIsNone(importlib.util.find_spec("PrumoSombras"))
+        self.assertNotIn("Prumo_Sombras", [it[0] for it in B.ITENS if it != "|"])
+        self.assertNotIn("Prumo_Sombras", [c for t in R.TABS for _p, its in t["panels"] for c, *_r in its])
+        if FreeCAD.GuiUp:
+            self.assertNotIn("Prumo_Sombras", FreeCADGui.listCommands())
 
 
 class T108FixadoresNovos(unittest.TestCase):
@@ -16847,6 +16751,159 @@ class T125InstalarNoClaude(unittest.TestCase):
             j.deleteLater()
 
 
+class T126DiferencialSework(unittest.TestCase):
+    """1.11.0: distâncias da NBR ISO 13857, proteção NR-12 parametrizada, memorial NR-13 e sombras fora."""
+
+    def setUp(self):
+        self.doc = None
+
+    def tearDown(self):
+        if self.doc is not None:
+            fechar(self.doc)
+
+    def test_tabelas_da_norma(self):
+        import PrumoDistancias as D
+        # Tabela 2: sem interpolação — h entre linhas vale a que pede mais; hps entre colunas, a de baixo
+        self.assertEqual(D.alcance_sobre(1500, 1400)[0], 1100)
+        self.assertEqual(D.alcance_sobre(2100, 1900)[0], 800)
+        self.assertEqual(D.alcance_sobre(2600, 2000)[0], 500)
+        self.assertEqual(D.alcance_sobre(2700, 1000)[0], 0)
+        self.assertIsNone(D.alcance_sobre(1000, 900)[0])
+        self.assertIn("1 400", D.alcance_sobre(1000, 1200)[1])
+        # Tabela 1 (lesão leve)
+        self.assertEqual(D.alcance_sobre(900, 1000, "baixo")[0], 1400)
+        self.assertEqual(D.alcance_sobre(2500, 1000, "baixo")[0], 0)
+        # Tabela 4
+        self.assertEqual(D.abertura(25, "fenda")["s"], 850)
+        self.assertEqual(D.abertura(25, "fenda", comprimento_fenda=60)["s"], 200)
+        self.assertEqual(D.abertura(25, "quadrada")["s"], 120)
+        self.assertEqual(D.abertura(35, "quadrada")["s"], 200)
+        self.assertEqual(D.abertura(10, "circular")["s"], 20)
+        self.assertIsNone(D.abertura(130, "quadrada")["s"])
+        # Tabela 5 (crianças)
+        self.assertEqual(D.abertura(25, "quadrada", "3")["s"], 550)
+        self.assertEqual(D.abertura(15, "fenda", "3", comprimento_fenda=30)["s"], 120)
+        # Tabela 7
+        self.assertEqual(D.membros_inferiores(70, "fenda")["s"], 650)
+        self.assertEqual(D.membros_inferiores(70, "quadrada")["s"], 180)
+        self.assertIsNone(D.membros_inferiores(200, "fenda")["s"])
+        self.assertEqual(D.membros_inferiores(200, "quadrada")["s"], 1100)
+        self.assertEqual(D.maior_abertura(150), 30)
+
+    def test_verificacao_completa(self):
+        import PrumoDistancias as D
+        ok, itens = D.verificar(25, "quadrada", dist_abertura=150, altura_protecao=2000, altura_perigo=1200,
+                                folga_inferior=100, dist_folga=1200)
+        self.assertTrue(ok, D.texto(ok, itens))
+        ok, itens = D.verificar(50, "quadrada", dist_abertura=150, altura_protecao=2000, altura_perigo=1200)
+        self.assertFalse(ok)
+        self.assertIn("Tabela 4", D.texto(ok, itens))
+
+    def test_protecao_no_modelo(self):
+        import PrumoProtecao as PP
+        import PrumoBOM
+        self.doc = novo_doc("PrumoTesteProtecao")
+        maq = self.doc.addObject("Part::Box", "Maquina")
+        maq.Length, maq.Width, maq.Height = 600, 400, 900
+        maq.Placement.Base = FreeCAD.Vector(200, 200, 300)
+        self.doc.recompute()
+        g = PP.criar(self.doc, Forma=PP.FORMAS[1], Largura=1000, Profundidade=800, Altura=2600,
+                     FolgaInferior=0, Abertura=10, FioTela=2, ponto=(maq, ["Face2"]))
+        self.assertTrue(g.Shape.isValid())
+        self.assertEqual(len(g.Shape.Solids), 8)                       # 4 quadros + 4 telas
+        self.assertAlmostEqual(g.AlturaMedida, 1200, delta=1)
+        self.assertGreater(g.DistanciaMedida, 150)
+        self.assertLess(g.DistanciaMedida, 200)
+        self.assertTrue(g.Conforme, "\n".join(g.Verificacao))
+        g.Abertura = 50
+        self.doc.recompute()
+        self.assertFalse(g.Conforme)
+        self.assertTrue(any(v.startswith("✗ Abertura") for v in g.Verificacao))
+        # teto: some o alcance por cima
+        g.Abertura, g.Altura, g.Teto = 10, 1400, True
+        self.doc.recompute()
+        self.assertEqual(len(g.Shape.Solids), 10)
+        self.assertGreater(g.Shape.BoundBox.YMin, -1e-6, "o teto fica em cima do enclausuramento")
+        self.assertTrue(any("teto" in v for v in g.Verificacao))
+        # lista de materiais: um item com massa
+        linhas = PrumoBOM.coletar([g])
+        self.assertEqual(len(linhas), 1)
+        self.assertIn("Proteção enclausuramento", linhas[0].denominacao)
+        self.assertGreater(g.Peso, 10)
+        self.assertIn("CONFORME", PP.relatorio(g))
+
+    def test_painel_da_protecao(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoProtecao as PP
+        self.doc = novo_doc("PrumoTestePainelProtecao")
+        p = PP.PainelProtecao()
+        try:
+            p.forma.setCurrentText(PP.FORMAS[1])
+            self.assertFalse(p.s_enc.isHidden())
+            p.tipo.setCurrentText(PP.TIPOS_TELA[1])
+            self.assertFalse(p.s_fenda.isHidden())
+            p.executar()
+            g = [o for o in self.doc.Objects if PP.e_protecao(o)][0]
+            self.assertEqual(g.Forma, PP.FORMAS[1])
+            self.assertIn("CONFORME", p.resultado.text())
+        finally:
+            p.form.deleteLater()
+
+    def test_enquadramento_nr13(self):
+        import PrumoMemorialNR13 as M
+        self.assertEqual(M.grupo(150)[0], 1)
+        self.assertEqual(M.grupo(50)[0], 2)
+        self.assertEqual(M.grupo(10)[0], 3)
+        self.assertEqual(M.grupo(2)[0], 4)
+        self.assertEqual(M.grupo(0.5)[0], 5)
+        g, aviso = M.grupo(30)
+        self.assertEqual(g, 2)
+        self.assertIn("maior risco", aviso)
+        self.assertEqual(M.categoria("A", 1), "I")
+        self.assertEqual(M.categoria("D", 1), "II")
+        self.assertEqual(M.categoria("C", 5), "V")
+        self.assertEqual(M.categoria("B", 4), "IV")
+        e = M.enquadramento(0.8, 1.139, "C — ar")
+        self.assertEqual((e["grupo"], e["categoria"]), (5, "V"))
+        self.assertTrue(e["abrangido"])
+        self.assertEqual(e["prazos"], (5, 10, 7, None))
+        self.assertFalse(M.enquadramento(0.005, 1.0, "C")["abrangido"])       # 5 kPa·m³ < 8
+
+    def test_memorial_em_pdf(self):
+        import tempfile
+        import PrumoVaso as V
+        import PrumoMemorialNR13 as M
+        self.doc = novo_doc("PrumoTesteMemorial")
+        v = V.criar(self.doc, 800, 2000, 0.9, 138.0, 0.85, 1.5, V.TAMPOS[0], "ASTM A285 Gr C", "60 °C")
+        M.garantir_campos(v)
+        v.MemTag, v.MemResponsavel, v.MemRegistro, v.MemART = "RAC-01", "Fulano", "MG-1/D", "MG2026"
+        html_, avisos = M.montar(v)
+        for t in ("RAC-01", "UG-27", "Categoria (Tabela 1)", "Portaria MTP n.º 1.846", "ART nº MG2026",
+                  "exame externo a cada 4 anos"):
+            self.assertIn(t, html_)
+        self.assertTrue(any("pressão de projeto" in a for a in avisos))
+        pasta = tempfile.mkdtemp()
+        caminho, _a = M.salvar_pdf(v, os.path.join(pasta, "memorial.pdf"))
+        with open(caminho, "rb") as fh:
+            dados = fh.read()
+        self.assertTrue(dados.startswith(b"%PDF"))
+        self.assertGreater(len(dados), 10000)
+        self.assertLessEqual(dados.count(b"/Type /Page\n") + dados.count(b"/Type/Page\n"), 3)
+
+    def test_ferramentas_da_ia_e_comandos(self):
+        import PrumoIA
+        self.assertIn("protecao_nr12", PrumoIA.FERRAMENTAS)
+        self.assertIn("memorial_nr13", PrumoIA.FERRAMENTAS)
+        r = PrumoIA.executar("distancias_seguranca", {"abertura": 25, "distancia": 150, "altura_protecao": 2000,
+                                                      "altura_perigo": 1200})
+        self.assertTrue(r["conforme"], r)
+        if FreeCAD.GuiUp:
+            cmds = FreeCADGui.listCommands()
+            for c in ("Prumo_ProtecaoNR12", "Prumo_RelatorioProtecao", "Prumo_MemorialNR13"):
+                self.assertIn(c, cmds)
+
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -17600,7 +17657,7 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T86TubulacaoAcoIsometrico, T87AtualizacaoSoDoComplemento,
            T88CatalogosSteelStructures, T89NovidadesDoZW3D,
            T90TracadoNasConexoes, T91JuntaInteligente,
-           T92BarraDeVarredura, T93MenusComAcento, T94Sombras, T95SemDependerDeBancada, T96BarraDeVistas, T97CatalogoDePerfis, T98CliqueSempreResponde,
+           T92BarraDeVarredura, T93MenusComAcento, T94SemSombras, T95SemDependerDeBancada, T96BarraDeVistas, T97CatalogoDePerfis, T98CliqueSempreResponde,
            T99PlanosNoNovoEsboco, T100IdeiasDeOutrosCAD,
            T101AdicionarOuRemoverMaterial, T102Componentes, T103DutosHVAC, T104ModelagemDireta,
            T105ExplosaoAnimada, T106RevisaoDaFaixa, T107LayoutEDutos, T108FixadoresNovos, T109ArredondarMedirLayout, T110BarraPerfisNovos, T111PisoEFechamento, T112EnviarSugestao, T113DutoNoTracado3D, T114DesenhoInserirPeca, T115EsbocoModoLimpoECorSelecao,
@@ -17612,4 +17669,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T121FolhaPronta,
            T122DoModeloParaAFabrica,
            T123AcabamentoEVisual,
-           T124Bibliotecas, T125InstalarNoClaude]
+           T124Bibliotecas, T125InstalarNoClaude,
+           T126DiferencialSework]

@@ -2,7 +2,7 @@
 """Usinix: barra de vistas flutuante, pequena, embaixo da vista 3D (como a barra "heads-up" dos outros CAD).
 
 Fica centralizada na parte de baixo de cada vista 3D, por cima do modelo: enquadrar, vistas padrão (com as
-demais num menu), estilo de exibição, plano de corte e sombras. Pode ser desligada em Preferências do Usinix
+demais num menu), estilo de exibição e plano de corte. Pode ser desligada em Preferências do Usinix
 (parâmetro BarraVista).
 """
 import os
@@ -32,7 +32,6 @@ ITENS = [
     ("Prumo_Aparencia", "Aparência (cor e transparência)"),
     ("Std_ToggleClipPlane", "Plano de corte"),
     ("Prumo_Isolar", "Isolar / restaurar peça"),
-    ("Prumo_Sombras", "Sombras"),
 ]
 
 # comandos de câmera que a própria vista sabe fazer (não dependem da janela ativa)
@@ -125,25 +124,15 @@ class BarraVista(QtWidgets.QFrame):
                 self.botoes["menu:" + rotulo] = b
                 continue
             nome, dica = it
-            if nome == "Prumo_Sombras":
-                b = self._botao(nome, dica)
-                b.setCheckable(True)
-                try:
-                    import PrumoSombras
-                    b.setChecked(PrumoSombras.ligado())
-                except Exception:
-                    pass
-                b.toggled.connect(self._sombras)
+            a = _acao(nome)
+            b = self._botao(nome, dica)
+            if a is not None and a.menu() is not None:
+                # comando de grupo (Estilo de exibição): o menu dele abre no clique
+                b.setMenu(a.menu())
+                b.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+                b.pressed.connect(self._ativar_minha_vista)
             else:
-                a = _acao(nome)
-                b = self._botao(nome, dica)
-                if a is not None and a.menu() is not None:
-                    # comando de grupo (Estilo de exibição): o menu dele abre no clique
-                    b.setMenu(a.menu())
-                    b.setPopupMode(QtWidgets.QToolButton.InstantPopup)
-                    b.pressed.connect(self._ativar_minha_vista)
-                else:
-                    b.clicked.connect(lambda _c=False, n=nome: self._rodar(n))
+                b.clicked.connect(lambda _c=False, n=nome: self._rodar(n))
             hl.addWidget(b)
             self.botoes[nome] = b
         self.adjustSize()
@@ -203,24 +192,8 @@ class BarraVista(QtWidgets.QFrame):
             return
         AV.executar(nome, lambda: FreeCADGui.runCommand(nome, 0))
 
-    def _sombras(self, marcado):
-        try:
-            import PrumoSombras
-            if PrumoSombras.ligado() != bool(marcado):
-                PrumoSombras.definir(bool(marcado))
-        except Exception as exc:
-            FreeCAD.Console.PrintWarning("Usinix: sombras: %s\n" % exc)
-
     def atualizar(self):
-        b = self.botoes.get("Prumo_Sombras")
-        if b is not None:
-            try:
-                import PrumoSombras
-                b.blockSignals(True)
-                b.setChecked(PrumoSombras.ligado())
-                b.blockSignals(False)
-            except Exception:
-                pass
+        """Mantido para quem chama: a barra não tem mais botão que guarde estado (as sombras saíram na 1.11)."""
 
     def reposicionar(self):
         p = self.parentWidget()

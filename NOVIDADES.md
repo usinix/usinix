@@ -15,6 +15,37 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.11.0 — 10/11/2026
+
+![Enclausuramento NR-12 conferido (tela verde) e o memorial NR-13 do vaso em PDF](.github/images/novidades/1.11.0.webp)
+
+### Proteções de máquina (NR-12)
+
+- **Proteção NR-12** (aba Estruturas › Segurança de máquinas): grade ou enclausuramento com quadro de tubo e tela
+  (malha quadrada, fenda ou chapa perfurada), com ou sem teto. Escolha o ponto de perigo no modelo e o Usinix
+  mede a distância e a altura sozinho.
+- **Verificação ao vivo pela ABNT NBR ISO 13857:2021:** abertura da tela (Tabela 4, ou Tabela 5 onde há crianças),
+  alcance por cima da proteção (Tabela 2, ou Tabela 1 para lesão leve) e folga inferior para pés e pernas
+  (Tabela 7). A tela fica verde quando tudo confere e vermelha quando não, e o painel diz a maior malha que serve.
+- **Relatório das proteções** e item na lista de materiais com massa estimada.
+
+### Memorial NR-13 do vaso
+
+- **Memorial NR-13** (aba Vasos): PDF A4 com identificação, dados de projeto, espessuras pelo ASME VIII-1, PMTA,
+  teste de pressão, enquadramento na NR-13 (grupo de potencial de risco e categoria, com a Tabela 1 marcada),
+  prazos máximos das inspeções periódicas e campo de assinatura com CREA e número da ART. Os dados ficam salvos
+  no vaso.
+- Enquadramento conferido no texto da NR-13 da Portaria MTP n.º 1.846/2022, retificada em 20/10/2022.
+
+### Conectar IA
+
+- Ferramentas novas: `distancias_seguranca`, `protecao_nr12` e `memorial_nr13`.
+
+### Removido
+
+- **Sombras na vista 3D:** davam erro de violação de acesso em algumas placas de vídeo no Windows. O botão saiu
+  da barra de vistas.
+
 ## 1.10.0 — 10/11/2026
 
 ![Rolamentos na janela Componentes e a lista de classes do fixador](.github/images/novidades/1.10.0.webp)

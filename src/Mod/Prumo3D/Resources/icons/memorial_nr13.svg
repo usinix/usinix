@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<path d="M12 5h28l12 12v42H12z" fill="#FFFFFF" stroke="#1E2A38" stroke-width="2.6" stroke-linejoin="round"/>
+<path d="M40 5v12h12" fill="#E8EEF5" stroke="#1E2A38" stroke-width="2.2" stroke-linejoin="round"/>
+<rect x="18" y="22" width="16" height="22" rx="8" fill="#7FA3C9" stroke="#1E2A38" stroke-width="2"/>
+<path d="M38 26h8M38 32h8M38 38h8M18 50h28" stroke="#003A70" stroke-width="2.4" stroke-linecap="round"/>
+<rect x="30" y="2" width="22" height="9" rx="2" fill="#F7BE00" stroke="#1E2A38" stroke-width="1.4"/>
+<text x="41" y="9.3" font-family="Poppins, Arial" font-weight="700" font-size="7" text-anchor="middle" fill="#0F2A4A">NR-13</text>
+</svg>

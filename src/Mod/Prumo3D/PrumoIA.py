@@ -556,6 +556,74 @@ def f_dxf_lote(pasta, objetos=None):
                          for c, o, q, t in feitos]}
 
 
+@ferramenta("distancias_seguranca", "Confere uma proteção de máquina pela ABNT NBR ISO 13857:2021 sem desenhar: abertura "
+            "da tela (mm), tipo (quadrada, fenda, circular), distância da tela ao perigo, altura da proteção, altura do "
+            "perigo e folga inferior (mm). risco: alto ou baixo; publico: 14 ou 3 (anos).",
+            {"abertura": {"type": "number"}, "tipo": {"type": "string"}, "distancia": {"type": "number"},
+             "altura_protecao": {"type": "number"}, "altura_perigo": {"type": "number"},
+             "folga_inferior": {"type": "number"}, "risco": {"type": "string"}, "publico": {"type": "string"}},
+            ["abertura", "distancia", "altura_protecao", "altura_perigo"], muda=False)
+def f_distancias(abertura, distancia, altura_protecao, altura_perigo, tipo="quadrada", folga_inferior=0.0,
+                 risco="alto", publico="14"):
+    import PrumoDistancias as D
+    ok, itens = D.verificar(abertura, tipo, dist_abertura=distancia, altura_protecao=altura_protecao,
+                            altura_perigo=altura_perigo, folga_inferior=folga_inferior, risco=risco, publico=publico)
+    return {"conforme": ok, "itens": itens, "maior_abertura_mm": D.maior_abertura(distancia, tipo, publico),
+            "norma": D.NORMA}
+
+
+@ferramenta("protecao_nr12", "Cria uma proteção de máquina (grade ou enclausuramento com quadro e tela) e confere as "
+            "distâncias da ABNT NBR ISO 13857. forma: painel ou enclausuramento; perigo: nome do objeto perigoso "
+            "(mede distância e altura no modelo) ou distancia/altura_perigo em mm. x, y: posição no piso (mm).",
+            {"forma": {"type": "string"}, "largura": {"type": "number"}, "profundidade": {"type": "number"},
+             "altura": {"type": "number"}, "folga_inferior": {"type": "number"}, "teto": {"type": "boolean"},
+             "abertura": {"type": "number"}, "tipo_tela": {"type": "string"}, "fio": {"type": "number"},
+             "perigo": {"type": "string"}, "distancia": {"type": "number"}, "altura_perigo": {"type": "number"},
+             "x": {"type": "number"}, "y": {"type": "number"}})
+def f_protecao(forma="painel", largura=1000.0, profundidade=800.0, altura=2000.0, folga_inferior=100.0, teto=False,
+               abertura=25.0, tipo_tela="quadrada", fio=3.0, perigo=None, distancia=150.0, altura_perigo=1200.0,
+               x=0.0, y=0.0):
+    import PrumoProtecao as PP
+    doc = _doc()
+    tipos = {"quadrada": PP.TIPOS_TELA[0], "fenda": PP.TIPOS_TELA[1], "circular": PP.TIPOS_TELA[2]}
+    kw = {"Forma": PP.FORMAS[1] if str(forma).lower().startswith("enc") else PP.FORMAS[0], "Largura": largura,
+          "Profundidade": profundidade, "Altura": altura, "FolgaInferior": folga_inferior, "Teto": bool(teto),
+          "Abertura": abertura, "TipoTela": tipos.get(str(tipo_tela).lower()[:8].rstrip(), PP.TIPOS_TELA[0]),
+          "FioTela": fio, "DistanciaPerigo": distancia, "AlturaPerigo": altura_perigo}
+    ponto = (_obj(doc, perigo), []) if perigo else None
+    o = PP.criar(doc, ponto=ponto, **kw)
+    o.Placement.Base = FreeCAD.Vector(x, y, 0)
+    doc.recompute()
+    return {"objeto": o.Name, "conforme": bool(o.Conforme), "verificacao": list(o.Verificacao),
+            "maior_abertura_mm": o.MaiorAbertura, "massa_kg": round(o.Peso, 2)}
+
+
+@ferramenta("memorial_nr13", "Gera o memorial de cálculo do vaso em PDF (espessuras pelo ASME VIII-1, PMTA, teste, "
+            "enquadramento na NR-13 e campo do responsável técnico). classe: A, B, C ou D (fluido); "
+            "pressao_operacao em MPa (0 = a de projeto).",
+            {"vaso": {"type": "string"}, "caminho": {"type": "string"}, "classe": {"type": "string"},
+             "pressao_operacao": {"type": "number"}, "tag": {"type": "string"}, "cliente": {"type": "string"},
+             "responsavel": {"type": "string"}, "crea": {"type": "string"}, "art": {"type": "string"}},
+            ["vaso", "caminho"])
+def f_memorial(vaso, caminho, classe=None, pressao_operacao=None, tag=None, cliente=None, responsavel=None,
+               crea=None, art=None):
+    import PrumoMemorialNR13 as M
+    doc = _doc()
+    v = M.garantir_campos(_obj(doc, vaso))
+    if classe:
+        v.MemClasseFluido = [c for c in M.CLASSES_LISTA if c.startswith(M.classe_de(classe))][0]
+    if pressao_operacao is not None:
+        v.MemPressaoOperacao = float(pressao_operacao)
+    for prop, val in (("MemTag", tag), ("MemCliente", cliente), ("MemResponsavel", responsavel),
+                      ("MemRegistro", crea), ("MemART", art)):
+        if val is not None:
+            setattr(v, prop, str(val))
+    _c, avisos = M.salvar_pdf(v, caminho)
+    e = M.enquadramento(v.MemPressaoOperacao or v.PressaoProjeto, v.VolumeInterno, v.MemClasseFluido)
+    return {"arquivo": caminho, "grupo": e["grupo"], "categoria": e["categoria"], "abrangido": e["abrangido"],
+            "pv_mpa_m3": round(e["pv"], 4), "avisos": avisos}
+
+
 @ferramenta("capturar_vista", "Imagem da vista 3D (PNG) para conferir o que foi feito. vista: iso, frente, topo, "
             "direita, atual.", {"vista": {"type": "string"}, "largura": {"type": "integer"}}, muda=False)
 def f_captura(vista="iso", largura=900):

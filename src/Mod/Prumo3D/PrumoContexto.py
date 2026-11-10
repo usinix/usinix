@@ -114,7 +114,8 @@ POR_TIPO = {
                   "Prumo_ListaDeCorte", "Prumo_FolhasBarras", "Prumo_ExportarExcel"],
     "parafusos": ["Prumo_TrabalhosBarra", "Prumo_ListaMateriais"],
     "chapa": ["Prumo_FolhaChapa", "Prumo_ChapaDXF", "Prumo_DXFLote"],
-    "vaso": ["Prumo_MemoriaVaso", "Prumo_DesenhoVaso"],
+    "vaso": ["Prumo_MemoriaVaso", "Prumo_MemorialNR13", "Prumo_DesenhoVaso"],
+    "protecao": ["Prumo_RelatorioProtecao", "Prumo_ListaMateriais"],
     "tubulacao": ["Prumo_IsometricoTubulacao", "Prumo_ListaMateriais"],
     "anotacao": ["Prumo_EditarAnotacao"],
     "montagem": ["Prumo_ListaMateriais", "Prumo_ExportarExcel", "Prumo_DXFLote", "Prumo_FolhasLote"],
@@ -129,7 +130,7 @@ def _comandos():
 
 
 def tipo_do_objeto(o):
-    """folha, barra, estrutura, parafusos, chapa, vaso, tubulacao, montagem ou None."""
+    """folha, barra, estrutura, parafusos, chapa, vaso, protecao, tubulacao, montagem ou None."""
     try:
         props = o.PropertiesList
         if o.isDerivedFrom("TechDraw::DrawPage"):
@@ -144,6 +145,8 @@ def tipo_do_objeto(o):
             return "parafusos"
         if "PressaoProjeto" in props:
             return "vaso"
+        if "ProtecaoNR12" in props:
+            return "protecao"
         try:
             import PrumoTubulacao
             if PrumoTubulacao.e_tubulacao(o):
