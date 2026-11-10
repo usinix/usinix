@@ -15,6 +15,23 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.9.1 — 10/11/2026
+
+### Ajustes na folha
+
+### Novidades
+
+- **Editar anotação com duplo clique:** o duplo clique numa anotação de texto da folha abre a janela com o
+  texto, a altura da letra e a cor, como nos campos da legenda. Também pelo botão direito › Editar anotação.
+- **Busca de peças na Paleta de vistas:** o mesmo campo de busca da Nova folha ABNT; marque a peça na lista,
+  sem ir à árvore.
+
+### Correções
+
+- **Vistas em português na árvore:** as vistas do grupo aparecem como Frontal, Superior, Lateral direita,
+  Isométrica superior direita (antes Front, FrontTopRight, Frente, Topo…), com os mesmos nomes da faixa.
+- **Listas do painel Propriedades em português:** o tipo da vista e outras listas do desenho técnico.
+
 ## 1.9.0 — 10/11/2026
 
 ![Grade na área de trabalho, ligada pelo botão Grade na barra inferior, e o painel Trabalhos na barra](.github/images/novidades/1.9.0.webp)
