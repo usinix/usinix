@@ -172,6 +172,17 @@ def vista_pronta(vista):
     if not esperada:
         return True
     obtida = max(t[1] for t in vs) - min(t[1] for t in vs)
+    if abs(obtida - esperada) > 0.01 * esperada + 1e-6:
+        # círculos e arcos passam dos vértices (a vista de topo de um eixo só tem o centro e a costura)
+        try:
+            xs = []
+            for _n, e in _arestas(vista):
+                bb = e.BoundBox
+                xs += [bb.XMin, bb.XMax]
+            if xs:
+                obtida = max(xs) - min(xs)
+        except Exception:
+            pass
     # vale para as vistas ortogonais (a caixa projetada é o contorno); a isométrica não é cotada
     return abs(obtida - esperada) <= 0.01 * esperada + 1e-6 or abs(vista.Direction.x - 1) < 1e-6 \
         and abs(vista.Direction.y + 1) < 1e-6
@@ -189,8 +200,9 @@ def _extremos(vista, eixo):
     return a, b
 
 
-def _cota(page, vista, tipo, a, b, rotulo, lado):
-    """Cota entre os vértices a e b; `lado` (cima, baixo, esq, dir) diz de que lado da vista ela fica."""
+def _cota(page, vista, tipo, a, b, rotulo, lado, afasta=8.0):
+    """Cota entre os vértices a e b; `lado` (cima, baixo, esq, dir) diz de que lado da vista ela fica e
+    `afasta`, a quantos mm de papel do contorno."""
     doc = vista.Document
     d = doc.addObject("TechDraw::DrawViewDimension", "Cota")
     d.Label = rotulo
@@ -206,14 +218,15 @@ def _cota(page, vista, tipo, a, b, rotulo, lado):
     vs = _vertices(vista)
     meia_l = max(abs(t[1]) for t in vs) * e
     meia_a = max(abs(t[2]) for t in vs) * e
-    d.X, d.Y = {"cima": (0.0, meia_a + 8.0), "baixo": (0.0, -(meia_a + 8.0)),
-                "esq": (-(meia_l + 8.0), 0.0), "dir": (meia_l + 8.0, 0.0)}[lado]
+    d.X, d.Y = {"cima": (0.0, meia_a + afasta), "baixo": (0.0, -(meia_a + afasta)),
+                "esq": (-(meia_l + afasta), 0.0), "dir": (meia_l + afasta, 0.0)}[lado]
     d.recompute()
     return d
 
 
-def cotas_gerais(page, objs):
-    """Comprimento e altura totais na frontal; profundidade na lateral (ou na superior).
+def cotas_gerais(page, objs, furos=False):
+    """Comprimento e altura totais na frontal; profundidade na lateral (ou na superior). Com furos=True,
+    também a furação de cada vista (ver cotas_de_furos).
 
     Devolve a lista das cotas criadas. As vistas precisam estar calculadas (ver vista_pronta)."""
     grupo = grupo_da_peca(page, objs)
@@ -243,7 +256,120 @@ def cotas_gerais(page, objs):
         ez = _extremos(cima, "y")
         if ez:
             criadas.append(_cota(page, cima, "DistanceY", ez[0], ez[1], "Profundidade total", "esq"))
+    if furos:
+        feitas = []          # direções já cotadas: o mesmo furo aparece como círculo na frontal e na posterior
+        for tipo in ("Front", "Top", "Left", "Right", "Bottom", "Rear"):
+            v = por_tipo.get(tipo)
+            if v is None:
+                continue
+            d = FreeCAD.Vector(v.Direction)
+            if any(abs(abs(d.dot(o)) - 1.0) < 1e-6 for o in feitas):
+                continue
+            c = cotas_de_furos(page, v)
+            if c:
+                feitas.append(d)
+                criadas.extend(c)
     page.Document.recompute()
+    return criadas
+
+
+# ---------------------------------------------------------------------------- furação
+def _numero(v):
+    """Formato da cota: inteiro sem casas (14), senão uma casa (14,5)."""
+    return "%.0f" if abs(v - round(v)) < 1e-6 else "%.1f"
+
+
+def furos_da_vista(vista):
+    """[(diâmetro, [(aresta, (x, y)), ...])] dos furos que a vista mostra como círculo inteiro, agrupados
+    pelo diâmetro (maior primeiro). O círculo que é o próprio contorno (ponta de um eixo, tubo) fica de fora."""
+    vs = _vertices(vista)
+    if not vs:
+        return []
+    xmin, xmax = min(t[1] for t in vs), max(t[1] for t in vs)
+    ymin, ymax = min(t[2] for t in vs), max(t[2] for t in vs)
+    grupos = {}
+    for nome, r, (cx, cy), inteiro in circulos_do_corte(vista):
+        if not inteiro:
+            continue
+        if cx - r <= xmin + 1e-4 and cx + r >= xmax - 1e-4 and cy - r <= ymin + 1e-4 and cy + r >= ymax - 1e-4:
+            continue
+        chave = round(2 * r, 3)
+        grupos.setdefault(chave, []).append((nome, (cx, cy)))
+    return sorted(grupos.items(), key=lambda t: -t[0])
+
+
+def _vertice_em(vs, x, y, tol=1e-3):
+    for t in vs:
+        if abs(t[1] - x) < tol and abs(t[2] - y) < tol:
+            return t
+    return None
+
+
+def _unicos(valores, tol=1e-3):
+    r = []
+    for v in sorted(valores):
+        if not r or abs(v - r[-1]) > tol:
+            r.append(v)
+    return r
+
+
+def cotas_de_furos(page, vista, max_posicoes=6):
+    """Furação da vista: uma cota de diâmetro por grupo de furos iguais ("4× ⌀14") e a posição de cada
+    linha e coluna de furos a partir do canto inferior esquerdo (cotas em linha de base, embaixo e à
+    direita da vista). Com mais de `max_posicoes` linhas ou colunas, as posições daquele eixo ficam de fora
+    (o desenho viraria um emaranhado; use a Tabela de furos). Devolve as cotas criadas."""
+    grupos = furos_da_vista(vista)
+    if not grupos:
+        return []
+    doc = page.Document
+    try:
+        e = float(vista.getScale())
+    except Exception:
+        e = float(getattr(vista, "Scale", 1.0) or 1.0)
+    criadas = []
+    for k, (diam, furos) in enumerate(grupos):
+        nome, (cx, cy) = max(furos, key=lambda t: t[1][0] + t[1][1])       # o de cima à direita
+        d = doc.addObject("TechDraw::DrawViewDimension", "Cota")
+        d.Type = "Diameter"
+        d.MeasureType = "Projected"
+        d.References2D = [(vista, nome)]
+        n = len(furos)
+        d.FormatSpec = ("%d× " % n if n > 1 else "") + "⌀" + _numero(diam)
+        txt = PrumoUtil.fmt_dim(diam)
+        d.Label = ("%d× Ø %s" % (n, txt)) if n > 1 else "Ø %s" % txt
+        page.addView(d)
+        ang = math.radians(45 + 25 * k)
+        dist = diam / 2.0 * e + 8.0
+        d.X, d.Y = cx * e + dist * math.cos(ang), cy * e + dist * math.sin(ang)
+        d.recompute()
+        criadas.append(d)
+    vs = _vertices(vista)
+    xmin = min(t[1] for t in vs)
+    ymin = min(t[2] for t in vs)
+    canto = min((t for t in vs if abs(t[1] - xmin) < 1e-3), key=lambda t: t[2])        # embaixo à esquerda
+    base_y = min((t for t in vs if abs(t[2] - ymin) < 1e-3), key=lambda t: t[1])
+    centros = [c for _d, furos in grupos for _n, c in furos]
+    xs = [x for x in _unicos(c[0] for c in centros) if abs(x - xmin) > 1e-3]
+    ys = [y for y in _unicos(c[1] for c in centros) if abs(y - ymin) > 1e-3]
+    if len(xs) <= max_posicoes:
+        for i, x in enumerate(xs):
+            cy = min(c[1] for c in centros if abs(c[0] - x) < 1e-3)
+            alvo = _vertice_em(vs, x, cy)
+            if alvo is not None:
+                d = _cota(page, vista, "DistanceX", canto, alvo, "Posição do furo (X)", "baixo", 9.0 + 9.0 * i)
+                d.X = (canto[1] + alvo[1]) / 2.0 * e          # texto no meio do trecho: não empilha
+                d.recompute()
+                criadas.append(d)
+    if len(ys) <= max_posicoes:
+        for i, y in enumerate(ys):
+            cx = min(c[0] for c in centros if abs(c[1] - y) < 1e-3)
+            alvo = _vertice_em(vs, cx, y)
+            if alvo is not None:
+                d = _cota(page, vista, "DistanceY", base_y, alvo, "Posição do furo (Y)", "dir", 9.0 + 9.0 * i)
+                d.Y = (base_y[2] + alvo[2]) / 2.0 * e
+                d.recompute()
+                criadas.append(d)
+    doc.recompute()
     return criadas
 
 
@@ -328,7 +454,7 @@ def folhas_em_lote(doc, objs, formato="A3", norma=None, arranjo="3vistas_iso", p
                 continue
             esperar_vistas(list(grupo.Views), 20.0)
             try:
-                cotas_gerais(page, [obj])
+                cotas_gerais(page, [obj], furos=True)
             except ValueError:
                 pass
     if pasta_pdf:
@@ -539,10 +665,10 @@ if P is not None:
                 self.botoes[k] = b
             s2.linha("posicao", grade, "Um clique põe a vista; as ortogonais ficam alinhadas à frontal.")
             s3 = f.secao("Cotas", "comprimento")
-            self.btn_cotas = QtWidgets.QPushButton("Cotas gerais (comprimento, altura, profundidade)")
+            self.btn_cotas = QtWidgets.QPushButton("Cotas gerais e furação")
             self.btn_cotas.setObjectName("cotas_gerais")
             self.btn_cotas.clicked.connect(self.por_cotas)
-            s3.linha("comprimento", self.btn_cotas, "Medidas totais da peça nas vistas já colocadas.")
+            s3.linha("comprimento", self.btn_cotas, "Medidas totais da peça e furos (⌀, quantidade e posição) nas vistas já colocadas.")
             self.status = QtWidgets.QLabel("")
             self.status.setWordWrap(True)
             s3.linha("info", self.status, "")
@@ -619,7 +745,7 @@ if P is not None:
                     return []
             self.doc.openTransaction("Cotas gerais")
             try:
-                c = cotas_gerais(page, objs)
+                c = cotas_gerais(page, objs, furos=True)
             except ValueError as ex:
                 self.status.setText(str(ex))
                 c = []
@@ -705,7 +831,7 @@ if P is not None:
             self.prefixo = s1.linha("quantidade", QtWidgets.QLineEdit(""), "Número do desenho de cada folha: "
                                     "prefixo-01, prefixo-02… Vazio: o código da peça (Propriedades da peça).",
                                     "Prefixo do nº")
-            self.cotas = s1.linha("comprimento", P.marcar("Cotas gerais em cada folha", True), "")
+            self.cotas = s1.linha("comprimento", P.marcar("Cotas gerais e furação em cada folha", True), "")
             self.pdf = s1.linha("folha", P.marcar("Salvar o PDF de cada folha na pasta do projeto", False), "")
             self.pecas.mudou.connect(self._resumir)
             self._resumir()
@@ -861,8 +987,8 @@ if P is not None:
     class CmdCotasGerais:
         def GetResources(self):
             return {"Pixmap": PrumoUtil.icone("cotas.svg"), "MenuText": "Cotas gerais",
-                    "ToolTip": "Põe o comprimento, a altura e a profundidade totais da peça nas vistas da "
-                               "folha aberta."}
+                    "ToolTip": "Põe o comprimento, a altura e a profundidade totais da peça e a furação (⌀, "
+                               "quantidade e posição dos furos) nas vistas da folha aberta."}
 
         def IsActive(self):
             return FreeCAD.ActiveDocument is not None and bool(folhas(FreeCAD.ActiveDocument))
@@ -892,7 +1018,7 @@ if P is not None:
             doc = page.Document
             doc.openTransaction("Cotas gerais")
             try:
-                c = cotas_gerais(page, alvo)
+                c = cotas_gerais(page, alvo, furos=True)
             except ValueError as ex:
                 doc.abortTransaction()
                 QtWidgets.QMessageBox.information(FreeCADGui.getMainWindow(), "Cotas gerais", str(ex))

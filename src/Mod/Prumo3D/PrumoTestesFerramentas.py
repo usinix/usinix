@@ -16731,6 +16731,137 @@ def QtCore_Checked():
     from PySide import QtCore
     return QtCore.Qt.Checked
 
+class T121FolhaPronta(unittest.TestCase):
+    """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
+    barra e da chapa com um clique e legenda preenchida pela peça."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteFolhaPronta")
+
+    def tearDown(self):
+        try:
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        fechar(self.doc)
+
+    def _placa(self):
+        import Part
+        s = Part.makeBox(120, 80, 10)
+        for x, y in ((15, 15), (105, 15), (15, 65), (105, 65)):
+            s = s.cut(Part.makeCylinder(7, 10, FreeCAD.Vector(x, y, 0)))
+        s = s.cut(Part.makeCylinder(10, 10, FreeCAD.Vector(60, 40, 0)))
+        o = self.doc.addObject("Part::Feature", "Placa")
+        o.Shape = s
+        self.doc.recompute()
+        return o
+
+    def test_furacao_cotada_com_quantidade_e_posicao(self):
+        import PrumoFolhas as F
+        import PrumoVistas as V
+        o = self._placa()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        g = V.grupo_da_peca(p, [o])
+        self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+        cotas = V.cotas_gerais(p, [o], furos=True)
+        self.doc.recompute()
+        diam = {d.FormatSpec: round(d.getRawValue(), 3) for d in cotas if d.Type == "Diameter"}
+        self.assertEqual(diam, {"4× \u2300%.0f": 14.0, "\u2300%.0f": 20.0}, "um ⌀ por grupo de furos iguais")
+        pos_x = sorted(round(d.getRawValue(), 3) for d in cotas if d.Label.startswith("Posição do furo (X)"))
+        pos_y = sorted(round(d.getRawValue(), 3) for d in cotas if d.Label.startswith("Posição do furo (Y)"))
+        self.assertEqual(pos_x, [15.0, 60.0, 105.0], "posição de cada coluna de furos a partir da borda")
+        self.assertEqual(pos_y, [15.0, 40.0, 65.0])
+        self.assertEqual(len([d for d in cotas if d.Type == "Diameter"]), 2,
+                         "o mesmo furo não é cotado de novo na vista oposta")
+        so_gerais = V.cotas_gerais(p, [o])
+        self.assertEqual(len(so_gerais), 3, "sem furos=True, só as cotas gerais (como antes)")
+
+    def test_eixo_nao_vira_furo(self):
+        import PrumoFolhas as F
+        import PrumoVistas as V
+        e = self.doc.addObject("Part::Cylinder", "Eixo")
+        e.Radius, e.Height = 20, 100
+        self.doc.recompute()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [e], arranjo="3vistas_iso")
+        g = V.grupo_da_peca(p, [e])
+        self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+        for v in g.Views:
+            self.assertEqual(V.furos_da_vista(v), [], "o contorno do eixo (%s) não é furo" % v.Type)
+
+    def _conjunto(self):
+        import Part
+        part = self.doc.addObject("App::Part", "Conjunto")
+        base = self.doc.addObject("Part::Feature", "Base")
+        base.Shape = Part.makeBox(200, 120, 10)
+        cols = []
+        for i, x in enumerate((40, 160)):
+            c = self.doc.addObject("Part::Feature", "Coluna%d" % i)
+            c.Shape = Part.makeCylinder(15, 150, FreeCAD.Vector(x, 60, 10))
+            c.addProperty("App::PropertyString", "Codigo")
+            c.Codigo = "C-01"
+            cols.append(c)
+        tampo = self.doc.addObject("Part::Feature", "Tampo")
+        tampo.Shape = Part.makeBox(220, 80, 12, FreeCAD.Vector(-10, 20, 160))
+        for o in [base] + cols + [tampo]:
+            part.addObject(o)
+        self.doc.recompute()
+        return part, base, cols, tampo
+
+    def test_baloes_numeram_como_a_lista_e_acompanham(self):
+        import PrumoBaloes as B
+        import PrumoBOM
+        import PrumoFolhas as F
+        import PrumoVistas as V
+        part, base, cols, tampo = self._conjunto()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [part], arranjo="3vistas_iso")
+        iso = B.vista_padrao(p)
+        self.assertEqual(iso.TypeId, "TechDraw::DrawViewPart", "balões vão na isométrica")
+        self.assertTrue(V.esperar_vistas([iso], 60))
+        feitos = B.criar_baloes(p)
+        linhas = PrumoBOM.coletar([part])
+        self.assertEqual(len(feitos), len(linhas), "um balão por item da lista")
+        por_peca = {b.PecaUsinix.Label: b.Text for b, _n in feitos}
+        self.assertEqual(por_peca.get("Base"), "1")
+        self.assertIn(por_peca.get("Coluna0") or por_peca.get("Coluna1"), ("2",), "colunas iguais = um item")
+        self.assertEqual(por_peca.get("Tampo"), "3")
+        # balões fora do contorno, sem encostar um no outro
+        e = float(iso.getScale())
+        pos = [(b.X * e, b.Y * e) for b, _n in feitos]
+        for i in range(len(pos)):
+            for j in range(i + 1, len(pos)):
+                d = ((pos[i][0] - pos[j][0]) ** 2 + (pos[i][1] - pos[j][1]) ** 2) ** 0.5
+                self.assertGreater(d, 9.0, "balões %d e %d sobrepostos" % (i, j))
+        # a seta da coluna não fica escondida debaixo do tampo
+        d = FreeCAD.Vector(iso.Direction).normalize()
+        outras = [base.Shape, tampo.Shape, cols[1].Shape]
+        pt = B._ponto_na_peca(cols[0].Shape, d, outras)
+        self.assertLess(pt.z, 160.0, "o topo da coluna está debaixo do tampo: a seta vai no corpo dela")
+        self.assertFalse(B._escondido(pt, d, outras))
+        # refazer não duplica
+        B.criar_baloes(p)
+        self.assertEqual(len(B.baloes_da_vista(iso)), len(linhas))
+        # a lista muda (tampo ganha o código das colunas? não: base sai da montagem) -> números acompanham
+        part.removeObject(base)
+        self.doc.recompute()
+        mudou = B.atualizar_baloes(self.doc)
+        self.assertGreater(mudou, 0)
+        txt = {b.PecaUsinix.Label: b.Text for b in B.baloes_da_vista(iso)}
+        self.assertEqual(txt["Tampo"], "2")
+        self.assertEqual(txt["Base"], "?", "peça que saiu da lista fica marcada, não some calada")
+
+    def test_baloes_no_menu_e_na_faixa(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoRibbon as R
+        des = [t for t in R.TABS if t["id"] == "desenho"][0]
+        cmds = [c for _p, itens in des["panels"] for c, _s, _r in itens]
+        self.assertIn("Prumo_Baloes", cmds)
+        self.assertIn("Prumo_Baloes", FreeCADGui.listCommands())
+        import os
+        import PrumoUtil
+        self.assertTrue(os.path.exists(PrumoUtil.icone("baloes.svg")))
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -16764,4 +16895,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T117AbrirNoLinuxETema,
            T118TrabalhosNaBarra,
            T119FolhaLegendaEstiloTraducao,
-           T120ConectarIA]
+           T120ConectarIA,
+           T121FolhaPronta]

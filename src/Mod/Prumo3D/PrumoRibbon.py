@@ -226,7 +226,7 @@ TABS = [
         ("Cotas", [
             ("TechDraw_CompDimensionTools", L, "Cota"), ("Prumo_CotasGerais", L, "Cotas\ngerais"),
             ("Prumo_CotasCorte", S, "Cotas do corte"),
-            ("TechDraw_Balloon", S, "Balão"),
+            ("Prumo_Baloes", L, "Balões\nda lista"), ("TechDraw_Balloon", S, "Balão avulso"),
             ("TechDraw_AxoLengthDimension", S, "Cota axonométrica"), ("TechDraw_DimensionRepair", S, "Reparar cotas"),
             ("TechDraw_ExtensionInsertPrefixGroup", S, "Prefixo ⌀"),
             ("TechDraw_ExtensionIncreaseDecreaseGroup", S, "Casas decimais"),

@@ -143,12 +143,19 @@ def itens(objs):
     return res
 
 
-def coletar(objs, densidade_padrao=None):
-    """Linhas da lista de materiais para os objetos (abre montagens, partes e grupos)."""
+def coletar(objs, densidade_padrao=None, mapa=None):
+    """Linhas da lista de materiais para os objetos (abre montagens, partes e grupos).
+
+    mapa: dicionário que, se dado, recebe {(documento, nome do objeto): (nº do item, forma)} de cada peça
+    contada, para os balões apontarem o item certo."""
     if densidade_padrao is None:
         densidade_padrao = PrumoUtil.densidade_padrao()
     linhas = {}
     ordem = []
+    def marcar(obj, chave, sh):
+        if mapa is not None and chave in linhas:
+            mapa.setdefault((obj.Document.Name, obj.Name), (ordem.index(chave) + 1, sh))
+
     for obj, sh, comprado in itens(objs):
         base = _alvo(obj)
         if "Perna" in base.PropertiesList and "Pecas" in base.PropertiesList:
@@ -160,6 +167,7 @@ def coletar(objs, densidade_padrao=None):
                     linhas[chave] = Linha(chave, den, mat, dim, None, obs)
                     ordem.append(chave)
                 linhas[chave].qtd += qtd
+                marcar(obj, chave, sh)
             continue
         if "ItensParafusos" in base.PropertiesList:
             # parafusos nos furos de uma barra (Trabalhos na barra): parafuso, arruela e porca contados à parte
@@ -178,6 +186,7 @@ def coletar(objs, densidade_padrao=None):
                     linhas[chave] = Linha(chave, den, mat_txt, "", massa, obs)
                     ordem.append(chave)
                 linhas[chave].qtd += qtd
+                marcar(obj, chave, sh)
             continue
         if "TipoPiso" in base.PropertiesList:
             # piso/fechamento (chapa expandida, perfurada, xadrez): um item por chapa, com área e peso
@@ -187,6 +196,7 @@ def coletar(objs, densidade_padrao=None):
                                   str(_prop(base, "Codigo") or ""))
             linhas[chave].qtd += 1
             ordem.append(chave)
+            marcar(obj, chave, sh)
             continue
         perfil = _prop(base, "Perfil")
         if perfil:
@@ -238,6 +248,7 @@ def coletar(objs, densidade_padrao=None):
                                   massa, obs, str(_prop(base, "Codigo") or ""))
             ordem.append(chave)
         linhas[chave].qtd += 1
+        marcar(obj, chave, sh)
     return [linhas[k] for k in ordem]
 
 
@@ -406,6 +417,11 @@ class CmdListaMateriais:
             page = None
         if page is not None:
             inserir_na_folha(page, sheet, len(linhas))
+        try:
+            import PrumoBaloes
+            PrumoBaloes.atualizar_baloes(doc)          # os balões seguem a numeração nova
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: balões: %s\n" % exc)
         doc.commitTransaction()
         FreeCAD.Console.PrintMessage("Usinix: lista de materiais com %d itens em '%s'.\n"
                                      % (len(linhas), sheet.Label))
