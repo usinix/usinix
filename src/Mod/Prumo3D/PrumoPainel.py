@@ -371,7 +371,7 @@ class Opcoes(QtWidgets.QWidget):
         """Nome que não cabe no botão não vira "Hor…tal": quebra em duas linhas e, se ainda não couber,
         a letra diminui um pouco (até 7 pt)."""
         for b, texto in self._textos.items():
-            livre = b.width() - 10
+            livre = b.width() - 20          # bordas e respiro do botão (o Qt corta antes da largura toda)
             if livre <= 0:
                 continue
             f = QtGui.QFont(b.font())
@@ -387,6 +387,11 @@ class Opcoes(QtWidgets.QWidget):
                 b.setText(novo)
             if b.font().pointSizeF() != f.pointSizeF():
                 b.setFont(f)
+        # mesma altura em todos (o que quebrou em duas linhas não fica mais alto que os vizinhos)
+        alt = max((b.sizeHint().height() for b in self._textos), default=0)
+        for b in self._textos:
+            if b.minimumHeight() != alt:
+                b.setMinimumHeight(alt)
 
     def valor(self):
         for k, b in self.botoes.items():

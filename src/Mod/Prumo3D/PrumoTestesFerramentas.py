@@ -17216,6 +17216,34 @@ class T123AcabamentoEVisual(unittest.TestCase):
         self.assertEqual(QtCore.QCoreApplication.translate("Workbench", "&Sketch"), "&Esboço",
                          "o menu do esboço tem o nome da aba")
 
+    def test_cotas_gerais_na_folha_da_montagem(self):
+        """Erro relatado: Cotas gerais numa folha de montagem ('NoneType' object has no attribute 'Views')."""
+        import Part
+        import PrumoFolhas as F
+        import PrumoVistas as V
+        part = self.doc.addObject("App::Part", "Conjunto")
+        for i, x in enumerate((0, 150)):
+            o = self.doc.addObject("Part::Feature", "Bloco%d" % i)
+            o.Shape = Part.makeBox(100, 60, 40, FreeCAD.Vector(x, 0, 0))
+            part.addObject(o)
+        self.doc.recompute()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [part], arranjo="3vistas_iso")
+        grupo = [v for v in p.Views if v.isDerivedFrom("TechDraw::DrawProjGroup")][0]
+        self.assertIs(V.grupo_da_peca(p, V._fontes(grupo.Source)), grupo, "acha o grupo pelas peças")
+        self.assertIs(V.grupo_da_peca(p, [part]), grupo, "e pela montagem")
+        self.assertTrue(V.esperar_vistas(list(grupo.Views), 60))
+        cotas = V.cotas_gerais(p, V._fontes(grupo.Source), furos=True)
+        rot = {d.Label: round(d.getRawValue(), 1) for d in cotas}
+        self.assertEqual(rot.get("Comprimento total"), 250.0)
+        if FreeCAD.GuiUp:
+            import PrumoFolhas
+            PrumoFolhas._abrir_folha(p)
+            from PySide import QtWidgets
+            for _ in range(30):
+                QtWidgets.QApplication.processEvents()
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.runCommand("Prumo_CotasGerais")      # o comando do botão, sem erro
+
     def test_grade_na_area_de_trabalho(self):
         import PrumoGrade as G
         self.assertEqual(G.passo_para(200), 10.0)
@@ -17262,7 +17290,7 @@ class T123AcabamentoEVisual(unittest.TestCase):
         import PrumoPainel as P
         import PrumoTrabalhosBarra as TB
         w = P.Opcoes(TB.OPCOES_PONTA, colunas=4)
-        w.resize(290, 80)
+        w.resize(290, 80)                    # painel estreito (como no perfil do teste visual)
         w.show()
         for _ in range(10):
             QtGui.QGuiApplication.processEvents()
@@ -17270,7 +17298,8 @@ class T123AcabamentoEVisual(unittest.TestCase):
         for b in w.botoes.values():
             fm = QtGui.QFontMetrics(b.font())
             for linha in b.text().split("\n"):
-                self.assertLessEqual(fm.horizontalAdvance(linha), b.width() - 6, "texto cortado: %r" % b.text())
+                self.assertLessEqual(fm.horizontalAdvance(linha), b.width() - 18, "texto cortado: %r" % b.text())
+        self.assertEqual(len({b.height() for b in w.botoes.values()}), 1, "botões da mesma altura")
         self.assertEqual(w.botoes["face"].text().replace("\n", " "), "Pela face")
         w.close()
 

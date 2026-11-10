@@ -40,7 +40,9 @@ def grupo_da_peca(page, objs):
     """Grupo de projeção da folha que mostra exatamente essas peças (ou None)."""
     fontes = _fontes(objs)
     for v in page.Views:
-        if v.isDerivedFrom("TechDraw::DrawProjGroup") and _mesmas(v.Source, fontes):
+        # compara as peças de cada lado: a folha de uma montagem (ou corpo) guarda a montagem em Source,
+        # e quem pergunta pode passar a montagem ou as peças dela
+        if v.isDerivedFrom("TechDraw::DrawProjGroup") and _mesmas(_fontes(v.Source), fontes):
             return v
     return None
 
@@ -48,7 +50,7 @@ def grupo_da_peca(page, objs):
 def iso_da_peca(page, objs):
     fontes = _fontes(objs)
     for v in page.Views:
-        if v.TypeId == "TechDraw::DrawViewPart" and _mesmas(v.Source, fontes) \
+        if v.TypeId == "TechDraw::DrawViewPart" and _mesmas(_fontes(v.Source), fontes) \
                 and abs(v.Direction.x - 1) < 1e-6 and abs(v.Direction.y + 1) < 1e-6:
             return v
     return None
@@ -70,7 +72,7 @@ def _so_dessa_peca(page, fontes):
     """A folha só tem vistas dessa peça (então a paleta pode ajustar escala e posições)."""
     for v in page.Views:
         if v.isDerivedFrom("TechDraw::DrawProjGroup") or v.TypeId == "TechDraw::DrawViewPart":
-            if not _mesmas(v.Source, fontes):
+            if not _mesmas(_fontes(v.Source), fontes):
                 return False
     return True
 
@@ -1022,12 +1024,13 @@ if P is not None:
                 if r == QtWidgets.QMessageBox.Yes:
                     PainelPaletaVistas(FreeCAD.ActiveDocument, pecas).mostrar()
                 return None
-            alvo = _fontes(grupos[0].Source)
+            grupo = grupos[0]
             sel = [s.Object for s in FreeCADGui.Selection.getSelectionEx()]
             for g in grupos:
                 if any(o is g or o in list(g.Views) for o in sel):
-                    alvo = _fontes(g.Source)
-            vistas = list(grupo_da_peca(page, alvo).Views)
+                    grupo = g
+            alvo = _fontes(grupo.Source)
+            vistas = list(grupo.Views)
             esperar_vistas(vistas, 15.0)
             doc = page.Document
             doc.openTransaction("Cotas gerais")

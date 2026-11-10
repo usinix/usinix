@@ -17,12 +17,15 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 -->
 ## 1.9.0 — 10/11/2026
 
-![Painel Trabalhos na barra no tema escuro, com os nomes dos botões inteiros](.github/images/novidades/1.9.0.webp)
+![Grade na área de trabalho, ligada pelo botão Grade na barra inferior, e o painel Trabalhos na barra](.github/images/novidades/1.9.0.webp)
 
 ### Acabamento
 
 ### Novidades
 
+- **Grade na área de trabalho:** botão Grade na barra inferior liga e desliga um quadriculado no chão (plano
+  XY), com os eixos X e Y. O quadrado acompanha o tamanho do modelo (10 mm numa peça pequena, metros num galpão)
+  e o botão mostra a medida. A grade não é selecionável e não vai para o arquivo.
 - **Menu Comandos:** tudo o que está na faixa também fica no menu de cima, organizado pelas mesmas abas e
   grupos, em qualquer bancada.
 - **Nomes iguais aos das abas:** o menu do esboço passa a se chamar Esboço (não Desenho) e o do desenho técnico,
@@ -32,8 +35,11 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 
 ### Correções
 
+- **Cotas gerais na folha de uma montagem:** o botão dava erro ("'NoneType' object has no attribute 'Views'")
+  quando a folha mostrava uma montagem ou um corpo. Agora cota normalmente.
 - **Botões com o nome cortado:** nos painéis, opções como "Horizontal" e "Pela face" apareciam como
-  "Hor…tal" e "Pe…ce". Agora o nome quebra em duas linhas ou a letra diminui um pouco.
+  "Hor…tal" e "Pe…ce". Agora o nome quebra em duas linhas ou a letra diminui um pouco, e os botões ficam
+  da mesma altura.
 - **Cotas soltas na árvore:** as cotas das folhas novas apareciam na raiz do documento; agora ficam dentro da
   vista que medem.
 
