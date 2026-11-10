@@ -147,7 +147,7 @@ def criar(doc, ferramenta, barras=None, automatico=None):
     alvo = barras_atingidas(sh, barras if barras else barras_do_documento(doc))
     if not alvo:
         raise ValueError("A ferramenta não atravessa nenhuma barra%s." % (" escolhida" if barras else ""))
-    c = doc.addObject("App::FeaturePython", "CorteBarras")
+    c = doc.addObject("App::DocumentObjectGroupPython", "CorteBarras")
     CorteEstrutura(c)
     c.Ferramenta = ferramenta
     c.Automatico = automatico
@@ -162,6 +162,12 @@ def criar(doc, ferramenta, barras=None, automatico=None):
             pass
     definir_escopo(c, alvo)
     doc.recompute()
+    if FreeCAD.GuiUp:
+        try:
+            c.Visibility = True
+            c.ViewObject.Visibility = True
+        except Exception:
+            pass
     return c
 
 
@@ -215,6 +221,10 @@ class VistaCorte:
 
     def attach(self, vobj):
         self.vobj = vobj
+        try:
+            vobj.Visibility = True      # sem forma própria: na árvore aparece normal, não apagado
+        except Exception:
+            pass
 
     def getIcon(self):
         return os.path.join(AQUI, "Resources", "icons", "corte_estrutura.svg")

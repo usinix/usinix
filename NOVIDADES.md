@@ -15,6 +15,22 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.13.0 — 10/11/2026
+
+![Rasgo feito uma vez e aplicado em três barras do quadro, com o corte na árvore](.github/images/novidades/1.13.0.webp)
+
+### Cortar barras (corte com escopo)
+
+- **Cortar barras** (aba Estruturas, ao lado de Trabalhos na barra, e no botão direito da barra ou da estrutura):
+  corte ou furo feito **uma vez** e aplicado em **várias barras**, como o escopo do recurso no SolidWorks.
+- **Ferramenta:** qualquer sólido (cilindro, caixa, extrusão, peça) ou um **esboço fechado**, que vira sozinho uma
+  extrusão que atravessa a estrutura.
+- **Escopo:** escolha as barras (clicar numa estrutura pega todas as barras dela) ou deixe vazio para o corte
+  pegar todas as barras que a ferramenta atravessa.
+- **Tudo ligado:** moveu a ferramenta ou mexeu no esboço, as barras se refazem; apagou o corte, as barras voltam
+  inteiras. A ferramenta fica dentro do corte na árvore; duplo clique edita.
+- A folha de cada barra e a lista de materiais já saem com o recorte.
+
 ## 1.12.0 — 10/11/2026
 
 ![Escada a 45° com vigas I, degraus de grade e guarda-corpo, conferida pela NR-12](.github/images/novidades/1.12.0.webp)
