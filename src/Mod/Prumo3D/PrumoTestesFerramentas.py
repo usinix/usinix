@@ -17084,6 +17084,22 @@ class T122DoModeloParaAFabrica(unittest.TestCase):
                 with zipfile.ZipFile(arq) as z:
                     xml.dom.minidom.parseString(z.read(n))      # XML válido
 
+    def test_excel_conta_cada_barra_uma_vez(self):
+        import zipfile
+        import PrumoEstrutura as E
+        import PrumoFabrica as F
+        sk = esboco_linhas(self.doc, [((0, 0), (0, 2500)), ((0, 2500), (3000, 2500))], "XZ")
+        est = E.criar(self.doc, sk, E.PERFIL_PADRAO)
+        self.doc.recompute()
+        arq = F.exportar_excel([est], os.path.join(self.pasta, "corte.xlsx"))
+        with zipfile.ZipFile(arq) as z:
+            wb = z.read("xl/workbook.xml").decode("utf-8")
+            self.assertIn('name="Lista de corte"', wb)
+            corte = z.read("xl/worksheets/sheet2.xml").decode("utf-8")
+        import re
+        qtds = re.findall(r'<c r="F(\d+)" s="0"><v>(\d+)</v>', corte)
+        self.assertEqual(sorted(int(q) for _r, q in qtds), [1, 1], "duas barras, uma de cada")
+
     def test_comandos_e_ia(self):
         import PrumoIA
         for nome in ("exportar_excel", "dxf_das_chapas"):

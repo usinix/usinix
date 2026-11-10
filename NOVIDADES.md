@@ -15,6 +15,28 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.8.0 — 10/11/2026
+
+![DXF da chapa planificada: contorno, furo, linha de dobra e texto da peça em camadas separadas](.github/images/novidades/1.8.0.webp)
+
+### Do modelo para a fábrica
+
+### Novidades
+
+- **DXF de todas as chapas (abas Chapa e Desenho):** planifica todas as chapas da montagem e grava um DXF por
+  chapa diferente, com as camadas CONTORNO, FUROS, DOBRAS e TEXTO (peça, espessura, material e quantidade). O
+  nome do arquivo já diz a espessura e a quantidade. Chapas iguais saem num arquivo só.
+- **Exportar para Excel (abas Estruturas e Desenho):** planilha .xlsx com a lista de materiais, a lista de corte,
+  a lista de soldas e um resumo para orçamento: massa por material, área externa para pintura e comprimento de
+  solda modelado. Os números ficam como números, prontos para somar.
+- **Peças iguais pela forma:** na lista de materiais, peças sem código com a mesma forma contam juntas, mesmo
+  giradas ou em outro lugar. A peça espelhada continua separada.
+- **Corte "pela face" acompanha a face:** a ponta da barra cortada pela face de outra peça segue quando essa peça
+  muda.
+- **Botão direito por tipo:** folha, barra, estrutura, parafusamento, chapa, vaso, tubulação e montagem mostram
+  as ações que fazem sentido para eles.
+- **Conectar IA:** ferramentas para exportar o Excel e os DXF das chapas.
+
 ## 1.7.0 — 10/11/2026
 
 ![Folha da barra: viga interrompida com comprimento real, furação cotada, seção ampliada e tabela](.github/images/novidades/1.7.0.webp)

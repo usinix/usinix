@@ -121,6 +121,8 @@ def chapas(objs):
         if not t:
             continue
         mat = str(PrumoBOM._prop(base, "Material") or PrumoUtil.material(base)[0] or "")
+        if mat.lower().startswith("não definido"):
+            mat = ""
         for g in grupos:
             if abs(g[2] - t) < 1e-6 and g[3] == mat and congruentes(g[4], sh):
                 g[1] += 1
@@ -331,7 +333,8 @@ def exportar_excel(objs, caminho):
                  [6, 6, 14, 34, 22, 28, 15, 15, 24]))
     try:
         import PrumoEstrutura as E
-        corte = E.lista_de_corte(_tudo(objs))
+        # só as estruturas: as barras de dentro já vêm com elas (passar as duas contaria cada barra duas vezes)
+        corte = E.lista_de_corte([o for o in _tudo(objs) if E.eh_estrutura(o)])
     except Exception:
         corte = []
     if corte:
