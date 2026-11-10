@@ -16945,6 +16945,19 @@ class T121FolhaPronta(unittest.TestCase):
         rot = {d.Label: round(d.getRawValue(), 2) for d in page.Views if d.TypeId == "TechDraw::DrawViewDimension"}
         self.assertEqual(rot["Ø 18"], 18.0)
 
+    def test_ferramentas_da_ia_para_a_folha(self):
+        import PrumoIA
+        for nome in ("cotar_folha", "baloes", "folhas_das_barras", "folha_da_chapa"):
+            self.assertIn(nome, PrumoIA.FERRAMENTAS)
+        import PrumoFolhas as F
+        o = self._placa()
+        FreeCAD.setActiveDocument(self.doc.Name)
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        r = PrumoIA.FERRAMENTAS["cotar_folha"]["funcao"](p.Name)
+        rot = {c["rotulo"]: c["valor_mm"] for c in r["cotas"]}
+        self.assertEqual(rot.get("4× Ø 14"), 14.0)
+        self.assertEqual(rot.get("Comprimento total"), 120.0)
+
     def test_comandos_novos_no_menu_e_na_faixa(self):
         if not FreeCAD.GuiUp:
             self.skipTest("sem interface")

@@ -345,6 +345,55 @@ def f_folha(objetos, formato="A3", vertical=False, titulo="", numero="", desenhi
     return {"folha": page.Name, "escala": F._texto_escala(page.Scale)}
 
 
+@ferramenta("cotar_folha", "Cotas gerais (comprimento, altura, profundidade) e furação (n× ⌀ e posição dos furos) "
+            "nas vistas de uma folha.", {"folha": {"type": "string"}}, ["folha"])
+def f_cotar(folha):
+    import PrumoVistas as V
+    doc = _doc()
+    page = _obj(doc, folha)
+    pecas = V.pecas_da_folha(page)
+    grupo = V.grupo_da_peca(page, pecas)
+    if grupo is None:
+        raise ValueError("a folha não tem vista frontal")
+    V.esperar_vistas(list(grupo.Views), 30.0)
+    cotas = V.cotas_gerais(page, pecas, furos=True)
+    return {"cotas": [{"rotulo": d.Label, "valor_mm": round(d.getRawValue(), 2)} for d in cotas]}
+
+
+@ferramenta("baloes", "Balões numerados nas peças da vista (isométrica), com o número do item da lista de materiais.",
+            {"folha": {"type": "string"}}, ["folha"])
+def f_baloes(folha):
+    import PrumoBaloes as B
+    import PrumoFolhaPeca as FP
+    doc = _doc()
+    page = _obj(doc, folha)
+    vista = B.vista_padrao(page)
+    if vista is not None:
+        FP.esperar_geometria([vista])
+    return {"baloes": [{"item": n, "peca": b.PecaUsinix.Label} for b, n in B.criar_baloes(page, vista)]}
+
+
+@ferramenta("folhas_das_barras", "Uma folha ABNT por barra diferente da estrutura (marcas B01, B02...), com vista "
+            "interrompida, seção, comprimento, ângulos, furação cotada e quantidade.",
+            {"estrutura": {"type": "string"}, "formato": {"type": "string", "enum": ["A4", "A3", "A2", "A1"]}},
+            ["estrutura"])
+def f_folhas_barras(estrutura, formato="A3"):
+    import PrumoFolhaPeca as FP
+    doc = _doc()
+    feitas = FP.folhas_das_barras(doc, [_obj(doc, estrutura)], formato)
+    return {"folhas": [{"folha": p.Name, "barra": b.Label, "perfil": b.Perfil, "quantidade": q}
+                       for p, b, q in feitas]}
+
+
+@ferramenta("folha_da_chapa", "Folha ABNT de uma peça de chapa: planificação cotada (com furação e linhas de dobra), "
+            "isométrica e tabela de dobras.", {"peca": {"type": "string"}}, ["peca"])
+def f_folha_chapa(peca):
+    import PrumoFolhaPeca as FP
+    doc = _doc()
+    page = FP.folha_da_chapa(doc, _obj(doc, peca))
+    return {"folha": page.Name}
+
+
 @ferramenta("capturar_vista", "Imagem da vista 3D (PNG) para conferir o que foi feito. vista: iso, frente, topo, "
             "direita, atual.", {"vista": {"type": "string"}, "largura": {"type": "integer"}}, muda=False)
 def f_captura(vista="iso", largura=900):
