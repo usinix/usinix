@@ -16849,17 +16849,115 @@ class T121FolhaPronta(unittest.TestCase):
         self.assertEqual(txt["Tampo"], "2")
         self.assertEqual(txt["Base"], "?", "peça que saiu da lista fica marcada, não some calada")
 
-    def test_baloes_no_menu_e_na_faixa(self):
+    def test_folhas_das_barras(self):
+        import PrumoEstrutura as E
+        import PrumoFolhaPeca as FP
+        sk = esboco_linhas(self.doc, [((0, 0), (0, 2500)), ((0, 2500), (3000, 2500)), ((3000, 2500), (3000, 0))],
+                           "XZ")
+        est = E.criar(self.doc, sk, E.PERFIL_PADRAO)
+        E.gravar_furos(est, [{"barras": [1], "face": "Alma", "diam": 14, "ref": "inicio", "dist": 100, "qtd": 2,
+                              "passo": 80, "filas": 1, "gab": 0, "desloc": 0, "parafuso": "M12"}])
+        self.doc.recompute()
+        feitas = FP.folhas_das_barras(self.doc, [est])
+        self.assertEqual(len(feitas), 2, "viga e colunas (iguais) = duas folhas")
+        qtd = sorted(q for _p, _b, q in feitas)
+        self.assertEqual(qtd, [1, 2])
+        for page, barra, q in feitas:
+            cotas = [v for v in page.Views if v.TypeId == "TechDraw::DrawViewDimension"]
+            comp = [d for d in cotas if d.Label.startswith("Comprimento")]
+            self.assertEqual(len(comp), 1)
+            self.assertAlmostEqual(comp[0].getRawValue(), barra.ComprimentoCorte.Value, places=1,
+                                   msg="comprimento em medida real, mesmo com a vista interrompida")
+            self.assertGreaterEqual(page.Scale, 0.1, "a barra longa é interrompida em vez de ir para 1:20")
+            reta = [o for o in self.doc.Objects if o.Name.startswith("BarraReta") and o.Barra == barra][0]
+            self.assertAlmostEqual(reta.Shape.BoundBox.XLength, barra.ComprimentoCorte.Value, places=1,
+                                   msg="a cópia fica deitada no eixo X")
+            tab = [v for v in page.Views if v.TypeId == "TechDraw::DrawViewSpreadsheet"][0].Source
+            dados = {tab.getContents("A%d" % r).lstrip("'"): tab.getContents("B%d" % r).lstrip("'")
+                     for r in range(2, 14)}
+            self.assertEqual(dados["Quantidade"], str(q))
+            self.assertEqual(dados["Perfil"], barra.Perfil)
+            if barra.Furacao:
+                furos = [d for d in cotas if d.Type == "Diameter"]
+                self.assertEqual(len(furos), 1)
+                self.assertEqual(furos[0].FormatSpec, "2× \u2300%.0f")
+                pos = sorted(round(d.getRawValue(), 1) for d in cotas if d.Label.startswith("Posição do furo (X)"))
+                self.assertEqual(len(pos), 2)
+                self.assertAlmostEqual(pos[1] - pos[0], 80.0, places=1, msg="passo dos furos")
+            self.assertIn(dict(page.Template.EditableTexts).get("titulo", ""),
+                          ("BARRA B01 — " + barra.Perfil.upper(), "BARRA B02 — " + barra.Perfil.upper()))
+        broken = [v for p, _b, _q in feitas for v in p.Views if v.TypeId == "TechDraw::DrawBrokenView"]
+        self.assertTrue(broken, "barra de 3 m na A3 sai com vista interrompida")
+
+    def _chapa_l(self):
+        import Part
+        t, r = 3.0, 2.0
+        base = Part.makeBox(80, 60, t)
+        eixo = FreeCAD.Vector(0, 1, 0)
+        tubo = Part.makeCylinder(r + t, 60, FreeCAD.Vector(80, 0, t + r), eixo).cut(
+            Part.makeCylinder(r, 60, FreeCAD.Vector(80, 0, t + r), eixo))
+        dob = tubo.common(Part.makeBox(r + t, 60, r + t, FreeCAD.Vector(80, 0, 0)))
+        aba = Part.makeBox(t, 60, 45, FreeCAD.Vector(80 + r, 0, t + r))
+        s = base.fuse([dob, aba]).removeSplitter()
+        for x in (20, 55):
+            s = s.cut(Part.makeCylinder(4, 10, FreeCAD.Vector(x, 30, -1)))
+        o = self.doc.addObject("Part::Feature", "Suporte")
+        o.Shape = s
+        self.doc.recompute()
+        return o
+
+    def test_folha_da_chapa(self):
+        import PrumoFolhaPeca as FP
+        ch = self._chapa_l()
+        self.assertEqual(FP.dobras_da_chapa(ch.Shape), [(90.0, 2.0)], "furo não conta como dobra")
+        self.assertAlmostEqual(FP.espessura(ch), 3.0, places=6)
+        page = FP.folha_da_chapa(self.doc, ch)
+        pl = [o for o in self.doc.Objects if o.Name.startswith("Planificacao")][0]
+        self.assertEqual(pl.Dobras, 1)
+        bb = pl.Shape.BoundBox
+        self.assertAlmostEqual(bb.ZLength, 0.0, places=6, msg="planificação no plano")
+        self.assertTrue(125.0 < bb.XLength < 135.0, "desenvolvimento da base + dobra + aba: %.2f" % bb.XLength)
+        cotas = [v for v in page.Views if v.TypeId == "TechDraw::DrawViewDimension"]
+        rot = {d.Label: round(d.getRawValue(), 2) for d in cotas}
+        self.assertAlmostEqual(rot["Largura planificada"], round(bb.XLength, 2), places=2)
+        self.assertEqual(rot["Altura planificada"], 60.0)
+        self.assertEqual(rot["2× Ø 8"], 8.0)
+        tab = [v for v in page.Views if v.TypeId == "TechDraw::DrawViewSpreadsheet"][0].Source
+        dados = {tab.getContents("A%d" % r).lstrip("'"): tab.getContents("B%d" % r).lstrip("'") for r in range(2, 12)}
+        self.assertEqual(dados["Espessura"], "3 mm")
+        self.assertTrue(dados["Dobra 1"].startswith("90°"))
+        iso = [v for v in page.Views if v.TypeId == "TechDraw::DrawViewPart" and v.Source == [ch]]
+        self.assertEqual(len(iso), 1, "isométrica da peça ao lado")
+
+    def test_chapa_plana_sem_dobra(self):
+        import Part
+        import PrumoFolhaPeca as FP
+        s = Part.makeBox(200, 100, 8)
+        s = s.cut(Part.makeCylinder(9, 20, FreeCAD.Vector(30, 50, -5)))
+        o = self.doc.addObject("Part::Feature", "PlacaBase")
+        o.Shape = s
+        self.doc.recompute()
+        page = FP.folha_da_chapa(self.doc, o)
+        pl = [x for x in self.doc.Objects if x.Name.startswith("Planificacao")][0]
+        self.assertEqual(pl.Dobras, 0)
+        self.assertAlmostEqual(pl.Shape.BoundBox.XLength, 200.0, places=3)
+        self.assertAlmostEqual(FP.espessura(o), 8.0, places=6)
+        rot = {d.Label: round(d.getRawValue(), 2) for d in page.Views if d.TypeId == "TechDraw::DrawViewDimension"}
+        self.assertEqual(rot["Ø 18"], 18.0)
+
+    def test_comandos_novos_no_menu_e_na_faixa(self):
         if not FreeCAD.GuiUp:
             self.skipTest("sem interface")
         import PrumoRibbon as R
         des = [t for t in R.TABS if t["id"] == "desenho"][0]
         cmds = [c for _p, itens in des["panels"] for c, _s, _r in itens]
-        self.assertIn("Prumo_Baloes", cmds)
-        self.assertIn("Prumo_Baloes", FreeCADGui.listCommands())
+        for c in ("Prumo_Baloes", "Prumo_FolhasBarras", "Prumo_FolhaChapa"):
+            self.assertIn(c, cmds)
+            self.assertIn(c, FreeCADGui.listCommands())
         import os
         import PrumoUtil
-        self.assertTrue(os.path.exists(PrumoUtil.icone("baloes.svg")))
+        for ic in ("baloes.svg", "folha_barra.svg", "folha_chapa.svg"):
+            self.assertTrue(os.path.exists(PrumoUtil.icone(ic)), ic)
 
 
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,

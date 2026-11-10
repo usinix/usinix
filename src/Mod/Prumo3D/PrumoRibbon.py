@@ -211,6 +211,7 @@ TABS = [
             ("Prumo_InserirDesenho", L, "Inserir peça\nou montagem"),
             ("Prumo_NovaFolha", L, "Folha\nABNT"), ("Prumo_PaletaVistas", L, "Paleta de\nvistas"),
             ("Prumo_AbrirFolha", S, "Abrir folha"), ("Prumo_FolhasLote", S, "Folhas em lote"),
+            ("Prumo_FolhasBarras", S, "Folhas das barras"), ("Prumo_FolhaChapa", S, "Folha da chapa"),
             ("Prumo_ListaMateriais", S, "Lista de materiais"),
             ("TechDraw_PageDefault", S, "Folha em branco"), ("TechDraw_PageTemplate", S, "Folha de modelo"),
             ("TechDraw_FillTemplateFields", S, "Preencher carimbo"), ("TechDraw_RedrawPage", S, "Redesenhar"),
@@ -264,6 +265,7 @@ TABS = [
         ("Solda", [
             ("Prumo_Solda", L, "Cordão de\nsolda"), ("Prumo_ListaSoldas", S, "Lista de soldas"),
             ("Prumo_ListaDeCorte", S, "Lista de corte"), ("Prumo_TabelaFuros", S, "Tabela de furos"),
+            ("Prumo_FolhasBarras", S, "Folhas das barras"),
         ]),
         # parafusos, porcas e arruelas: na aba Componentes
         ("Calcular", [
@@ -339,7 +341,7 @@ TABS = [
             ("SheetMetal_AddCornerRelief", S, "Alívio de canto"), ("SheetMetal_Forming", S, "Estampar"),
         ]),
         ("Planificar", [
-            ("SheetMetal_Unfold", L, "Planificar"), ("Prumo_ChapaDXF", L, "Planificar\nem DXF"),
+            ("SheetMetal_Unfold", L, "Planificar"), ("Prumo_ChapaDXF", L, "Planificar\nem DXF"), ("Prumo_FolhaChapa", L, "Folha da\nchapa"),
             ("SheetMetal_UnfoldUpdate", S, "Atualizar planificações"), ("Prumo_TabelaK", S, "Tabela de fator K"),
         ]),
     ]},

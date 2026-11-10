@@ -911,6 +911,7 @@ def register_commands():
                              ("PrumoInserirDesenho", lambda m: m.registrar_comandos()),
                              ("PrumoVistas", lambda m: m.registrar_comandos()),
                              ("PrumoBaloes", lambda m: m.registrar_comandos()),
+                             ("PrumoFolhaPeca", lambda m: m.registrar_comandos()),
                              ("PrumoArredondar", lambda m: m.registrar_comandos()),
                              ("PrumoBarraVarredura", lambda m: m.registrar_comandos()),
                              ("PrumoSombras", lambda m: m.registrar_comandos()),
