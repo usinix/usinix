@@ -1067,7 +1067,7 @@ def _start_ribbon():
 
 def _start_ferramentas():
     """Menu de contexto pela seleção e duplo clique para as cotas da operação."""
-    for modulo in ("PrumoContexto", "PrumoCotas"):
+    for modulo in ("PrumoContexto", "PrumoCotas", "PrumoGrade"):
         try:
             __import__(modulo).install()
         except Exception as exc:

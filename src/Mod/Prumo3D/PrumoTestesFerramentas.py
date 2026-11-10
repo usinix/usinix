@@ -17216,6 +17216,45 @@ class T123AcabamentoEVisual(unittest.TestCase):
         self.assertEqual(QtCore.QCoreApplication.translate("Workbench", "&Sketch"), "&Esboço",
                          "o menu do esboço tem o nome da aba")
 
+    def test_grade_na_area_de_trabalho(self):
+        import PrumoGrade as G
+        self.assertEqual(G.passo_para(200), 10.0)
+        self.assertEqual(G.passo_para(30000), 2000.0)
+        self.assertEqual(G.passo_para(3), 0.2)
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import Part
+        from PySide import QtWidgets
+        G.install()
+        botao = FreeCADGui.getMainWindow().findChild(QtWidgets.QToolButton, "PrumoBotaoGrade")
+        self.assertIsNotNone(botao, "botão Grade na barra inferior")
+        antes = G.ligada()
+        try:
+            o = self.doc.addObject("Part::Feature", "Peca")
+            o.Shape = Part.makeBox(200, 100, 20)
+            self.doc.recompute()
+            FreeCAD.setActiveDocument(self.doc.Name)
+
+            def tem_grade():
+                raiz = FreeCADGui.getDocument(self.doc.Name).ActiveView.getViewer().getSceneGraph()
+                return any(raiz.getChild(i).getName().getString() == G.NOME_NO for i in range(raiz.getNumChildren()))
+            botao.click() if not G.ligada() else G.atualizar()
+            self.assertTrue(G.ligada())
+            self.assertTrue(tem_grade())
+            self.assertTrue(botao.isChecked())
+            self.assertEqual(botao.text(), "Grade 10 mm")
+            o.Shape = Part.makeBox(30000, 12000, 500)          # o modelo cresce: o quadrado acompanha
+            self.doc.recompute()
+            G.atualizar(self.doc)
+            self.assertEqual(G.passo_atual(), 2000.0)
+            self.assertEqual(botao.text(), "Grade 2 m")
+            botao.click()
+            self.assertFalse(G.ligada())
+            self.assertFalse(tem_grade(), "desligou: some da vista")
+            self.assertEqual(botao.text(), "Grade")
+        finally:
+            G.alternar(antes)
+
     def test_opcoes_sem_texto_cortado(self):
         if not FreeCAD.GuiUp:
             self.skipTest("sem interface")
