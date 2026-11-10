@@ -221,23 +221,50 @@ def _dxf_entidades(arestas, camada):
     return out
 
 
-def escrever_dxf(caminho, contorno, dobras=()):
-    """DXF R12 com as camadas CONTORNO (corte) e DOBRAS (linhas de dobra)."""
+def _ascii(txt):
+    """Texto do DXF R12 em ASCII: acentos viram a letra sem acento (Ø vira %%c, o diâmetro do DXF)."""
+    import unicodedata
+    txt = str(txt).replace("Ø", "%%c").replace("⌀", "%%c").replace("×", "x").replace("—", "-")
+    return unicodedata.normalize("NFKD", txt).encode("ascii", "ignore").decode("ascii")
+
+
+def _dxf_textos(textos, camada):
+    out = []
+    for x, y, altura, txt in textos:
+        out += ["0", "TEXT", "8", camada, "10", "%.4f" % x, "20", "%.4f" % y, "30", "0.0", "40", "%.4f" % altura,
+                "1", _ascii(txt)]
+    return out
+
+
+def separar_furos(face):
+    """(arestas do contorno externo, arestas dos furos e recortes internos) de uma face plana."""
+    externa = face.OuterWire
+    internas = [e for w in face.Wires if not w.isSame(externa) for e in w.Edges]
+    return list(externa.Edges), internas
+
+
+def escrever_dxf(caminho, contorno, dobras=(), furos=(), textos=()):
+    """DXF R12 com as camadas CONTORNO (corte externo), FUROS (furos e recortes internos), DOBRAS (linhas de
+    dobra) e TEXTO (identificação da peça: [(x, y, altura, texto)])."""
     cab = ["0", "SECTION", "2", "HEADER", "9", "$ACADVER", "1", "AC1009", "9", "$INSUNITS", "70", "4",
            "0", "ENDSEC",
-           "0", "SECTION", "2", "TABLES", "0", "TABLE", "2", "LAYER", "70", "2",
+           "0", "SECTION", "2", "TABLES", "0", "TABLE", "2", "LAYER", "70", "4",
            "0", "LAYER", "2", "CONTORNO", "70", "0", "62", "7", "6", "CONTINUOUS",
+           "0", "LAYER", "2", "FUROS", "70", "0", "62", "5", "6", "CONTINUOUS",
            "0", "LAYER", "2", "DOBRAS", "70", "0", "62", "1", "6", "CONTINUOUS",
+           "0", "LAYER", "2", "TEXTO", "70", "0", "62", "3", "6", "CONTINUOUS",
            "0", "ENDTAB", "0", "ENDSEC", "0", "SECTION", "2", "ENTITIES"]
-    corpo = _dxf_entidades(contorno, "CONTORNO") + _dxf_entidades(dobras, "DOBRAS")
+    corpo = (_dxf_entidades(contorno, "CONTORNO") + _dxf_entidades(furos, "FUROS") +
+             _dxf_entidades(dobras, "DOBRAS") + _dxf_textos(textos, "TEXTO"))
     fim = ["0", "ENDSEC", "0", "EOF"]
     with open(caminho, "w", encoding="ascii", newline="\r\n") as f:
         f.write("\n".join(cab + corpo + fim) + "\n")
     return caminho
 
 
-def exportar_dxf(obj, caminho=None, material=None, face=None):
-    """Planifica a chapa e grava o DXF (contorno + dobras). Retorna (caminho, face plana, info)."""
+def exportar_dxf(obj, caminho=None, material=None, face=None, texto=None):
+    """Planifica a chapa e grava o DXF (contorno, furos, dobras e, se dado, o texto de identificação).
+    Retorna (caminho, face plana, info)."""
     if material is None:
         try:
             import PrumoUtil
@@ -249,7 +276,13 @@ def exportar_dxf(obj, caminho=None, material=None, face=None):
     if caminho is None:
         pasta = os.path.dirname(obj.Document.FileName) if obj.Document.FileName else os.path.expanduser("~")
         caminho = os.path.join(pasta, "%s_planificada.dxf" % obj.Label.replace(" ", "_"))
-    escrever_dxf(caminho, plana.Edges, linhas)
+    externas, internas = separar_furos(plana)
+    textos = []
+    if texto:
+        bb = plana.BoundBox
+        alt = max(2.5, min(10.0, bb.YLength * 0.06))
+        textos = [(bb.XMin, bb.YMin - 2.0 * alt, alt, texto)]
+    escrever_dxf(caminho, externas, linhas, internas, textos)
     t, r = espessura_raio(obj)
     info = {"material": material, "largura": plana.BoundBox.XLength, "altura": plana.BoundBox.YLength,
             "dobras": len(linhas), "espessura": t, "raio": r,

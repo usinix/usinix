@@ -427,7 +427,7 @@ def _corte_da_ponta_solta(barra, k):
     e = eds[barra.Indice]
     if E.ligacoes(eds, barra.Indice)[k].tipo != "livre":
         return None
-    pl = E.plano_da_ponta(e, k, E.ponta(est, barra.Indice, k))
+    pl = E.plano_da_ponta(e, k, E.ponta(est, barra.Indice, k), est.Document)
     if pl is None:
         return None
     q, n = pl

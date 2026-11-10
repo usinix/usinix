@@ -89,7 +89,7 @@ def _filtro_face(obj, subs):
         for el in els:
             pl = plano_da_face(o, el)
             if pl is not None:
-                res.append(("%s · %s" % (o.Label, el), pl))
+                res.append(("%s · %s" % (o.Label, el), (pl[0], pl[1], o, el)))
     return res
 
 
@@ -112,7 +112,10 @@ def aplicar(barras, pontas=None, furos=None, id_grupo=None, plano_face=None):
             if valor == "face":
                 if plano_face is None:
                     continue
-                valor = E.valor_plano(*plano_face)
+                if len(plano_face) >= 4 and plano_face[2] is not None:
+                    valor = E.valor_face(plano_face[2], plano_face[3], plano_face[0], plano_face[1])
+                else:
+                    valor = E.valor_plano(plano_face[0], plano_face[1])
             E.definir_ponta(est, b.Indice, k, valor)
     if id_grupo is not None:
         lista = [f for f in E.furos_de(est) if f.get("id") != id_grupo]
@@ -558,7 +561,16 @@ class PainelTrabalhos(P.PainelTarefa):
         est = b.Estrutura
         for k, w in ((0, self.p0), (1, self.p1)):
             v = E.ponta(est, b.Indice, k)
-            w.definir("face" if v.startswith(E.PONTA_PLANO) else v)
+            if v.startswith(E.PONTA_FACE):
+                # a face gravada volta para a caixa: OK de novo não pede para escolher a face
+                nome, sub = v[len(E.PONTA_FACE):].split(":")[:2]
+                o = est.Document.getObject(nome)
+                if o is not None and not self.face.valores():
+                    try:
+                        self.face.aceitar(o, [sub])
+                    except Exception:
+                        pass
+            w.definir("face" if v.startswith((E.PONTA_PLANO, E.PONTA_FACE)) else v)
         fs = E.furos_da_barra(est, b.Indice)
         if fs:
             g = fs[0]

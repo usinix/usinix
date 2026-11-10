@@ -46,6 +46,7 @@ PONTA_RETO = "reto"
 PONTA_HORIZONTAL = "horizontal"
 PONTA_VERTICAL = "vertical"
 PONTA_PLANO = "plano:"
+PONTA_FACE = "face:"          # face:<objeto>:<FaceN>:<plano guardado> -> acompanha a face
 # furos: Estrutura.Furos, uma linha JSON por grupo de furos (ver furos_de())
 FACES_FURO = ["Alma", "Mesa de cima", "Mesa de baixo", "As duas mesas"]
 
@@ -581,6 +582,52 @@ def definir_ponta(est, i, k, valor):
     if valor and valor != PONTA_RETO:
         lst.append("%s=%s" % (chave, valor))
     est.Pontas = lst
+    _referencias_das_pontas(est)
+
+
+def _referencias_das_pontas(est):
+    """Liga a estrutura às peças das faces de corte: mudou a peça, a estrutura recalcula."""
+    doc = est.Document
+    refs = []
+    for l in getattr(est, "Pontas", []) or []:
+        v = l.partition("=")[2].strip()
+        if v.startswith(PONTA_FACE):
+            o = doc.getObject(v[len(PONTA_FACE):].split(":")[0])
+            if o is not None and o not in refs:
+                refs.append(o)
+    if "RefsPontas" not in est.PropertiesList:
+        if not refs:
+            return
+        est.addProperty("App::PropertyLinkList", "RefsPontas", "Estrutura",
+                        "Peças das faces onde as pontas são cortadas (a estrutura acompanha)")
+        est.setPropertyStatus("RefsPontas", "Hidden")
+    if list(est.RefsPontas) != refs:
+        est.RefsPontas = refs
+
+
+def valor_face(obj, sub, ponto, normal):
+    """Corte pela face `sub` de `obj`, que acompanha a face quando a peça muda (guarda também o plano de
+    agora: se a face sumir, vale o último plano)."""
+    return "%s%s:%s:%s" % (PONTA_FACE, obj.Name, sub, valor_plano(ponto, normal)[len(PONTA_PLANO):])
+
+
+def _plano_da_face_viva(doc, nome, sub, normal_antiga):
+    try:
+        import PrumoUtil
+        o = doc.getObject(nome) if doc is not None else None
+        if o is None:
+            return None
+        f = PrumoUtil.forma_global(o).Faces[int(sub[4:]) - 1]
+        if f.Surface.__class__.__name__ != "Plane":
+            return None
+        u0, u1, v0, v1 = f.ParameterRange
+        n = FreeCAD.Vector(f.normalAt((u0 + u1) / 2.0, (v0 + v1) / 2.0))
+        # numeração de faces que mudou: outra face, virada para outro lado, não vale
+        if abs(n.dot(normal_antiga)) < 0.9:
+            return None
+        return f.CenterOfMass, n.normalize()
+    except Exception:
+        return None
 
 
 def valor_plano(ponto, normal):
@@ -591,8 +638,9 @@ def valor_plano(ponto, normal):
     return PONTA_PLANO + ",".join("%.12g" % c for c in (ponto.x, ponto.y, ponto.z, n.x, n.y, n.z))
 
 
-def plano_da_ponta(e, k, valor):
-    """(ponto, normal) do plano de corte da ponta k da aresta e, ou None (reto = sem mudança)."""
+def plano_da_ponta(e, k, valor, doc=None):
+    """(ponto, normal) do plano de corte da ponta k da aresta e, ou None (reto = sem mudança). Corte pela face:
+    o plano atual da face (com `doc`), senão o guardado."""
     p = e.valueAt(e.FirstParameter if k == 0 else e.LastParameter)
     if valor == PONTA_HORIZONTAL:
         return p, FreeCAD.Vector(0, 0, 1)
@@ -608,12 +656,20 @@ def plano_da_ponta(e, k, valor):
             return FreeCAD.Vector(*c[:3]), FreeCAD.Vector(*c[3:6]).normalize()
         except Exception:
             return None
+    if valor.startswith(PONTA_FACE):
+        try:
+            nome, sub, plano = valor[len(PONTA_FACE):].split(":", 2)
+            c = [float(x) for x in plano.split(",")]
+            guardado = FreeCAD.Vector(*c[:3]), FreeCAD.Vector(*c[3:6]).normalize()
+        except Exception:
+            return None
+        return _plano_da_face_viva(doc, nome, sub, guardado[1]) or guardado
     return None
 
 
-def _corte_de_ponta(e, k, valor, sec):
+def _corte_de_ponta(e, k, valor, sec, doc=None):
     """(prolongamento necessário, ponto, normal para dentro da barra, ângulo) ou None."""
-    pl = plano_da_ponta(e, k, valor)
+    pl = plano_da_ponta(e, k, valor, doc)
     if pl is None or not _reta(e):
         return None
     q, n = pl
@@ -734,7 +790,7 @@ def calcular_barra(est, i, eds=None):
     cortes_ponta = {}
     for k, lig in enumerate(ligs):                 # pontas soltas com corte horizontal, vertical ou por plano
         if lig.tipo == "livre":
-            cp = _corte_de_ponta(e, k, ponta(est, i, k), sec)
+            cp = _corte_de_ponta(e, k, ponta(est, i, k), sec, est.Document)
             if cp is not None:
                 cortes_ponta[k] = cp
                 ext[k] = max(ext[k], cp[0])

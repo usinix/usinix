@@ -12193,8 +12193,9 @@ class T82MontagemComoSolidCraft(unittest.TestCase):
             redutor.addObject(b)
         gab = doc.addObject("Part::Box", "Gabarito")
         doc.recompute()
-        n0 = len(B.coletar([redutor, gab, self.braco]))
-        self.assertGreaterEqual(n0, 3)
+        l0 = B.coletar([redutor, gab, self.braco])
+        self.assertGreaterEqual(len(l0), 2)
+        self.assertIn(4, [l.qtd for l in l0], "caixas iguais (sem código) contam juntas pela geometria")
         for o, t in ((redutor, "Comprado"), (gab, "Referência")):
             PP.garantir(o)
             o.NaLista = t
@@ -16493,7 +16494,7 @@ class T119FolhaLegendaEstiloTraducao(unittest.TestCase):
         self.assertEqual(et["numero"], "DES-010")
         self.assertIn("Prumo_EditarLegenda", FreeCADGui.listCommands())
         import PrumoContexto
-        self.assertEqual(PrumoContexto.itens_para([(page, [])]), ["Prumo_EditarLegenda"])
+        self.assertEqual(PrumoContexto.itens_para([(page, [])])[0], "Prumo_EditarLegenda")
 
     def test_estilo_do_desenho(self):
         import PrumoFolhas as F
@@ -16973,6 +16974,126 @@ class T121FolhaPronta(unittest.TestCase):
             self.assertTrue(os.path.exists(PrumoUtil.icone(ic)), ic)
 
 
+class T122DoModeloParaAFabrica(unittest.TestCase):
+    """1.8.0: DXF de todas as chapas (camadas e texto), planilha Excel sem dependência, peças iguais pela
+    geometria (espelhada é outra) e resumo para orçamento."""
+
+    def setUp(self):
+        import tempfile
+        self.doc = novo_doc("PrumoTesteFabrica")
+        self.pasta = tempfile.mkdtemp(prefix="usinix_fab_")
+
+    def tearDown(self):
+        import shutil
+        fechar(self.doc)
+        shutil.rmtree(self.pasta, ignore_errors=True)
+
+    def _l(self, nome, espelhar=False, rot=0.0, pos=(0, 0, 0)):
+        """Cantoneira dobrada com um furo fora do centro (peça que muda quando espelhada)."""
+        import Part
+        t, r = 3.0, 2.0
+        eixo = FreeCAD.Vector(0, 1, 0)
+        base = Part.makeBox(80, 60, t)
+        tubo = Part.makeCylinder(r + t, 60, FreeCAD.Vector(80, 0, t + r), eixo).cut(
+            Part.makeCylinder(r, 60, FreeCAD.Vector(80, 0, t + r), eixo))
+        dob = tubo.common(Part.makeBox(r + t, 60, r + t, FreeCAD.Vector(80, 0, 0)))
+        aba = Part.makeBox(t, 60, 45, FreeCAD.Vector(80 + r, 0, t + r))
+        s = base.fuse([dob, aba]).removeSplitter()
+        s = s.cut(Part.makeCylinder(4, 10, FreeCAD.Vector(20, 15, -1)))
+        if espelhar:
+            s = s.mirror(FreeCAD.Vector(0, 30, 0), FreeCAD.Vector(0, 1, 0))
+        s.rotate(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), rot)
+        s.translate(FreeCAD.Vector(*pos))
+        o = self.doc.addObject("Part::Feature", nome)
+        o.Shape = s
+        return o
+
+    def test_congruencia_ignora_posicao_e_separa_espelhada(self):
+        import PrumoFabrica as F
+        a = self._l("A")
+        b = self._l("B", rot=90, pos=(300, 0, 0))
+        c = self._l("C", espelhar=True, pos=(0, 300, 0))
+        self.doc.recompute()
+        self.assertTrue(F.congruentes(a.Shape, b.Shape), "a mesma peça girada e em outro lugar")
+        self.assertFalse(F.congruentes(a.Shape, c.Shape), "a espelhada é outra peça")
+
+    def test_lista_de_materiais_junta_iguais_pela_geometria(self):
+        import PrumoBOM
+        part = self.doc.addObject("App::Part", "Conjunto")
+        for o in (self._l("A"), self._l("B", rot=90, pos=(300, 0, 0)), self._l("C", espelhar=True, pos=(0, 300, 0))):
+            part.addObject(o)
+        self.doc.recompute()
+        linhas = PrumoBOM.coletar([part])
+        self.assertEqual(sorted(ln.qtd for ln in linhas), [1, 2], "A e B juntas; C (espelhada) à parte")
+
+    def test_dxf_de_todas_as_chapas(self):
+        import Part
+        import PrumoFabrica as F
+        part = self.doc.addObject("App::Part", "Conjunto")
+        part.addObject(self._l("A"))
+        part.addObject(self._l("B", rot=90, pos=(300, 0, 0)))
+        placa = self.doc.addObject("Part::Feature", "Placa")
+        placa.Shape = Part.makeBox(200, 100, 8).cut(Part.makeCylinder(9, 20, FreeCAD.Vector(30, 50, -5)))
+        part.addObject(placa)
+        bloco = self.doc.addObject("Part::Feature", "Bloco")
+        bloco.Shape = Part.makeBox(50, 50, 50, FreeCAD.Vector(0, 0, 200))
+        part.addObject(bloco)
+        self.doc.recompute()
+        feitos = F.exportar_dxf_lote([part], self.pasta)
+        self.assertEqual(len(feitos), 2, "cantoneiras iguais num arquivo; bloco maciço não é chapa")
+        por_peca = {o.Label: (c, q, t) for c, o, q, t in feitos}
+        self.assertEqual(por_peca["A"][1], 2)
+        self.assertAlmostEqual(por_peca["A"][2], 3.0, places=6)
+        self.assertAlmostEqual(por_peca["Placa"][2], 8.0, places=6)
+        self.assertTrue(os.path.basename(por_peca["A"][0]).endswith("_esp3mm_q2.dxf"), por_peca["A"][0])
+        txt = open(por_peca["Placa"][0], encoding="ascii").read()
+        for camada in ("CONTORNO", "FUROS", "TEXTO"):
+            self.assertIn(camada, txt)
+        i = txt.index("\nCIRCLE")
+        self.assertEqual(txt[i:].split("\n")[3], "FUROS", "o furo vai na camada FUROS")
+        self.assertIn("Placa - CH 8 mm", txt)
+        txt_a = open(por_peca["A"][0], encoding="ascii").read()
+        self.assertIn("DOBRAS", txt_a)
+        self.assertIn("2 pc", txt_a)
+
+    def test_excel_com_as_listas_e_o_resumo(self):
+        import zipfile
+        import PrumoFabrica as F
+        part = self.doc.addObject("App::Part", "Conjunto")
+        part.addObject(self._l("A"))
+        part.addObject(self._l("B", rot=90, pos=(300, 0, 0)))
+        self.doc.recompute()
+        arq = F.exportar_excel([part], os.path.join(self.pasta, "listas.xlsx"))
+        with zipfile.ZipFile(arq) as z:
+            nomes = z.namelist()
+            wb = z.read("xl/workbook.xml").decode("utf-8")
+            s1 = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+            res = z.read("xl/worksheets/sheet%d.xml" % wb.count("<sheet ")).decode("utf-8")
+        self.assertIn("[Content_Types].xml", nomes)
+        self.assertIn('name="Lista de materiais"', wb)
+        self.assertIn('name="Resumo"', wb)
+        self.assertIn("<v>2</v>", s1, "quantidade 2 como número")
+        self.assertIn("Área externa para pintura", res)
+        r = F.resumo_orcamento([part])
+        self.assertEqual(r["pecas"], 2)
+        self.assertAlmostEqual(r["area_pintura_m2"], 2 * self.doc.getObject("A").Shape.Area / 1e6, places=9)
+        self.assertIsNone(r["solda_mm"], "sem cordões modelados não inventa solda")
+        import xml.dom.minidom
+        for n in nomes:
+            if n.endswith(".xml") or n.endswith(".rels"):
+                with zipfile.ZipFile(arq) as z:
+                    xml.dom.minidom.parseString(z.read(n))      # XML válido
+
+    def test_comandos_e_ia(self):
+        import PrumoIA
+        for nome in ("exportar_excel", "dxf_das_chapas"):
+            self.assertIn(nome, PrumoIA.FERRAMENTAS)
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        for c in ("Prumo_DXFLote", "Prumo_ExportarExcel"):
+            self.assertIn(c, FreeCADGui.listCommands())
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -17007,4 +17128,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T118TrabalhosNaBarra,
            T119FolhaLegendaEstiloTraducao,
            T120ConectarIA,
-           T121FolhaPronta]
+           T121FolhaPronta,
+           T122DoModeloParaAFabrica]

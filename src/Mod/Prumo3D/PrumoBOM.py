@@ -143,6 +143,21 @@ def itens(objs):
     return res
 
 
+def _chave_geometrica(base, sh, geometricas, propria):
+    """Chave de uma peça sem código: a de uma peça já contada com a mesma forma e material, ou `propria`."""
+    try:
+        import PrumoFabrica
+        mat = PrumoUtil.material(base)[0]
+        sig = PrumoFabrica.assinatura(sh)
+        for chave, sig0, mat0, sh0 in geometricas:
+            if sig0 == sig and mat0 == mat and PrumoFabrica.congruentes(sh0, sh):
+                return chave
+        geometricas.append((propria, sig, mat, sh))
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: peças iguais pela geometria: %s\n" % exc)
+    return propria
+
+
 def coletar(objs, densidade_padrao=None, mapa=None):
     """Linhas da lista de materiais para os objetos (abre montagens, partes e grupos).
 
@@ -152,6 +167,8 @@ def coletar(objs, densidade_padrao=None, mapa=None):
         densidade_padrao = PrumoUtil.densidade_padrao()
     linhas = {}
     ordem = []
+    geometricas = []
+
     def marcar(obj, chave, sh):
         if mapa is not None and chave in linhas:
             mapa.setdefault((obj.Document.Name, obj.Name), (ordem.index(chave) + 1, sh))
@@ -213,7 +230,10 @@ def coletar(objs, densidade_padrao=None, mapa=None):
             # peças com código (Propriedades da peça): iguais pelo código e material
             chave = ("codigo", str(base.Codigo), PrumoUtil.material(base)[0])
         else:
+            # sem código: peças iguais pela geometria (mesma forma, sem contar a posição; espelhada é outra)
             chave = ("obj", base.Document.Name, base.Name)
+            if chave not in linhas:
+                chave = _chave_geometrica(base, sh, geometricas, chave)
         if chave not in linhas:
             nome_mat, dens, definido = PrumoUtil.material(base)
             if not definido:

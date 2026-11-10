@@ -104,6 +104,58 @@ def _em_corpo(obj):
         return False
 
 
+# o que cada tipo de objeto do Usinix mostra no botão direito (só os comandos que ele usa)
+POR_TIPO = {
+    "folha": ["Prumo_EditarLegenda", "Prumo_CotasGerais", "Prumo_Baloes", "Separator", "Prumo_SalvarPDF",
+              "Prumo_ExportarDXF"],
+    "barra": ["Prumo_TrabalhosBarra", "Prumo_TrocarPerfil", "Prumo_Cantos", "Separator", "Prumo_ListaDeCorte",
+              "Prumo_FolhasBarras"],
+    "estrutura": ["Prumo_EditarEstrutura", "Prumo_TrabalhosBarra", "Prumo_Cantos", "Separator",
+                  "Prumo_ListaDeCorte", "Prumo_FolhasBarras", "Prumo_ExportarExcel"],
+    "parafusos": ["Prumo_TrabalhosBarra", "Prumo_ListaMateriais"],
+    "chapa": ["Prumo_FolhaChapa", "Prumo_ChapaDXF", "Prumo_DXFLote"],
+    "vaso": ["Prumo_MemoriaVaso", "Prumo_DesenhoVaso"],
+    "tubulacao": ["Prumo_IsometricoTubulacao", "Prumo_ListaMateriais"],
+    "montagem": ["Prumo_ListaMateriais", "Prumo_ExportarExcel", "Prumo_DXFLote", "Prumo_FolhasLote"],
+}
+
+
+def _comandos():
+    try:
+        return set(FreeCADGui.listCommands())
+    except Exception:
+        return set()
+
+
+def tipo_do_objeto(o):
+    """folha, barra, estrutura, parafusos, chapa, vaso, tubulacao, montagem ou None."""
+    try:
+        props = o.PropertiesList
+        if o.isDerivedFrom("TechDraw::DrawPage"):
+            return "folha"
+        if "Indice" in props and "Estrutura" in props and "ComprimentoCorte" in props:
+            return "barra"
+        if "Esqueleto" in props and "Uniao" in props:
+            return "estrutura"
+        if "ItensParafusos" in props:
+            return "parafusos"
+        if "PressaoProjeto" in props:
+            return "vaso"
+        try:
+            import PrumoTubulacao
+            if PrumoTubulacao.e_tubulacao(o):
+                return "tubulacao"
+        except Exception:
+            pass
+        if o.TypeId in ("Assembly::AssemblyObject", "App::Part"):
+            return "montagem"
+        if "thickness" in props or "Espessura" in props and "Denominacao" in props:
+            return "chapa"
+    except Exception:
+        return None
+    return None
+
+
 def itens_para(selecao):
     """Comandos a oferecer para a seleção [(obj, [subnomes])]. Lista vazia = nada a acrescentar."""
     if not selecao:
@@ -116,7 +168,16 @@ def itens_para(selecao):
     tem_peca = PrumoUtil.tem_peca(objs)
 
     if len(objs) == 1 and not subs and objs[0].isDerivedFrom("TechDraw::DrawPage"):
-        return ["Prumo_EditarLegenda"]
+        return list(POR_TIPO["folha"])
+    tipo = tipo_do_objeto(objs[0]) if len(objs) == 1 else None
+    if tipo is None and len(objs) > 1 and all(tipo_do_objeto(o) == "barra" for o in objs):
+        tipo = "barra"
+    if tipo in POR_TIPO and not (subs and tipo in ("chapa", "montagem")):
+        itens = [c for c in POR_TIPO[tipo] if c in _comandos()]
+        if itens and tem_peca:
+            itens += ["Separator", "Prumo_CtxMedir", "Prumo_Massa", "Prumo_Propriedades"]
+        if itens:
+            return itens
     if so_esbocos and len(objs) == 1 and not subs:
         itens += ["Prumo_CtxExtrudar", "Prumo_CtxCavidade", "Prumo_CtxRevolucao", "Prumo_CtxFuro",
                   "Prumo_CtxEditarEsboco"]

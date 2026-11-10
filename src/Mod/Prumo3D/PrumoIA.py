@@ -394,6 +394,34 @@ def f_folha_chapa(peca):
     return {"folha": page.Name}
 
 
+@ferramenta("exportar_excel", "Grava um .xlsx com lista de materiais, lista de corte, lista de soldas e resumo para "
+            "orçamento (massa por material, área de pintura, solda). Sem objetos: a montagem ou o documento.",
+            {"caminho": {"type": "string"}, "objetos": {"type": "array", "items": {"type": "string"}}}, ["caminho"])
+def f_excel(caminho, objetos=None):
+    import PrumoBOM
+    import PrumoFabrica
+    doc = _doc()
+    objs = [_obj(doc, n) for n in objetos] if objetos else PrumoBOM._objetos_alvo()
+    PrumoFabrica.exportar_excel(objs, caminho)
+    r = PrumoFabrica.resumo_orcamento(objs)
+    return {"arquivo": caminho, "massa_total_kg": round(r["massa_total"], 3),
+            "area_pintura_m2": round(r["area_pintura_m2"], 3),
+            "materiais": [{"material": m, "massa_kg": round(kg, 3)} for m, kg in r["materiais"]]}
+
+
+@ferramenta("dxf_das_chapas", "Um DXF por chapa diferente (contorno, furos, dobras e texto com espessura, material e "
+            "quantidade) na pasta indicada, para corte a laser ou plasma.",
+            {"pasta": {"type": "string"}, "objetos": {"type": "array", "items": {"type": "string"}}}, ["pasta"])
+def f_dxf_lote(pasta, objetos=None):
+    import PrumoBOM
+    import PrumoFabrica
+    doc = _doc()
+    objs = [_obj(doc, n) for n in objetos] if objetos else PrumoBOM._objetos_alvo()
+    feitos = PrumoFabrica.exportar_dxf_lote(objs, pasta)
+    return {"arquivos": [{"arquivo": c, "peca": o.Label, "quantidade": q, "espessura_mm": t}
+                         for c, o, q, t in feitos]}
+
+
 @ferramenta("capturar_vista", "Imagem da vista 3D (PNG) para conferir o que foi feito. vista: iso, frente, topo, "
             "direita, atual.", {"vista": {"type": "string"}, "largura": {"type": "integer"}}, muda=False)
 def f_captura(vista="iso", largura=900):

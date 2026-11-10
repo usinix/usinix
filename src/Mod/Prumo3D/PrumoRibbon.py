@@ -245,6 +245,7 @@ TABS = [
         ]),
         ("Entregar", [
             ("Prumo_SalvarPDF", L, "Salvar\nPDF"), ("Prumo_ExportarDXF", S, "Exportar DXF"),
+            ("Prumo_ExportarExcel", S, "Exportar para Excel"), ("Prumo_DXFLote", S, "DXF de todas as chapas"),
             ("TechDraw_PrintAll", S, "Imprimir"),
         ]),
     ]},
@@ -265,7 +266,7 @@ TABS = [
         ("Solda", [
             ("Prumo_Solda", L, "Cordão de\nsolda"), ("Prumo_ListaSoldas", S, "Lista de soldas"),
             ("Prumo_ListaDeCorte", S, "Lista de corte"), ("Prumo_TabelaFuros", S, "Tabela de furos"),
-            ("Prumo_FolhasBarras", S, "Folhas das barras"),
+            ("Prumo_FolhasBarras", S, "Folhas das barras"), ("Prumo_ExportarExcel", S, "Exportar para Excel"),
         ]),
         # parafusos, porcas e arruelas: na aba Componentes
         ("Calcular", [
@@ -341,7 +342,7 @@ TABS = [
             ("SheetMetal_AddCornerRelief", S, "Alívio de canto"), ("SheetMetal_Forming", S, "Estampar"),
         ]),
         ("Planificar", [
-            ("SheetMetal_Unfold", L, "Planificar"), ("Prumo_ChapaDXF", L, "Planificar\nem DXF"), ("Prumo_FolhaChapa", L, "Folha da\nchapa"),
+            ("SheetMetal_Unfold", L, "Planificar"), ("Prumo_ChapaDXF", L, "Planificar\nem DXF"), ("Prumo_FolhaChapa", L, "Folha da\nchapa"), ("Prumo_DXFLote", S, "DXF de todas"),
             ("SheetMetal_UnfoldUpdate", S, "Atualizar planificações"), ("Prumo_TabelaK", S, "Tabela de fator K"),
         ]),
     ]},
