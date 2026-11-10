@@ -30,6 +30,8 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 - **Perfis de aço:** barras redondas, quadradas e chatas conferidas na ABNT NBR 16683:2018 (versão corrigida de
   23/04/2020, em vigor); as quatro barras chatas que estavam "a conferir" agora têm a massa da norma. Perfis U
   enrijecido conferidos na ABNT NBR 6355:2012 (em vigor).
+- **Folha ABNT:** a NBR 16752:2020 (em vigor) segue como padrão, com margens, quadro e legenda de 180 mm
+  conferidos na norma. A NBR 10068 aparece como cancelada em 2020 e fica só para continuar desenhos antigos.
 
 ### Conectar IA
 

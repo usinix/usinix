@@ -25,7 +25,7 @@ outros módulos (`Mod/Prumo3D`), sem instalação separada.
 | Menu de contexto pela seleção | `PrumoContexto.py` | botão direito (vista 3D e árvore) |
 | Propriedades de massa (massa, CG, inércia) | `PrumoMassa.py` | abas Peça, Montagem, Estruturas |
 | Lista de materiais (planilha e tabela na folha) | `PrumoBOM.py` | abas Peça, Montagem, Desenho, Estruturas |
-| Folhas ABNT A0–A4 (NBR 16752 e NBR 10068) | `PrumoFolhas.py`, `Resources/folhas/` | abas Desenho e Peça |
+| Folhas ABNT A0–A4 (NBR 16752:2020; NBR 10068, cancelada, só para desenhos antigos) | `PrumoFolhas.py`, `Resources/folhas/` | abas Desenho e Peça |
 | Biblioteca de perfis (W, HP, U, I, L, tubos, metalon) | `PrumoPerfis.py`, `Resources/perfis/perfis.json` | usada pela estrutura e pelo vaso |
 | Estrutura soldada (grupos, ponto de fixação, cantos com desenho de cada tratamento), trocar perfil, lista de corte | `PrumoEstrutura.py`, `PrumoIlustra.canto_svg` | aba Estruturas |
 | Tutoriais "primeira peça" e "estrutura soldada" | `PrumoTutorial.py` | abas Prumo e Estruturas, tela inicial |

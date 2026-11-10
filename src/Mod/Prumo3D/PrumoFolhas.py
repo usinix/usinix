@@ -3,9 +3,11 @@
 """Folhas de desenho no padrão brasileiro.
 
 Modelos em Resources/folhas, gerados por prumo-build/ferramentas/gerar_folhas_abnt.py:
-- NBR 16752:2020 (vigente; conferida no texto da norma: margem esquerda 20 mm, demais 10 mm, quadro 1,0 mm
-  no A0/A1 e 0,7 mm no A2 a A4, legenda de 180 mm no canto inferior direito, com os campos de 5.3.1);
-- NBR 10068 (padrão anterior, ainda comum: margem esquerda 25 mm, legenda 175/178 mm).
+- NBR 16752:2020 (publicada em 23/01/2020, em vigor no catálogo ABNT/Confea em 10/11/2026; Tabela 4 conferida no
+  texto da norma: margem esquerda 20 mm, demais 10 mm, quadro 1,0 mm no A0/A1 e 0,7 mm no A2 a A4; legenda de
+  180 mm no canto inferior direito, com os campos de 5.3.1);
+- NBR 10068:1987 (cancelada em 23/01/2020, substituída pela NBR 16752:2020; mantida só para continuar desenhos
+  antigos: margem esquerda 25 mm, legenda 175/178 mm — medidas não conferidas, a norma não está mais à venda).
 Todos os formatos em paisagem e em retrato. Legenda com empresa, cliente/obra, título,
 material, massa, tolerâncias gerais, desenhista, verificado, aprovado, data, responsável técnico,
 CREA/CFT, ART, escala, unidade, 1º diedro, formato, folha, número do desenho e revisão.
@@ -29,7 +31,8 @@ DIR_FOLHAS = os.path.join(PrumoUtil.RES_DIR, "folhas")
 FORMATOS = ["A0", "A1", "A2", "A3", "A4"]
 FORMATOS_MM = {"A0": (1189.0, 841.0), "A1": (841.0, 594.0), "A2": (594.0, 420.0), "A3": (420.0, 297.0),
                "A4": (297.0, 210.0)}     # largura × altura deitada
-NORMAS = {"NBR16752": "ABNT NBR 16752 (atual)", "NBR10068": "ABNT NBR 10068 (anterior)"}
+NORMAS = {"NBR16752": "ABNT NBR 16752:2020 (em vigor)",
+          "NBR10068": "ABNT NBR 10068:1987 (cancelada em 2020; só para desenhos antigos)"}
 NORMA_PADRAO = "NBR16752"
 FORMATO_PADRAO = "A3"
 
@@ -524,7 +527,8 @@ class PainelFolha(ListaDePecas, P.PainelTarefa):
             self.norma.addItem(v, k)
         idx = self.norma.findData(FREECAD_PARAM().GetString("FolhaNorma", NORMA_PADRAO))
         self.norma.setCurrentIndex(max(idx, 0))
-        s1.linha("tipo", self.norma, "Modelo de legenda: NBR 16752 (atual) ou NBR 10068.", "Padrão da folha")
+        s1.linha("tipo", self.norma, "Modelo da folha: NBR 16752:2020, a norma em vigor. A NBR 10068 foi cancelada "
+                 "em 2020; use só para continuar desenhos antigos.", "Padrão da folha")
         s2 = f.secao("Legenda", "texto")
         valores = campos_padrao(self.doc, self.pecas.valores())
         self.campos = {}
