@@ -75,6 +75,21 @@ jobs:
         shell: cmd   # o cmd não depende da política de execução de scripts do PowerShell
         run: echo C:\Program Files\Git\bin>>"%GITHUB_PATH%"
 
+      - name: Conferir o número da versão
+        shell: bash
+        env:
+          VERSAO: ${{ github.event.inputs.versao }}
+        run: |
+          # para logo (em segundos) em vez de falhar no instalador do Windows 25 minutos depois:
+          # o NSIS não aceita "1.8,0" (vírgula no lugar do ponto)
+          v="${VERSAO#v}"
+          if [[ -n "$v" && ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            sugestao="${v//,/.}"
+            echo "::error title=Número da versão inválido::\"${VERSAO}\" não é um número de versão. Use pontos, como ${sugestao} (ex.: 1.8.0 ou 1.8.0-beta)."
+            exit 1
+          fi
+          echo "Versão: ${v:-(só compilar)}"
+
       - id: m
         shell: bash
         run: |
