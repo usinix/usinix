@@ -95,8 +95,10 @@ ARQUIVO_CLAUDE = "claude_desktop_config.json"
 def pastas_do_claude(sistema=None, ambiente=None, casa=None):
     """Pastas onde o Claude Desktop guarda a configuração, na ordem em que valem.
 
-    Windows: a versão da Microsoft Store/WinGet/MSIX lê a cópia virtualizada em
-    %LOCALAPPDATA%\\Packages\\Claude_<código>\\LocalCache\\Roaming\\Claude; o instalador comum lê %APPDATA%\\Claude.
+    Windows: as versões recentes (2026) leem %LOCALAPPDATA%\\Claude-Data\\claude_<código> — é o arquivo que o
+    "Editar configuração" do Claude abre; a versão MSIX anterior lia a cópia virtualizada em
+    %LOCALAPPDATA%\\Packages\\Claude_<código>\\LocalCache\\Roaming\\Claude; o instalador comum, %APPDATA%\\Claude.
+    O Usinix grava em todas as que existirem (as que o Claude não lê não atrapalham).
     macOS: ~/Library/Application Support/Claude. Linux (versões não oficiais): ~/.config/Claude."""
     import glob
     sistema = sistema or sys.platform
@@ -105,6 +107,9 @@ def pastas_do_claude(sistema=None, ambiente=None, casa=None):
     if sistema.startswith("win"):
         res = []
         local = ambiente.get("LOCALAPPDATA") or os.path.join(casa, "AppData", "Local")
+        for dados in sorted(glob.glob(os.path.join(local, "Claude-Data", "*"))):
+            if os.path.isdir(dados):
+                res.append(dados)
         for pac in sorted(glob.glob(os.path.join(local, "Packages", "Claude_*"))):
             res.append(os.path.join(pac, "LocalCache", "Roaming", "Claude"))
         res.append(os.path.join(ambiente.get("APPDATA") or os.path.join(casa, "AppData", "Roaming"), "Claude"))
@@ -117,9 +122,16 @@ def pastas_do_claude(sistema=None, ambiente=None, casa=None):
 def arquivos_do_claude(**kw):
     """Arquivos de configuração do Claude Desktop instalado (a pasta do Claude existe). Vazio se não achar."""
     pastas = pastas_do_claude(**kw)
-    achados = [p for p in pastas if os.path.isdir(p)]
-    # MSIX: o Claude da loja só enxerga a cópia virtualizada; a pasta comum pode ser resto de outra instalação
-    return [os.path.join(p, ARQUIVO_CLAUDE) for p in achados]
+    achados = [os.path.join(p, ARQUIVO_CLAUDE) for p in pastas if os.path.isdir(p)]
+    # arquivo escolhido à mão (Conectar IA › Outro arquivo…) vale primeiro
+    if not kw:
+        try:
+            esc = FreeCAD.ParamGet(PARAM).GetString("IAArquivoClaude", "")
+        except Exception:
+            esc = ""
+        if esc and os.path.isdir(os.path.dirname(esc)):
+            achados = [esc] + [a for a in achados if os.path.normcase(a) != os.path.normcase(esc)]
+    return achados
 
 
 def _ler_config(caminho):
@@ -818,6 +830,18 @@ def claude_aberto():
         return None
 
 
+def escolher_arquivo_claude(pai=None):
+    """Pede o claude_desktop_config.json (o que o "Editar configuração" do Claude abre) e guarda a escolha."""
+    inicio = os.path.dirname(FreeCAD.ParamGet(PARAM).GetString("IAArquivoClaude", "")) or os.path.expanduser("~")
+    arq, _f = QtWidgets.QFileDialog.getOpenFileName(pai or FreeCADGui.getMainWindow(),
+                                                    "Arquivo de configuração do Claude Desktop", inicio,
+                                                    "Configuração do Claude (claude_desktop_config.json);;"
+                                                    "JSON (*.json)")
+    if arq:
+        FreeCAD.ParamGet(PARAM).SetString("IAArquivoClaude", os.path.normpath(arq))
+    return arq or None
+
+
 def instalar_no_claude_desktop(janela=None):
     """Botão "Instalar no Claude Desktop": acha o arquivo, avisa se o Claude está aberto, instala e explica o resto."""
     caixa = QtWidgets.QMessageBox
@@ -831,9 +855,7 @@ def instalar_no_claude_desktop(janela=None):
                            caixa.Yes | caixa.No, caixa.No)
         if r != caixa.Yes:
             return None
-        arq, _f = QtWidgets.QFileDialog.getOpenFileName(pai, "Arquivo de configuração do Claude Desktop", "",
-                                                        "Configuração do Claude (claude_desktop_config.json);;"
-                                                        "JSON (*.json)")
+        arq = escolher_arquivo_claude(pai)
         if not arq:
             return None
         arquivos = [arq]
@@ -864,7 +886,9 @@ def instalar_no_claude_desktop(janela=None):
         if r["copia"]:
             linhas.append("Cópia do arquivo anterior:\n%s" % r["copia"])
     linhas.append("Agora abra o Claude Desktop (se estava aberto, saia pelo ícone perto do relógio e abra de novo). "
-                  "As ferramentas do Usinix aparecem no Claude com o nome \"usinix\".")
+                  "Confira em Configurações › Desenvolvedor: o \"usinix\" tem de aparecer em Servidores MCP locais. "
+                  "Se não aparecer, clique lá em Editar configuração para ver qual arquivo o Claude usa e escolha "
+                  "esse arquivo em Conectar IA › Outro arquivo….")
     if erros:
         linhas.append("Não deu em:\n" + "\n\n".join(erros))
     texto = "\n\n".join(linhas)
@@ -916,6 +940,11 @@ class JanelaIA(QtWidgets.QDialog):
                                   "com cópia de segurança, sem mexer no resto do arquivo.")
         self.bt_claude.clicked.connect(self._instalar_claude)
         claude.addWidget(self.bt_claude)
+        outro = QtWidgets.QPushButton("Outro arquivo…")
+        outro.setToolTip("Escolha o arquivo que o Claude abre em Configurações › Desenvolvedor › Editar configuração, "
+                         "se o Usinix não achou o certo. A escolha fica guardada.")
+        outro.clicked.connect(self._outro_arquivo)
+        claude.addWidget(outro)
         self.st_claude = QtWidgets.QLabel()
         claude.addWidget(self.st_claude, 1)
         lay.addLayout(claude)
@@ -942,6 +971,10 @@ class JanelaIA(QtWidgets.QDialog):
         except Exception as exc:
             QtWidgets.QMessageBox.warning(self, "Conectar IA", str(exc))
         self._atualizar()
+
+    def _outro_arquivo(self):
+        if escolher_arquivo_claude(self):
+            self._instalar_claude()
 
     def _instalar_claude(self):
         instalar_no_claude_desktop(self)

@@ -15,6 +15,15 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.11.1 — 10/11/2026
+
+### Correções
+
+- **Instalar no Claude Desktop:** as versões novas do Claude Desktop para Windows guardam a configuração em
+  `%LOCALAPPDATA%\Claude-Data\claude_<código>`, e o botão não gravava ali — o Usinix não aparecia nos servidores
+  locais. Agora essa pasta vem primeiro. Novo botão **Outro arquivo…** para escolher à mão o arquivo que o Claude
+  abre em Configurações › Desenvolvedor › Editar configuração (a escolha fica guardada).
+
 ## 1.11.0 — 10/11/2026
 
 ![Enclausuramento NR-12 conferido (tela verde) e o memorial NR-13 do vaso em PDF](.github/images/novidades/1.11.0.webp)

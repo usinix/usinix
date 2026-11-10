@@ -16737,6 +16737,12 @@ class T125InstalarNoClaude(unittest.TestCase):
         arqs = self.IA.arquivos_do_claude(sistema="win32", ambiente=amb, casa=self.pasta)
         self.assertEqual(len(arqs), 1)                                 # só a da loja existe
         self.assertTrue(arqs[0].endswith(os.path.join("LocalCache", "Roaming", "Claude", "claude_desktop_config.json")))
+        # versão 2026: %LOCALAPPDATA%\\Claude-Data\\claude_<código> (o que o "Editar configuração" abre) vem primeiro
+        os.makedirs(os.path.join(local, "Claude-Data", "claude_pzs8sxrjxfjjc"))
+        arqs = self.IA.arquivos_do_claude(sistema="win32", ambiente=amb, casa=self.pasta)
+        self.assertEqual(len(arqs), 2)
+        self.assertEqual(arqs[0], os.path.join(local, "Claude-Data", "claude_pzs8sxrjxfjjc",
+                                               "claude_desktop_config.json"))
         mac = self.IA.pastas_do_claude(sistema="darwin", ambiente={}, casa="/Users/u")
         self.assertEqual(mac, [os.path.join("/Users/u", "Library", "Application Support", "Claude")])
 
@@ -16747,6 +16753,7 @@ class T125InstalarNoClaude(unittest.TestCase):
             textos = [b.text() for b in j.findChildren(QtWidgets.QPushButton)]
             self.assertIn("Instalar no Claude Desktop", textos)
             self.assertIn("Copiar configuração", textos)
+            self.assertIn("Outro arquivo…", textos)
         finally:
             j.deleteLater()
 
