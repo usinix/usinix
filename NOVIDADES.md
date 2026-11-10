@@ -15,6 +15,28 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.9.0 — 10/11/2026
+
+![Painel Trabalhos na barra no tema escuro, com os nomes dos botões inteiros](.github/images/novidades/1.9.0.webp)
+
+### Acabamento
+
+### Novidades
+
+- **Menu Comandos:** tudo o que está na faixa também fica no menu de cima, organizado pelas mesmas abas e
+  grupos, em qualquer bancada.
+- **Nomes iguais aos das abas:** o menu do esboço passa a se chamar Esboço (não Desenho) e o do desenho técnico,
+  Desenho.
+- **Barra que acompanha a face:** a barra cortada pela face de outra peça recalcula sozinha quando essa peça
+  muda. Se a peça for apagada, vale o plano gravado no corte, com aviso no relatório.
+
+### Correções
+
+- **Botões com o nome cortado:** nos painéis, opções como "Horizontal" e "Pela face" apareciam como
+  "Hor…tal" e "Pe…ce". Agora o nome quebra em duas linhas ou a letra diminui um pouco.
+- **Cotas soltas na árvore:** as cotas das folhas novas apareciam na raiz do documento; agora ficam dentro da
+  vista que medem.
+
 ## 1.8.0 — 10/11/2026
 
 ![DXF da chapa planificada: contorno, furo, linha de dobra e texto da peça em camadas separadas](.github/images/novidades/1.8.0.webp)

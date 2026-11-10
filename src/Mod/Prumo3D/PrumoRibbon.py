@@ -2250,6 +2250,120 @@ def _on_workbench(name):
         return
     QtCore.QTimer.singleShot(0, _hide_native_toolbars)
     QtCore.QTimer.singleShot(50, lambda: rb.sync_workbench(name))
+    QtCore.QTimer.singleShot(80, instalar_menu_ferramentas)
+
+
+# -------------------------------------------------------------------------- menu Comandos (tudo da faixa)
+# O FreeCAD retraduz os menus da barra pelo dado da ação do menu (título = tradução de menuAction().data()):
+# por isso cada menu leva o próprio texto como dado.
+MENU_FERRAMENTAS = "&Comandos"
+
+
+def itens_do_menu():
+    """[(aba, [(grupo, [(rótulo, [comandos])])])] — o mesmo que a faixa mostra, para o menu Ferramentas."""
+    res = []
+    for tab in TABS:
+        grupos = []
+        for painel in tab.get("panels", []):
+            nome_p, itens = painel[0], painel[1]
+            linhas = []
+            for it in itens:
+                if not isinstance(it, (tuple, list)) or not it:
+                    continue
+                nomes = [n for n in str(it[0]).split("|") if n]
+                rot = (it[2] if len(it) > 2 and it[2] else nomes[0]).replace("\n", " ")
+                linhas.append((rot, nomes))
+            if linhas:
+                grupos.append((nome_p, linhas))
+        if grupos:
+            res.append((tab["label"], grupos))
+    return res
+
+
+def _acao_do_menu(menu, rot, nome):
+    QAction = getattr(QtGui, "QAction", None) or QtWidgets.QAction
+    act = QAction(rot, menu)
+    try:
+        orig = _cmd_actions(nome)
+        if orig:
+            act.setIcon(orig[0].icon())
+            act.setToolTip(orig[0].toolTip())
+            act.setStatusTip(orig[0].statusTip())
+    except Exception:
+        pass
+    act.setData(nome)
+    act.triggered.connect(lambda checked=False, n=nome: FreeCADGui.runCommand(n, 0))
+    menu.addAction(act)
+    return act
+
+
+def _preencher_aba(menu, grupos):
+    menu.clear()
+    disponiveis = set(FreeCADGui.listCommands())
+    for nome_p, linhas in grupos:
+        menu.addSection(nome_p)
+        for rot, nomes in linhas:
+            nomes = [n for n in nomes if n in disponiveis]
+            if not nomes:
+                continue
+            if len(nomes) == 1:
+                _acao_do_menu(menu, rot, nomes[0])
+            else:
+                sub = menu.addMenu(rot)
+                sub.setObjectName(rot)
+                sub.menuAction().setData(rot)
+                for a in _acoes_de(nomes):
+                    sub.addAction(a)
+    for a in menu.actions():
+        n = a.data()
+        if n:
+            try:
+                a.setEnabled(bool(FreeCADGui.Command.get(n).isActive()))
+            except Exception:
+                pass
+
+
+def montar_menu_ferramentas(pai=None):
+    """Menu Comandos: uma entrada por aba da faixa (grupos como seções), montado quando abre: todo comando da faixa
+    também fica no menu de cima."""
+    menu = QtWidgets.QMenu(MENU_FERRAMENTAS, pai or FreeCADGui.getMainWindow())
+    menu.setObjectName(MENU_FERRAMENTAS)
+    menu.menuAction().setData(MENU_FERRAMENTAS)
+    for aba, grupos in itens_do_menu():
+        sub = menu.addMenu(aba)
+        sub.setObjectName(aba)
+        sub.menuAction().setData(aba)
+        sub.aboutToShow.connect(lambda m=sub, g=grupos: _preencher_aba(m, g))
+    return menu
+
+
+def instalar_menu_ferramentas():
+    """Põe o menu Comandos na barra de menus, antes de Ajuda. A troca de bancada refaz a barra: chamado
+    de novo a cada troca."""
+    try:
+        mw = FreeCADGui.getMainWindow()
+        barra = mw.menuBar()
+        menu = mw.findChild(QtWidgets.QMenu, MENU_FERRAMENTAS)
+        if menu is None:
+            menu = montar_menu_ferramentas(mw)
+        acao = menu.menuAction()
+        acoes = barra.actions()
+        if acao in acoes:
+            acao.setVisible(True)
+            return menu
+        ajuda = None
+        for a in acoes:
+            t = a.text().replace("&", "").lower()
+            if t in ("ajuda", "help"):
+                ajuda = a
+        if ajuda is not None:
+            barra.insertMenu(ajuda, menu)
+        else:
+            barra.addMenu(menu)
+        return menu
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: menu Ferramentas: %s\n" % exc)
+        return None
 
 
 def install():
@@ -2280,6 +2394,7 @@ def install():
     _hide_native_toolbars()
     _apply_global_qss()
     ribbon.sync_workbench()
+    QtCore.QTimer.singleShot(300, instalar_menu_ferramentas)
     # bancadas instaladas pelo usuário ganham aba própria, sem precisar ativar em Preferências
     QtCore.QTimer.singleShot(1500, ribbon.atualizar_abas_externas)
     QtCore.QTimer.singleShot(2500, ribbon.precarregar_todas)

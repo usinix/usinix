@@ -451,6 +451,7 @@ def folha_da_barra(doc, barra, qtd=1, formato="A3", norma=None, campos=None, mar
         linhas.append(("Vista", "interrompida (cotas em medida real)"))
     if (barra.SituacaoDados or "") not in ("", "confirmado"):
         linhas.append(("Observação", "perfil a conferir no catálogo"))
+    PrumoVistas.arrumar_arvore([frente, topo])
     tabela_na_folha(page, "DadosBarra_%s" % page.Name, "Barra %s" % marca, linhas)
     doc.recompute()
     return page
@@ -643,6 +644,7 @@ def folha_da_chapa(doc, chapa, formato="A3", norma=None, campos=None, material=N
         if t and r is not None:
             linhas.append(("Fator K (%s)" % material, PrumoUtil.fmt(PrumoChapa.k_fator(material, r, t), 3)))
         linhas.append(("Linhas de dobra", "traço fino na planificação"))
+    PrumoVistas.arrumar_arvore([plana])
     tabela_na_folha(page, "DadosChapa_%s" % page.Name, "Chapa %s" % chapa.Label, linhas)
     doc.recompute()
     return page

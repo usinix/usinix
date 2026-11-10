@@ -586,23 +586,34 @@ def definir_ponta(est, i, k, valor):
 
 
 def _referencias_das_pontas(est):
-    """Liga a estrutura às peças das faces de corte: mudou a peça, a estrutura recalcula."""
+    """Liga cada barra às peças das faces onde as pontas dela são cortadas: mudou a peça, a barra recalcula
+    (é a barra que calcula a forma; a estrutura não)."""
     doc = est.Document
-    refs = []
+    por_barra = {}
     for l in getattr(est, "Pontas", []) or []:
-        v = l.partition("=")[2].strip()
-        if v.startswith(PONTA_FACE):
-            o = doc.getObject(v[len(PONTA_FACE):].split(":")[0])
-            if o is not None and o not in refs:
-                refs.append(o)
-    if "RefsPontas" not in est.PropertiesList:
-        if not refs:
-            return
-        est.addProperty("App::PropertyLinkList", "RefsPontas", "Estrutura",
-                        "Peças das faces onde as pontas são cortadas (a estrutura acompanha)")
-        est.setPropertyStatus("RefsPontas", "Hidden")
-    if list(est.RefsPontas) != refs:
-        est.RefsPontas = refs
+        chave, _s, v = l.partition("=")
+        v = v.strip()
+        if not v.startswith(PONTA_FACE):
+            continue
+        try:
+            i = int(chave.strip().split(":")[0])
+        except ValueError:
+            continue
+        o = doc.getObject(v[len(PONTA_FACE):].split(":")[0])
+        if o is not None:
+            por_barra.setdefault(i, [])
+            if o not in por_barra[i]:
+                por_barra[i].append(o)
+    for b in barras_de(est):
+        refs = por_barra.get(b.Indice, [])
+        if "RefsPontas" not in b.PropertiesList:
+            if not refs:
+                continue
+            b.addProperty("App::PropertyLinkList", "RefsPontas", "Barra",
+                          "Peças das faces onde as pontas desta barra são cortadas (a barra acompanha)")
+            b.setPropertyStatus("RefsPontas", "Hidden")
+        if list(b.RefsPontas) != refs:
+            b.RefsPontas = refs
 
 
 def valor_face(obj, sub, ponto, normal):
@@ -616,6 +627,9 @@ def _plano_da_face_viva(doc, nome, sub, normal_antiga):
         import PrumoUtil
         o = doc.getObject(nome) if doc is not None else None
         if o is None:
+            if doc is not None:
+                FreeCAD.Console.PrintWarning("Usinix: a peça da face de corte (%s) não existe mais; a ponta usa o "
+                                             "plano gravado quando o corte foi feito.\n" % nome)
             return None
         f = PrumoUtil.forma_global(o).Faces[int(sub[4:]) - 1]
         if f.Surface.__class__.__name__ != "Plane":

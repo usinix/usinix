@@ -17110,6 +17110,132 @@ class T122DoModeloParaAFabrica(unittest.TestCase):
             self.assertIn(c, FreeCADGui.listCommands())
 
 
+class T123AcabamentoEVisual(unittest.TestCase):
+    """1.9.0: corte pela face acompanha a face, placa de base e furos seguem o esboço, botão direito por tipo,
+    menu Comandos com tudo da faixa, nomes de menu iguais às abas e botões de opção sem texto cortado."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteAcabamento")
+
+    def tearDown(self):
+        try:
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        fechar(self.doc)
+
+    def _coluna(self):
+        import PrumoEstrutura as E
+        sk = esboco_linhas(self.doc, [((0, 0), (0, 1000))], "XZ")
+        est = E.criar(self.doc, sk, E.PERFIL_PADRAO)
+        self.doc.recompute()
+        return sk, est, E.barras_de(est)[0]
+
+    def test_corte_pela_face_acompanha_a_face(self):
+        import Part
+        import PrumoEstrutura as E
+        _sk, est, b = self._coluna()
+        laje = self.doc.addObject("Part::Feature", "Laje")
+        laje.Shape = Part.makeBox(2000, 2000, 150, FreeCAD.Vector(-1000, -1000, 1200))
+        self.doc.recompute()
+        f = [i for i, fc in enumerate(laje.Shape.Faces, 1) if abs(fc.CenterOfMass.z - 1200) < 1e-6][0]
+        fc = laje.Shape.Faces[f - 1]
+        E.definir_ponta(est, b.Indice, 1, E.valor_face(laje, "Face%d" % f, fc.CenterOfMass, fc.normalAt(0, 0)))
+        self.doc.recompute()
+        self.assertIn(laje, b.RefsPontas, "a barra depende da laje")
+        self.assertAlmostEqual(b.Shape.BoundBox.ZMax, 1200.0, places=3, msg="prolonga até a face")
+        laje.Placement.Base = FreeCAD.Vector(0, 0, 300)          # a laje sobe 300 mm
+        self.doc.recompute()
+        self.assertFalse(est.State and "Touched" in est.State)
+        self.assertAlmostEqual(b.Shape.BoundBox.ZMax, 1500.0, places=3, msg="a ponta seguiu a face")
+        self.doc.removeObject(laje.Name)
+        self.doc.recompute()
+        self.assertAlmostEqual(b.Shape.BoundBox.ZMax, 1200.0, places=3,
+                               msg="a face sumiu: vale o plano gravado quando o corte foi feito")
+
+    def test_placa_de_base_e_furos_seguem_o_esboco(self):
+        import PrumoEstrutura as E
+        import PrumoEstruturaExtras as X
+        sk, est, b = self._coluna()
+        E.gravar_furos(est, [{"barras": [0], "face": "Alma", "diam": 14, "ref": "fim", "dist": 100, "qtd": 1,
+                              "passo": 0, "filas": 1, "gab": 0, "desloc": 0, "parafuso": "M12"}])
+        placa = X.criar_placa_base(b, "Início")
+        self.doc.recompute()
+        z_placa = placa.Shape.BoundBox.ZMax
+        furo = [c for c in b.Shape.Faces if "Cylinder" in type(c.Surface).__name__]
+        self.assertTrue(furo)
+        z_furo = furo[0].Surface.Center.z if abs(furo[0].Surface.Axis.z) < 0.5 else None
+        # o esboço sobe 200 mm: coluna, placa e furo vão junto
+        sk.Placement.Base = FreeCAD.Vector(0, 0, 200)
+        self.doc.recompute()
+        self.assertAlmostEqual(placa.Shape.BoundBox.ZMax, z_placa + 200.0, places=3)
+        furo2 = [c for c in b.Shape.Faces if "Cylinder" in type(c.Surface).__name__]
+        if z_furo is not None:
+            self.assertAlmostEqual(furo2[0].Surface.Center.z, z_furo + 200.0, places=3)
+
+    def test_botao_direito_por_tipo(self):
+        import PrumoContexto as C
+        import PrumoFolhas as F
+        _sk, est, b = self._coluna()
+        self.assertEqual(C.tipo_do_objeto(b), "barra")
+        self.assertEqual(C.tipo_do_objeto(est), "estrutura")
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        itens = C.itens_para([(b, [])])
+        self.assertEqual(itens[0], "Prumo_TrabalhosBarra")
+        self.assertIn("Prumo_FolhasBarras", itens)
+        page = F.nova_folha(self.doc, "A4", "NBR16752", False, {}, None)
+        itens = C.itens_para([(page, [])])
+        self.assertEqual(itens[0], "Prumo_EditarLegenda")
+        self.assertIn("Prumo_Baloes", itens)
+
+    def test_menu_comandos_tem_tudo_da_faixa(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoRibbon as R
+        from PySide import QtWidgets
+        R.instalar_menu_ferramentas()
+        mw = FreeCADGui.getMainWindow()
+        menu = mw.findChild(QtWidgets.QMenu, R.MENU_FERRAMENTAS)
+        self.assertIsNotNone(menu)
+        self.assertIn(menu.menuAction(), mw.menuBar().actions())
+        abas = [a.text() for a in menu.actions()]
+        self.assertEqual(abas, [aba for aba, _g in R.itens_do_menu()])
+        FreeCADGui.activateWorkbench("PartDesignWorkbench")
+        for _ in range(30):
+            QtWidgets.QApplication.processEvents()
+        R.instalar_menu_ferramentas()
+        titulos = [a.text().replace("&", "") for a in mw.menuBar().actions() if a.isVisible()]
+        self.assertIn("Comandos", titulos, "continua depois de trocar a bancada (e com título)")
+        sub = [a.menu() for a in menu.actions() if a.text() == "Desenho"][0]
+        sub.aboutToShow.emit()
+        dados = [a.data() for a in sub.actions() if a.data()]
+        self.assertIn("Prumo_FolhasBarras", dados)
+        self.assertIn("Prumo_Baloes", dados)
+        from PySide import QtCore
+        self.assertEqual(QtCore.QCoreApplication.translate("Workbench", "&Sketch"), "&Esboço",
+                         "o menu do esboço tem o nome da aba")
+
+    def test_opcoes_sem_texto_cortado(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        from PySide import QtGui
+        import PrumoPainel as P
+        import PrumoTrabalhosBarra as TB
+        w = P.Opcoes(TB.OPCOES_PONTA, colunas=4)
+        w.resize(290, 80)
+        w.show()
+        for _ in range(10):
+            QtGui.QGuiApplication.processEvents()
+        w.ajustar_textos()
+        for b in w.botoes.values():
+            fm = QtGui.QFontMetrics(b.font())
+            for linha in b.text().split("\n"):
+                self.assertLessEqual(fm.horizontalAdvance(linha), b.width() - 6, "texto cortado: %r" % b.text())
+        self.assertEqual(w.botoes["face"].text().replace("\n", " "), "Pela face")
+        w.close()
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -17145,4 +17271,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T119FolhaLegendaEstiloTraducao,
            T120ConectarIA,
            T121FolhaPronta,
-           T122DoModeloParaAFabrica]
+           T122DoModeloParaAFabrica,
+           T123AcabamentoEVisual]

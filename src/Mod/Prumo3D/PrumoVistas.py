@@ -200,6 +200,19 @@ def _extremos(vista, eixo):
     return a, b
 
 
+def arrumar_arvore(vistas):
+    """A árvore só põe a cota sob a vista que ela mede quando a vista é recalculada; sem isso as cotas novas
+    ficam soltas na raiz do documento. Recalcula as vistas uma vez, no fim."""
+    vs = list({x.Name: x for x in vistas if x is not None}.values())
+    for v in vs:
+        try:
+            v.touch()
+        except Exception:
+            pass
+    if vs:
+        vs[0].Document.recompute()
+
+
 def _cota(page, vista, tipo, a, b, rotulo, lado, afasta=8.0):
     """Cota entre os vértices a e b; `lado` (cima, baixo, esq, dir) diz de que lado da vista ela fica e
     `afasta`, a quantos mm de papel do contorno."""
@@ -270,6 +283,7 @@ def cotas_gerais(page, objs, furos=False):
                 feitas.append(d)
                 criadas.extend(c)
     page.Document.recompute()
+    arrumar_arvore([d.References2D[0][0] for d in criadas if d.References2D])
     return criadas
 
 

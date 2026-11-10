@@ -552,6 +552,10 @@ GLOSSARIO = {
     ("StdCmdToggleTransparency", "Toggle Transparenc&y"): "Alternar &transparência",
     # Menus das bancadas (o FreeCAD traduz os nomes de menu no contexto "Workbench")
     ("Workbench", "&Part"): "&Sólidos",
+    # mesmos nomes das abas da faixa (o pt-BR do FreeCAD chama o esboço de "Desenho")
+    ("Workbench", "&Sketch"): "&Esboço",
+    ("Workbench", "&TechDraw"): "&Desenho",
+    ("Workbench", "TechDraw"): "Desenho",
     ("Workbench", "&Sheet Metal"): "&Chapa metálica",
     ("Workbench", "Sheet Metal"): "Chapa metálica",
     ("Workbench", "Surface"): "Superfície",

@@ -358,9 +358,35 @@ class Opcoes(QtWidgets.QWidget):
             self.botoes[chave] = b
             b.toggled.connect(lambda on, k=chave: on and self.mudou.emit(k))
         self.definir(atual or opcoes[0][0])
+        self._textos = {b: t for (_k, t, _i, _d), b in zip(opcoes, self.botoes.values())}
         # estilo próprio (destaque do botão marcado), para valer também fora dos painéis do Usinix,
         # como no Assistente de simulação
         self.setStyleSheet(qss())
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        self.ajustar_textos()
+
+    def ajustar_textos(self):
+        """Nome que não cabe no botão não vira "Hor…tal": quebra em duas linhas e, se ainda não couber,
+        a letra diminui um pouco (até 7 pt)."""
+        for b, texto in self._textos.items():
+            livre = b.width() - 10
+            if livre <= 0:
+                continue
+            f = QtGui.QFont(b.font())
+            f.setPointSizeF(max(self.font().pointSizeF(), 1.0))
+            linhas = [texto]
+            if QtGui.QFontMetrics(f).horizontalAdvance(texto) > livre and " " in texto:
+                i = texto.find(" ", len(texto) // 2 - 2) if texto.find(" ", len(texto) // 2 - 2) > 0 else texto.find(" ")
+                linhas = [texto[:i], texto[i + 1:]]
+            while f.pointSizeF() > 7.0 and max(QtGui.QFontMetrics(f).horizontalAdvance(l) for l in linhas) > livre:
+                f.setPointSizeF(f.pointSizeF() - 0.5)
+            novo = "\n".join(linhas)
+            if b.text() != novo:
+                b.setText(novo)
+            if b.font().pointSizeF() != f.pointSizeF():
+                b.setFont(f)
 
     def valor(self):
         for k, b in self.botoes.items():
