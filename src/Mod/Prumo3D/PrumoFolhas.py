@@ -415,23 +415,13 @@ def _filtro_pecas(obj, subs):
     return [(obj.Label, obj)] if PrumoUtil.pecas([obj]) else []
 
 
-class PainelFolha(P.PainelTarefa):
-    titulo = "Nova folha ABNT"
-    ajuda = "Marque na lista (ou selecione na tela) as peças para as vistas e confira a legenda."
+class ListaDePecas:
+    """Busca + lista do que tem sólido no documento, para escolher a peça no próprio painel (sem ir à
+    árvore). Usada pela Nova folha ABNT e pela Paleta de vistas. Precisa de self.doc e self.pecas (caixa);
+    `unica=True` deixa marcar só uma (a Paleta trabalha com uma peça por vez)."""
 
-    def __init__(self, doc=None, objs=None):
-        self.doc = doc or FreeCAD.ActiveDocument
-        self._objs_iniciais = list(objs or [])
-        super().__init__()
-
-    def montar(self):
-        f = self.form
-        s0 = f.secao("Peças", "selecao")
-        self.pecas = f.caixa(s0, "Peças para as vistas", _filtro_pecas, minimo=0,
-                             dica="Peças, corpos, partes ou montagens. Sem peças, a folha sai em branco.")
-        for o in self._objs_iniciais:
-            self.pecas.aceitar(o)
-        # escolher aqui mesmo, sem ir à árvore: busca + lista do que tem sólido no documento
+    def _montar_lista_pecas(self, s0, unica=False):
+        self._lista_unica = unica
         self.busca = QtWidgets.QLineEdit()
         self.busca.setPlaceholderText("Buscar peça, corpo ou montagem…")
         self.busca.setClearButtonEnabled(True)
@@ -448,6 +438,77 @@ class PainelFolha(P.PainelTarefa):
             lambda it: it.setCheckState(QtCore.Qt.Unchecked if it.checkState() == QtCore.Qt.Checked
                                         else QtCore.Qt.Checked))
         self.pecas.mudou.connect(self._marcar_da_caixa)
+
+    def _encher_lista(self):
+        import PrumoInserirDesenho as I
+        self.lista.blockSignals(True)
+        self.lista.clear()
+        try:
+            cands = I.candidatos(self.doc)
+        except Exception:
+            cands = []
+        cands.sort(key=lambda o: (not I._visivel(o), o.Label.lower()))
+        marcados = {o.Name for o in self.pecas.valores()}
+        for o in cands:
+            it = QtWidgets.QListWidgetItem("%s  ·  %s%s" % (o.Label, I.tipo_legivel(o),
+                                                            "" if I._visivel(o) else " (oculto)"))
+            try:
+                it.setIcon(o.ViewObject.Icon)
+            except Exception:
+                pass
+            it.setData(QtCore.Qt.UserRole, o.Name)
+            it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable)
+            it.setCheckState(QtCore.Qt.Checked if o.Name in marcados else QtCore.Qt.Unchecked)
+            self.lista.addItem(it)
+        self.lista.blockSignals(False)
+
+    def _filtrar(self, texto):
+        t = (texto or "").strip().lower()
+        for i in range(self.lista.count()):
+            it = self.lista.item(i)
+            it.setHidden(bool(t) and t not in it.text().lower())
+
+    def _item_marcado(self, it):
+        o = self.doc.getObject(it.data(QtCore.Qt.UserRole)) if self.doc else None
+        if o is None:
+            return
+        if it.checkState() == QtCore.Qt.Checked:
+            if getattr(self, "_lista_unica", False):
+                for v in list(self.pecas.valores()):
+                    if v is not o:
+                        self.pecas.remover_valor(v)
+            self.pecas.aceitar(o)
+        else:
+            self.pecas.remover_valor(o)
+
+    def _marcar_da_caixa(self):
+        marcados = {o.Name for o in self.pecas.valores()}
+        self.lista.blockSignals(True)
+        for i in range(self.lista.count()):
+            it = self.lista.item(i)
+            it.setCheckState(QtCore.Qt.Checked if it.data(QtCore.Qt.UserRole) in marcados
+                             else QtCore.Qt.Unchecked)
+        self.lista.blockSignals(False)
+
+
+
+class PainelFolha(ListaDePecas, P.PainelTarefa):
+    titulo = "Nova folha ABNT"
+    ajuda = "Marque na lista (ou selecione na tela) as peças para as vistas e confira a legenda."
+
+    def __init__(self, doc=None, objs=None):
+        self.doc = doc or FreeCAD.ActiveDocument
+        self._objs_iniciais = list(objs or [])
+        super().__init__()
+
+    def montar(self):
+        f = self.form
+        s0 = f.secao("Peças", "selecao")
+        self.pecas = f.caixa(s0, "Peças para as vistas", _filtro_pecas, minimo=0,
+                             dica="Peças, corpos, partes ou montagens. Sem peças, a folha sai em branco.")
+        for o in self._objs_iniciais:
+            self.pecas.aceitar(o)
+        self._montar_lista_pecas(s0)
         s1 = f.secao("Folha", "folha")
         self.formato = s1.linha("folha", P.lista(FORMATOS, FREECAD_PARAM().GetString("FolhaFormato",
                                                                                        FORMATO_PADRAO)),
@@ -484,54 +545,6 @@ class PainelFolha(P.PainelTarefa):
         self.vistas.toggled.connect(self.arranjo.setEnabled)
         self.arranjo.setEnabled(self.vistas.isChecked())
         self.pecas.mudou.connect(self._pecas_mudaram)
-
-    # ---- lista de peças do painel
-    def _encher_lista(self):
-        import PrumoInserirDesenho as I
-        self.lista.blockSignals(True)
-        self.lista.clear()
-        try:
-            cands = I.candidatos(self.doc)
-        except Exception:
-            cands = []
-        cands.sort(key=lambda o: (not I._visivel(o), o.Label.lower()))
-        marcados = {o.Name for o in self.pecas.valores()}
-        for o in cands:
-            it = QtWidgets.QListWidgetItem("%s  ·  %s%s" % (o.Label, I.tipo_legivel(o),
-                                                            "" if I._visivel(o) else " (oculto)"))
-            try:
-                it.setIcon(o.ViewObject.Icon)
-            except Exception:
-                pass
-            it.setData(QtCore.Qt.UserRole, o.Name)
-            it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable)
-            it.setCheckState(QtCore.Qt.Checked if o.Name in marcados else QtCore.Qt.Unchecked)
-            self.lista.addItem(it)
-        self.lista.blockSignals(False)
-
-    def _filtrar(self, texto):
-        t = (texto or "").strip().lower()
-        for i in range(self.lista.count()):
-            it = self.lista.item(i)
-            it.setHidden(bool(t) and t not in it.text().lower())
-
-    def _item_marcado(self, it):
-        o = self.doc.getObject(it.data(QtCore.Qt.UserRole)) if self.doc else None
-        if o is None:
-            return
-        if it.checkState() == QtCore.Qt.Checked:
-            self.pecas.aceitar(o)
-        else:
-            self.pecas.remover_valor(o)
-
-    def _marcar_da_caixa(self):
-        marcados = {o.Name for o in self.pecas.valores()}
-        self.lista.blockSignals(True)
-        for i in range(self.lista.count()):
-            it = self.lista.item(i)
-            it.setCheckState(QtCore.Qt.Checked if it.data(QtCore.Qt.UserRole) in marcados
-                             else QtCore.Qt.Unchecked)
-        self.lista.blockSignals(False)
 
     def _pecas_mudaram(self):
         objs = self.pecas.valores()

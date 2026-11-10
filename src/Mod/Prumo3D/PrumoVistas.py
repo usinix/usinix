@@ -639,7 +639,7 @@ def _filtro_pecas(obj, subs):
 NOVA = "__nova__"
 
 if P is not None:
-    class PainelPaletaVistas(P.PainelTarefa):
+    class PainelPaletaVistas(PrumoFolhas.ListaDePecas, P.PainelTarefa):
         titulo = "Paleta de vistas"
         ajuda = "Escolha a peça e clique na vista: ela entra na folha na hora."
 
@@ -655,6 +655,7 @@ if P is not None:
                                  dica="Peça, corpo, parte ou montagem.")
             for o in self._objs_iniciais:
                 self.pecas.aceitar(o)
+            self._montar_lista_pecas(s0, unica=True)      # buscar e marcar a peça aqui mesmo
             s1 = f.secao("Folha", "folha")
             self.folha = QtWidgets.QComboBox()
             s1.linha("folha", self.folha, "Onde as vistas entram.", "Folha")

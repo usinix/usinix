@@ -17244,6 +17244,37 @@ class T123AcabamentoEVisual(unittest.TestCase):
             FreeCADGui.Selection.clearSelection()
             FreeCADGui.runCommand("Prumo_CotasGerais")      # o comando do botão, sem erro
 
+    def test_paleta_de_vistas_busca_a_peca(self):
+        """A Paleta de vistas tem a mesma busca da Nova folha: escolhe a peça sem ir à árvore."""
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import Part
+        import PrumoVistas as V
+        a = self.doc.addObject("Part::Feature", "Mancal")
+        a.Shape = Part.makeBox(50, 40, 30)
+        b = self.doc.addObject("Part::Feature", "Eixo")
+        b.Shape = Part.makeCylinder(10, 200)
+        self.doc.recompute()
+        pn = V.PainelPaletaVistas(self.doc, [])
+        try:
+            self.assertTrue(hasattr(pn, "busca") and hasattr(pn, "lista"), "campo de busca e lista de peças")
+            nomes = [pn.lista.item(i).data(QtCore.Qt.UserRole) for i in range(pn.lista.count())]
+            self.assertIn("Mancal", nomes)
+            self.assertIn("Eixo", nomes)
+            pn.busca.setText("eix")
+            vis = [pn.lista.item(i).data(QtCore.Qt.UserRole) for i in range(pn.lista.count())
+                   if not pn.lista.item(i).isHidden()]
+            self.assertEqual(vis, ["Eixo"])
+            it = [pn.lista.item(i) for i in range(pn.lista.count()) if pn.lista.item(i).data(QtCore.Qt.UserRole) == "Eixo"][0]
+            it.setCheckState(QtCore.Qt.Checked)
+            self.assertEqual([o.Name for o in pn.pecas.valores()], ["Eixo"])
+            it2 = [pn.lista.item(i) for i in range(pn.lista.count()) if pn.lista.item(i).data(QtCore.Qt.UserRole) == "Mancal"][0]
+            it2.setCheckState(QtCore.Qt.Checked)
+            self.assertEqual([o.Name for o in pn.pecas.valores()], ["Mancal"], "paleta: uma peça por vez")
+            self.assertEqual(it.checkState(), QtCore.Qt.Unchecked)
+        finally:
+            pn.close()
+
     def test_grade_na_area_de_trabalho(self):
         import PrumoGrade as G
         self.assertEqual(G.passo_para(200), 10.0)
