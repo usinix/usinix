@@ -15,6 +15,21 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.14.0 — 10/11/2026
+
+![Estrutura apoiada no tampo de uma base e batente desenhado na alma da viga](.github/images/novidades/1.14.0.webp)
+
+### Corpos e estruturas juntos
+
+- **Peça na face** (aba Estruturas e botão direito da barra): clique numa face plana de uma barra, chapa ou corpo
+  — a alma da viga, a aba da cantoneira, o tampo da base — e o Usinix cria uma peça nova com essa face como
+  referência ligada e abre o esboço já sobre ela, com a origem no meio da face. Para batente, suporte de escada,
+  chapa de ligação, orelha, calço. Se a barra ou o corpo mudam, a peça acompanha.
+- **Estrutura apoiada no corpo:** com o esqueleto desenhado numa face de um corpo, as barras saem encostadas na
+  face (perfil fixado na base ou no topo), sem entrar no corpo. Mudou o corpo, a estrutura acompanha.
+- **Cortar barras:** aviso quando a ferramenta atravessa a barra inteira e a divide em pedaços.
+- Interferência, lista de materiais e folha de montagem tratam corpos, estruturas e peças juntos.
+
 ## 1.13.0 — 10/11/2026
 
 ![Rasgo feito uma vez e aplicado em três barras do quadro, com o corte na árvore](.github/images/novidades/1.13.0.webp)

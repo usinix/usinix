@@ -982,8 +982,64 @@ def aplicar_cortes_estrutura(barra, sol):
             continue
         r = sol.cut(ferr)
         if r.Solids:
+            if len(r.Solids) > 1:
+                FreeCAD.Console.PrintWarning(
+                    "Usinix: \"%s\" dividiu a barra \"%s\" em %d pedaços; ficou o maior. Para furar ou "
+                    "recortar, use uma ferramenta que não atravesse a barra inteira.\n"
+                    % (c.Label, barra.Label, len(r.Solids)))
             sol = max(r.Solids, key=lambda x: x.Volume) if len(r.Solids) > 1 else r.Solids[0]
     return sol
+
+
+def suporte_do_esqueleto(esqueleto):
+    """Sólido em que o esboço do esqueleto está apoiado (face de um corpo ou peça), ou None."""
+    sup = getattr(esqueleto, "AttachmentSupport", None) or getattr(esqueleto, "Support", None) or []
+    for item in sup:
+        o = item[0] if isinstance(item, (tuple, list)) else item
+        try:
+            if o is not None and o.Shape.Solids:
+                return o
+        except Exception:
+            continue
+    return None
+
+
+def apoiar_no_suporte(est):
+    """Esqueleto desenhado numa face de um corpo e perfil centrado na linha: a barra entraria metade no corpo.
+    Procura o ponto de fixação que deixa as barras encostadas na face, sem entrar no corpo. Devolve o ponto
+    escolhido ou None (nada a fazer)."""
+    sup = suporte_do_esqueleto(est.Esqueleto)
+    if sup is None or est.Fixacao != "Centro":
+        return None
+    import PrumoUtil
+    corpo = PrumoUtil.forma_global(sup)
+
+    def entra():
+        vol = 0.0
+        for b in barras_de(est):
+            try:
+                if b.Shape.BoundBox.intersect(corpo.BoundBox):
+                    vol += b.Shape.common(corpo).Volume
+            except Exception:
+                pass
+        return vol
+    if entra() < 1.0:
+        return None
+    doc = est.Document
+    for fx in ("Inf. centro", "Sup. centro"):
+        est.Fixacao = fx
+        for b in barras_de(est):
+            b.touch()
+        doc.recompute()
+        if entra() < 1.0:
+            FreeCAD.Console.PrintMessage("Usinix: estrutura apoiada na face de \"%s\" (perfil fixado em %s).\n"
+                                         % (sup.Label, fx))
+            return fx
+    est.Fixacao = "Centro"
+    for b in barras_de(est):
+        b.touch()
+    doc.recompute()
+    return None
 
 
 class Barra:
@@ -1153,6 +1209,11 @@ def criar(doc, esqueleto, perfil=PERFIL_PADRAO, rotacao=0.0, alinhamento="Centro
         if i not in fora:
             _nova_barra(doc, est, i)
     doc.recompute()
+    if fixacao == "Centro" and not grupos_extras:
+        try:
+            apoiar_no_suporte(est)
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: apoiar no suporte: %s\n" % exc)
     if FreeCAD.GuiUp and transacao:
         try:
             esqueleto.ViewObject.Visibility = False

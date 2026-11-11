@@ -90,7 +90,9 @@ POCKET_TXT = {
 PROFILE_TYPES = ("PartDesign::Pad", "PartDesign::Pocket", "PartDesign::Revolution", "PartDesign::Groove",
                  "PartDesign::Hole")
 STABLE_SUPPORT = ("App::Plane", "App::Line", "App::Point", "App::Origin", "PartDesign::Plane", "PartDesign::Line",
-                  "PartDesign::Point", "PartDesign::CoordinateSystem", "App::LocalCoordinateSystem")
+                  "PartDesign::Point", "PartDesign::CoordinateSystem", "App::LocalCoordinateSystem",
+                  # referência de uma face só (Peça na face): os nomes Face1/VertexN dela não mudam
+                  "PartDesign::SubShapeBinder", "PartDesign::ShapeBinder")
 
 MSG_FACE = ("Este esboço está preso a uma face criada pelo próprio modelo. Se uma operação anterior mudar, "
             "a face pode ser renumerada e o esboço perde a referência. Prefira anexá-lo a um plano da origem "

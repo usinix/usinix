@@ -17087,6 +17087,95 @@ class T128CortarBarras(unittest.TestCase):
             C.criar(self.doc, cx)
 
 
+class T129CorposEEstruturas(unittest.TestCase):
+    """1.14.0: estrutura apoiada no corpo e peça desenhada na face da barra, tudo ligado."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteMisto")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def _base(self):
+        import Part
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        sk = body.newObject("Sketcher::SketchObject", "SkBase")
+        sk.AttachmentSupport = [(body.Origin.OriginFeatures[3], "")]
+        sk.MapMode = "FlatFace"
+        pts = [(0, 0), (1000, 0), (1000, 600), (0, 600)]
+        for i in range(4):
+            a, b = pts[i], pts[(i + 1) % 4]
+            sk.addGeometry(Part.LineSegment(FreeCAD.Vector(a[0], a[1], 0), FreeCAD.Vector(b[0], b[1], 0)))
+        pad = body.newObject("PartDesign::Pad", "Pad")
+        pad.Profile = sk
+        pad.Length = 400
+        self.doc.recompute()
+        topo = ["Face%d" % (i + 1) for i, f in enumerate(pad.Shape.Faces)
+                if abs(f.normalAt(0, 0).z) > 0.99 and f.BoundBox.ZMin > 399][0]
+        return body, pad, topo
+
+    def _estrutura_no_topo(self, pad, topo):
+        import Part
+        import PrumoEstrutura as E
+        sk = self.doc.addObject("Sketcher::SketchObject", "SkEst")
+        sk.AttachmentSupport = [(pad, topo)]
+        sk.MapMode = "FlatFace"
+        for a, b in (((100, 100), (100, 500)), ((100, 500), (900, 500)), ((900, 500), (900, 100))):
+            sk.addGeometry(Part.LineSegment(FreeCAD.Vector(a[0], a[1], 0), FreeCAD.Vector(b[0], b[1], 0)))
+        self.doc.recompute()
+        return E.criar(self.doc, sk, E.PERFIL_PADRAO, transacao=False)
+
+    def test_estrutura_apoiada_no_corpo(self):
+        import PrumoEstrutura as E
+        import PrumoInterferencia as I
+        body, pad, topo = self._base()
+        est = self._estrutura_no_topo(pad, topo)
+        self.assertEqual(est.Fixacao, "Inf. centro")
+        bs = E.barras_de(est)
+        self.assertAlmostEqual(min(b.Shape.BoundBox.ZMin for b in bs), 400.0, places=3)
+        self.assertEqual(I.verificar([body] + bs), [])
+        pad.Length = 500
+        self.doc.recompute()
+        self.assertAlmostEqual(min(b.Shape.BoundBox.ZMin for b in E.barras_de(est)), 500.0, places=3)
+
+    def test_peca_na_face_da_barra(self):
+        import Part
+        import PrumoEstrutura as E
+        import PrumoPecaNaFace as PF
+        import PrumoBOM
+        import PrumoGuia
+        body, pad, topo = self._base()
+        est = self._estrutura_no_topo(pad, topo)
+        b0 = E.barras_de(est)[1]
+        faces = [(i, f) for i, f in enumerate(b0.Shape.Faces)
+                 if f.Surface.TypeId == "Part::GeomPlane" and abs(f.normalAt(0, 0).z) < 0.1]
+        i, f = max(faces, key=lambda t: t[1].Area)
+        pb, sk = PF.criar(b0, "Face%d" % (i + 1), abrir=False)
+        self.assertEqual(sk.MapMode, "ThreePointsPlane")
+        self.assertLess((sk.Placement.Base - f.CenterOfMass).Length, 1.0)   # origem no meio da face
+        self.assertEqual(PrumoGuia.alerts(sk), [])
+        sk.addGeometry(Part.Circle(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), 40))
+        self.doc.recompute()
+        p = pb.newObject("PartDesign::Pad", "Pad")
+        p.Profile = sk
+        p.Length = 12
+        self.doc.recompute()
+        self.assertTrue(pb.Shape.isValid())
+        z0 = pb.Shape.BoundBox.ZMin
+        pad.Length = 500                                  # base sobe 100: barra e batente sobem junto
+        self.doc.recompute()
+        self.assertAlmostEqual(pb.Shape.BoundBox.ZMin - z0, 100.0, places=2)
+        nomes = [l.denominacao for l in PrumoBOM.coletar([body, est, pb])]
+        self.assertIn("Peça em %s" % b0.Label, nomes)
+        with self.assertRaises(ValueError):
+            curva = [k for k, ff in enumerate(b0.Shape.Faces) if ff.Surface.TypeId != "Part::GeomPlane"]
+            if not curva:
+                raise ValueError("perfil sem face curva")
+            PF.criar(b0, "Face%d" % (curva[0] + 1), abrir=False)
+        if FreeCAD.GuiUp:
+            self.assertIn("Prumo_PecaNaFace", FreeCADGui.listCommands())
+
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -17853,4 +17942,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T122DoModeloParaAFabrica,
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
-           T126DiferencialSework, T127Escada, T128CortarBarras]
+           T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas]
