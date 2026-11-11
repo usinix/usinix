@@ -79,6 +79,9 @@ jobs:
         shell: bash
         env:
           VERSAO: ${{ github.event.inputs.versao }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
           # para logo (em segundos) em vez de falhar no instalador do Windows 25 minutos depois:
           # o NSIS não aceita "1.8,0" (vírgula no lugar do ponto)
@@ -87,6 +90,21 @@ jobs:
             sugestao="${v//,/.}"
             echo "::error title=Número da versão inválido::\"${VERSAO}\" não é um número de versão. Use pontos, como ${sugestao} (ex.: 1.8.0 ou 1.8.0-beta)."
             exit 1
+          fi
+          if [[ -n "$v" ]]; then
+            # 11/11/2026: "1.4.0" digitado no lugar de "1.14.0" compilou 40 minutos e só falhou no fim
+            # ("a release with the same tag name already exists: v1.4.0"). Confere antes de compilar:
+            # a versão não pode existir e tem de ser a do código (VERSAO em PrumoVersao.py)
+            if gh api "repos/${REPO}/git/ref/tags/v${v}" >/dev/null 2>&1; then
+              echo "::error title=Versão já publicada::A versão v${v} já existe na página de versões. Confira o número (a versão do código é a que está em PrumoVersao.py)."
+              exit 1
+            fi
+            codigo=$(gh api "repos/${REPO}/contents/src/Mod/Prumo3D/PrumoVersao.py?ref=${SHA}" --jq .content 2>/dev/null \
+                     | base64 -d 2>/dev/null | sed -n 's/^VERSAO = "\([^"]*\)".*/\1/p' | head -1)
+            if [[ -n "$codigo" && "$codigo" != "${v%%-*}" ]]; then
+              echo "::error title=Versão diferente da do código::Você digitou ${v}, mas o código no main está na ${codigo}. Publique como ${codigo}."
+              exit 1
+            fi
           fi
           echo "Versão: ${v:-(só compilar)}"
 
