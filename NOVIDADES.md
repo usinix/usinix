@@ -30,6 +30,13 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 - **Cortar barras:** aviso quando a ferramenta atravessa a barra inteira e a divide em pedaços.
 - Interferência, lista de materiais e folha de montagem tratam corpos, estruturas e peças juntos.
 
+### Dados das pranchas nas Preferências
+
+- **Preferências › Dados das pranchas:** empresa, projetista, desenhista, verificado, aprovado, responsável
+  técnico e CREA/CFT. O que estiver ali vai preenchido na legenda de toda prancha nova; em cada prancha ainda dá
+  para mudar, e a mudança fica só naquela prancha. Os dados ficam só neste computador (não vão junto com o
+  programa) e o botão "Limpar os dados" apaga tudo.
+
 ### Esboço novo e grade
 
 - **Planos no meio da tela:** no Novo esboço, os planos de origem vão para o centro da vista em qualquer modelo

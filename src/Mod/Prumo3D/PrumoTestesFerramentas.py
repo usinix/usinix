@@ -17252,6 +17252,76 @@ class T130CameraDoEsboco(unittest.TestCase):
                     pass
                 fechar(doc)
 
+
+class T131DadosDasPranchas(unittest.TestCase):
+    """1.14.0: "Coloque dentro de preferências os campos para cadastro (empresa, projetista, desenhista,
+    verificado, aprovado, responsável técnico, CREA) e em toda prancha eles já vão pré-preenchidos, ainda poderão
+    ser alterados como hoje, mas vai o que estiver em preferências"."""
+
+    CHAVES = ("empresa", "projetista", "desenhista", "verificado", "aprovado", "resp_tecnico", "crea", "tolerancias")
+
+    def setUp(self):
+        self.g = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Prumo3D")
+        self.antes = {k: self.g.GetString("Folha_" + k, "") for k in self.CHAVES}
+        self.doc = novo_doc("PrumoTesteCadastro")
+
+    def tearDown(self):
+        fechar(self.doc)
+        for k, v in self.antes.items():
+            if v:
+                self.g.SetString("Folha_" + k, v)
+            else:
+                self.g.RemString("Folha_" + k)
+        if FreeCAD.GuiUp:
+            import PrumoPreferencias as P
+            j = P._estado["janela"]
+            if j is not None:
+                try:
+                    j.close()
+                except RuntimeError:
+                    pass
+
+    def test_cadastro_nas_preferencias_vai_em_toda_prancha(self):
+        import PrumoFolhas
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("TechDraw indisponível")
+        dados = {"empresa": "Metalúrgica Teste", "projetista": "Ana", "desenhista": "Bruno",
+                 "verificado": "Carla", "aprovado": "Diego", "resp_tecnico": "Eng. Fulano", "crea": "MG-000000/D"}
+        self.assertEqual([k for k, _r in PrumoFolhas.CADASTRO], list(dados))
+        if FreeCAD.GuiUp:
+            import PrumoPreferencias as P
+            j = P.abrir()
+            for k, v in dados.items():
+                j.campos["folha_" + k].setText(v)          # grava na hora
+            j.close()
+        else:
+            PrumoFolhas.gravar_cadastro(dados)
+        self.assertEqual(PrumoFolhas.cadastro(), dados)
+        self.doc.Company = "Outra do documento"             # Preferências mandam
+        page = PrumoFolhas.nova_folha(self.doc, "A4")
+        et = page.Template.EditableTexts
+        for k, v in dados.items():
+            self.assertEqual(et[k], v, k)
+        # na prancha dá para mudar, e a mudança fica só nela
+        page2 = PrumoFolhas.nova_folha(self.doc, "A4", campos={"projetista": "Outro"})
+        self.assertEqual(page2.Template.EditableTexts["projetista"], "Outro")
+        PrumoFolhas.lembrar_campos({"projetista": "Outro", "empresa": "X", "tolerancias": "ISO 2768-m"})
+        self.assertEqual(PrumoFolhas.cadastro(), dados, "editar a prancha não muda o cadastro")
+        self.assertEqual(PrumoFolhas.campos_padrao(self.doc)["tolerancias"], "ISO 2768-m")
+        # apagar nas Preferências esquece de verdade
+        if FreeCAD.GuiUp:
+            import PrumoPreferencias as P
+            j = P.abrir()
+            j.campos["folha_limpar"].click()
+            j.close()
+        else:
+            PrumoFolhas.gravar_cadastro({k: "" for k in dados})
+        self.assertEqual(set(PrumoFolhas.cadastro().values()), {""})
+        self.assertEqual(self.g.GetString("Folha_crea", ""), "")
+        self.assertEqual(PrumoFolhas.campos_padrao(self.doc).get("crea", ""), "")
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -18031,4 +18101,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T122DoModeloParaAFabrica,
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
-           T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco]
+           T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
+           T131DadosDasPranchas]

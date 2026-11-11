@@ -128,6 +128,7 @@ ICONES = {
     "exibicao_pontos": '<circle cx="5" cy="7" r="1"/><circle cx="19" cy="7" r="1"/><circle cx="12" cy="3" r="1"/>'
                        '<circle cx="12" cy="21" r="1"/><circle cx="5" cy="17" r="1"/><circle cx="19" cy="17" r="1"/>',
     "texto": '<path d="M5 6h14M12 6v13M9 19h6"/>',
+    "folha": '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M12 19v-5h9M15 14v5"/>',
     "numero": '<path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16"/>',
     "vinculo": '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/>'
                '<path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',

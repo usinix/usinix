@@ -82,6 +82,7 @@ class JanelaPreferencias(QtWidgets.QDialog):
         col.setSpacing(10)
         self._tema()
         self._mouse()
+        self._cadastro()
         self._grupo("Aparência", "aparencia", APARENCIA)
         self._grupo("Painel lateral", "arvore", PAINEL)
         self._modo_limpo(self._grupo("Esboço", "esboco", ESBOCO))
@@ -111,6 +112,35 @@ class JanelaPreferencias(QtWidgets.QDialog):
             sw.toggled.connect(lambda on, k=chave: (_p().SetBool(k, bool(on)), self._aplicar(k)))
             c.linha(rotulo + (" (vale ao reabrir)" if reabrir else ""), sw)
             self.campos[chave] = sw
+        self.col.addWidget(c)
+        return c
+
+    def _cadastro(self):
+        """Dados das pranchas: vão preenchidos em toda prancha nova (e continuam editáveis em cada uma)."""
+        import PrumoFolhas
+        c = UI.Cartao("Dados das pranchas", "folha")
+        nota = QtWidgets.QLabel("Vão preenchidos na legenda de toda prancha nova; em cada prancha ainda dá para "
+                                "mudar. Ficam só neste computador.")
+        nota.setWordWrap(True)
+        nota.setObjectName("PrumoDica")
+        c.widget(nota)
+        atual = PrumoFolhas.cadastro()
+        self.cadastro = {}
+        for chave, rotulo in PrumoFolhas.CADASTRO:
+            ed = QtWidgets.QLineEdit(atual.get(chave, ""))
+            ed.setObjectName("PrumoCampo")
+            ed.setClearButtonEnabled(True)
+            ed.setMinimumWidth(280)
+            ed.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+            ed.textChanged.connect(lambda txt, k=chave: PrumoFolhas.gravar_cadastro({k: txt}))
+            c.linha(rotulo, ed)
+            self.cadastro[chave] = ed
+            self.campos["folha_" + chave] = ed
+        limpar = QtWidgets.QPushButton("Limpar os dados")
+        limpar.setAutoDefault(False)
+        limpar.clicked.connect(lambda: [ed.clear() for ed in self.cadastro.values()])
+        c.widget(limpar)
+        self.campos["folha_limpar"] = limpar
         self.col.addWidget(c)
         return c
 
@@ -270,7 +300,8 @@ def abrir():
 class CmdPreferencias:
     def GetResources(self):
         return {"Pixmap": "preferences-general", "MenuText": "Preferências",
-                "ToolTip": "As opções do Usinix em cartões (tema, painel lateral, esboço, unidades, atualizações)"}
+                "ToolTip": "As opções do Usinix em cartões (tema, dados das pranchas, painel lateral, esboço, unidades, "
+                           "atualizações)"}
 
     def IsActive(self):
         return True

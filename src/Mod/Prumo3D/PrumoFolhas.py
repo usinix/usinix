@@ -100,16 +100,43 @@ def aplicar_preferencias(forcar=False):
     return False
 
 
+# cadastro (Preferências › Dados das pranchas): vai preenchido em toda prancha nova; na prancha ainda dá para mudar
+CADASTRO = [("empresa", "Empresa"), ("projetista", "Projetista"), ("desenhista", "Desenhista"),
+            ("verificado", "Verificado"), ("aprovado", "Aprovado"), ("resp_tecnico", "Responsável técnico"),
+            ("crea", "CREA / CFT")]
+
+
+def cadastro():
+    """Dados das pranchas guardados nas Preferências (só neste computador; nada vai junto com o programa)."""
+    g = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH)
+    return {k: g.GetString("Folha_" + k, "") for k, _r in CADASTRO}
+
+
+def gravar_cadastro(valores):
+    """Grava o cadastro; campo vazio apaga o valor guardado."""
+    g = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH)
+    for k, _r in CADASTRO:
+        if k not in valores:
+            continue
+        v = (valores[k] or "").strip()
+        if v:
+            g.SetString("Folha_" + k, v)
+        else:
+            g.RemString("Folha_" + k)
+
+
 def campos_padrao(doc, objs=None):
-    """Valores iniciais da legenda a partir do documento e das peças selecionadas."""
+    """Valores iniciais da legenda: o cadastro das Preferências (empresa, projetista, desenhista, verificado,
+    aprovado, responsável técnico, CREA) e o que vem do documento e das peças selecionadas."""
     v = {"data": time.strftime("%d/%m/%Y"), "unidade": "mm", "revisao": "0",
          "titulo": doc.Label if doc else "", "empresa": getattr(doc, "Company", "") or "",
          "desenhista": getattr(doc, "CreatedBy", "") or "", "folha": "1 / 1"}
-    g = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH)
-    for chave in ("empresa", "resp_tecnico", "crea", "tolerancias"):
-        salvo = g.GetString("Folha_" + chave, "")
-        if salvo and not v.get(chave):
-            v[chave] = salvo
+    for chave, valor in cadastro().items():
+        if valor:                       # o que estiver nas Preferências manda
+            v[chave] = valor
+    tol = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH).GetString("Folha_tolerancias", "")
+    if tol:
+        v["tolerancias"] = tol
     if objs and len(objs) == 1:
         # uma peça: a legenda vem das propriedades dela (código, denominação, revisão, material, massa)
         try:
@@ -133,11 +160,10 @@ def campos_padrao(doc, objs=None):
 
 
 def lembrar_campos(campos):
-    """Guarda empresa, responsável técnico, CREA e tolerâncias para as próximas folhas."""
-    g = FreeCAD.ParamGet(PrumoUtil.PARAM_PATH)
-    for chave in ("empresa", "resp_tecnico", "crea", "tolerancias"):
-        if campos.get(chave):
-            g.SetString("Folha_" + chave, campos[chave])
+    """Guarda as tolerâncias gerais para as próximas folhas. O cadastro (empresa, CREA…) não muda por aqui: o que
+    se altera numa prancha fica só nela; o padrão de todas é o das Preferências."""
+    if campos.get("tolerancias"):
+        FreeCAD.ParamGet(PrumoUtil.PARAM_PATH).SetString("Folha_tolerancias", campos["tolerancias"])
 
 
 def nova_folha(doc, formato=FORMATO_PADRAO, norma=NORMA_PADRAO, retrato=None, campos=None,
