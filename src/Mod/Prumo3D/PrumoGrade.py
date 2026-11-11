@@ -6,7 +6,8 @@ Quadriculado no plano XY (o "chão", z = 0), com linhas finas a cada passo e lin
 e os eixos X (vermelho) e Y (verde). O passo segue a série 1-2-5 conforme o tamanho do modelo (uma peça de
 200 mm ganha grade de 10 mm; um galpão de 30 m, de 2 m), e a grade se refaz quando o documento recalcula.
 A grade não é selecionável, não aparece em capturas de seleção e não entra no arquivo: é só da tela.
-O botão "Grade" fica na barra inferior; a escolha fica gravada (Preferências › Usinix).
+O botão "Grade" fica na barra de vistas embaixo da vista 3D, ao lado de Aparência (1.14.0; antes ficava na
+barra de status); a escolha fica gravada (Preferências › Usinix).
 """
 
 import math
@@ -197,19 +198,34 @@ def _fmt(p):
     return ("%g mm" % p).replace(".", ",")
 
 
-def _atualizar_botao():
-    b = _estado["botao"]
-    if b is None:
-        return
+def ajustar_botao(b):
+    """Botão (marcado = ligada) e dica com o tamanho do quadrado."""
     on = ligada()
-    b.blockSignals(True)
-    b.setChecked(on)
-    b.blockSignals(False)
     p = passo_atual()
-    b.setText("Grade %s" % _fmt(p) if on and p else "Grade")
+    if b.isChecked() != on:
+        b.blockSignals(True)
+        b.setChecked(on)
+        b.blockSignals(False)
     b.setToolTip("Grade (tela quadriculada) no plano XY: %s.\nClique para %s." % (
         "ligada, quadrado de %s" % _fmt(p) if on and p else ("ligada" if on else "desligada"),
         "desligar" if on else "ligar"))
+
+
+def botoes():
+    """Botões Grade das barras de vistas abertas."""
+    if FreeCADGui is None:
+        return []
+    import shiboken6
+    res = []
+    for b in FreeCADGui.getMainWindow().findChildren(QtWidgets.QToolButton, "PrumoBotaoGrade"):
+        if shiboken6.isValid(b):
+            res.append(b)
+    return res
+
+
+def _atualizar_botao():
+    for b in botoes():
+        ajustar_botao(b)
 
 
 class _Observador:
@@ -228,30 +244,35 @@ def _icone():
     return QtGui.QIcon(PrumoUtil.icone("grade.svg")) if os.path.exists(PrumoUtil.icone("grade.svg")) else QtGui.QIcon()
 
 
+class CmdGrade:
+    def GetResources(self):
+        import PrumoUtil
+        return {"Pixmap": PrumoUtil.icone("grade.svg"), "MenuText": "Grade (tela quadriculada)",
+                "ToolTip": "Liga e desliga a grade no plano XY (botão na barra de vistas, ao lado de Aparência)."}
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        alternar()
+
+
 def install():
-    """Botão Grade na barra inferior e grade nas vistas (as abertas e as que abrirem)."""
-    if FreeCADGui is None or _estado["botao"] is not None:
-        return _estado["botao"]
+    """Comando Grade, observador e grade nas vistas (as abertas e as que abrirem). O botão fica na barra de
+    vistas (PrumoBarraVista)."""
+    if FreeCADGui is None or _estado["obs"] is not None:
+        return None
+    if "Prumo_Grade" not in FreeCADGui.listCommands():
+        FreeCADGui.addCommand("Prumo_Grade", CmdGrade())
     mw = FreeCADGui.getMainWindow()
-    b = QtWidgets.QToolButton(mw.statusBar())
-    b.setObjectName("PrumoBotaoGrade")
-    b.setCheckable(True)
-    b.setAutoRaise(True)
-    b.setIcon(_icone())
-    b.setIconSize(QtCore.QSize(16, 16))
-    b.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
-    b.toggled.connect(lambda on: alternar(on))
-    mw.statusBar().insertPermanentWidget(0, b)
-    _estado["botao"] = b
-    _atualizar_botao()
     obs = _Observador()
     FreeCAD.addDocumentObserver(obs)
     _estado["obs"] = obs
     mdi = mw.findChild(QtWidgets.QMdiArea)
     if mdi is not None:
-        mdi.subWindowActivated.connect(lambda *_a: ligada() and QtCore.QTimer.singleShot(0, _garantir))
+        mdi.subWindowActivated.connect(lambda *_a: QtCore.QTimer.singleShot(0, _garantir))
     QtCore.QTimer.singleShot(500, _garantir)
-    return b
+    return obs
 
 
 def _garantir():

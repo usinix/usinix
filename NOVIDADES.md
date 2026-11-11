@@ -30,6 +30,16 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 - **Cortar barras:** aviso quando a ferramenta atravessa a barra inteira e a divide em pedaços.
 - Interferência, lista de materiais e folha de montagem tratam corpos, estruturas e peças juntos.
 
+### Esboço novo e grade
+
+- **Planos no meio da tela:** no Novo esboço, os planos de origem vão para o centro da vista em qualquer modelo
+  (antes só no modelo vazio, e às vezes ficavam fora do meio). Numa vista de topo, frente ou lado, a vista vai
+  para a isométrica, onde os três planos aparecem.
+- **Sem tranco ao escolher o plano:** o giro até o plano e o deslize até a origem do esboço agora são um
+  movimento só, mais curto (cerca de 0,4 s), sem a parada no meio.
+- **Botão Grade na barra de vistas**, embaixo da vista 3D, ao lado de Aparência: liga e desliga a tela
+  quadriculada. Fica destacado quando a grade está ligada, e a dica mostra o tamanho do quadrado.
+
 ## 1.13.0 — 10/11/2026
 
 ![Rasgo feito uma vez e aplicado em três barras do quadro, com o corte na árvore](.github/images/novidades/1.13.0.webp)

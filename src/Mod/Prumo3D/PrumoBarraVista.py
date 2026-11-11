@@ -30,6 +30,7 @@ ITENS = [
     "|",
     ("Std_DrawStyle", "Estilo de exibição"),
     ("Prumo_Aparencia", "Aparência (cor e transparência)"),
+    ("Prumo_Grade", "Grade (tela quadriculada)"),
     ("Std_ToggleClipPlane", "Plano de corte"),
     ("Prumo_Isolar", "Isolar / restaurar peça"),
 ]
@@ -124,6 +125,9 @@ class BarraVista(QtWidgets.QFrame):
                 self.botoes["menu:" + rotulo] = b
                 continue
             nome, dica = it
+            if nome == "Prumo_Grade":
+                hl.addWidget(self._botao_grade())
+                continue
             a = _acao(nome)
             b = self._botao(nome, dica)
             if a is not None and a.menu() is not None:
@@ -149,6 +153,18 @@ class BarraVista(QtWidgets.QFrame):
         b.setToolTip(dica)
         b.setAutoRaise(True)
         b.setFocusPolicy(QtCore.Qt.NoFocus)
+        return b
+
+    def _botao_grade(self):
+        """Liga e desliga a grade (tela quadriculada); fica marcado enquanto a grade está ligada."""
+        import PrumoGrade
+        b = self._botao("Prumo_Grade", "Grade")
+        b.setIcon(PrumoGrade._icone())
+        b.setCheckable(True)
+        b.setObjectName("PrumoBotaoGrade")
+        b.toggled.connect(lambda on: PrumoGrade.ligada() != on and PrumoGrade.alternar(on))
+        self.botoes["Prumo_Grade"] = b
+        PrumoGrade.ajustar_botao(b)
         return b
 
     def _ativar_minha_vista(self):
@@ -193,7 +209,11 @@ class BarraVista(QtWidgets.QFrame):
         AV.executar(nome, lambda: FreeCADGui.runCommand(nome, 0))
 
     def atualizar(self):
-        """Mantido para quem chama: a barra não tem mais botão que guarde estado (as sombras saíram na 1.11)."""
+        """Botão da grade acompanha o estado (ligada/desligada, tamanho do quadrado)."""
+        b = self.botoes.get("Prumo_Grade")
+        if b is not None:
+            import PrumoGrade
+            PrumoGrade.ajustar_botao(b)
 
     def reposicionar(self):
         p = self.parentWidget()

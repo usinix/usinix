@@ -4,7 +4,10 @@
 - Janela "Escolher orientação" (Novo esboço da aba Esboço): o cubo pequeno dá lugar a um desenho dos três
   planos (XY, XZ, YZ) com os eixos e a origem; o plano escolhido fica em destaque.
 - Painel de escolha do plano (Esboço da aba Peça): além dos planos, a vista 3D mostra os eixos X, Y e Z da
-  origem do corpo. Com o corpo vazio, a vista vai para a isométrica, onde os três planos aparecem.
+  origem do corpo, e os planos vão para o meio da tela (1.14.0: em qualquer modelo, não só no vazio). Com o
+  corpo vazio, ou numa vista de topo/frente/lado, a vista vai para a isométrica, onde os três planos aparecem.
+- Escolhido o plano, o esboço novo abre com a origem no meio da tela: o giro até o plano e o deslize até a
+  origem são um movimento só, sem parada no meio.
   Ao fechar o painel o FreeCAD devolve a visibilidade de antes (planos e eixos voltam a ficar ocultos).
 """
 import FreeCAD
@@ -196,7 +199,6 @@ def mostrar_eixos():
                 ligados.append((doc.Name, f.Name))
     if ligados:
         _ESTADO.setdefault("eixos", []).extend(ligados)
-        _vista_que_mostra_os_planos(doc)
         _vigiar_fechamento()
     return len(ligados)
 
@@ -235,27 +237,125 @@ def restaurar_eixos():
             pass
 
 
-def _vista_que_mostra_os_planos(doc):
-    """Corpo vazio numa vista de topo/frente/lado: os planos XZ e YZ ficariam de perfil. Vai para a isométrica."""
-    try:
-        for o in doc.Objects:
-            vo = getattr(o, "ViewObject", None)
+ISOMETRICA = (0.424708, 0.17592, 0.339851, 0.820473)     # mesma rotação da vista isométrica do FreeCAD
+
+
+def _modelo_vazio(doc):
+    for o in doc.Objects:
+        vo = getattr(o, "ViewObject", None)
+        try:
             if (vo is not None and vo.Visibility and hasattr(o, "Shape") and o.TypeId != "PartDesign::Body"
                     and not o.Shape.isNull() and o.Shape.Volume > 1e-9):
-                return
-        v = FreeCADGui.ActiveDocument.ActiveView
-        v.viewIsometric()
-        v.fitAll()
-        QtCore.QTimer.singleShot(400, lambda: _enquadrar())
-    except Exception:
-        pass
+                return False
+        except Exception:
+            continue
+    return True
 
 
-def _enquadrar():
+def _tamanho(view):
     try:
-        FreeCADGui.ActiveDocument.ActiveView.fitAll()
+        w, h = view.getSize()
+        return max(1, int(w)), max(1, int(h))
     except Exception:
-        pass
+        return 800, 600
+
+
+def caixa_dos_planos(doc, view):
+    """Caixa (SbBox3f, coordenadas globais) dos planos e eixos de origem à vista no painel de escolha."""
+    from pivy import coin
+    viewer = view.getViewer()
+    raiz = viewer.getSceneGraph()
+    w, h = _tamanho(view)
+    vp = coin.SbViewportRegion(w, h)
+    caixa = coin.SbBox3f()
+    for _o, filhos in _origens_em_escolha(doc):
+        for f in filhos:
+            try:
+                if not f.ViewObject.Visibility:
+                    continue
+                sa = coin.SoSearchAction()
+                sa.setNode(f.ViewObject.RootNode)
+                sa.apply(raiz)
+                caminho = sa.getPath()
+                if caminho is None:
+                    continue
+                bba = coin.SoGetBoundingBoxAction(vp)
+                bba.apply(caminho)
+                b = bba.getBoundingBox()
+                if not b.isEmpty():
+                    caixa.extendBy(b)
+            except Exception:
+                continue
+    return caixa
+
+
+def alvo_dos_planos(doc, view):
+    """(giro, centro, altura) para os planos de origem ficarem no meio da tela. Gira para a isométrica com o
+    modelo vazio ou quando a vista está de topo/frente/lado (os planos ficariam de perfil).
+
+    Os planos de origem do FreeCAD têm tamanho fixo na tela (crescem e encolhem com o zoom), então o zoom fica
+    como está (altura None) e só o centro muda: o meio da caixa dos planos vai para o meio da tela."""
+    from pivy import coin
+    caixa = caixa_dos_planos(doc, view)
+    if caixa.isEmpty():
+        return None
+    cam = view.getCameraNode()
+    ori = cam.orientation.getValue()
+    d = ori.multVec(coin.SbVec3f(0, 0, -1))
+    de_perfil = max(abs(d[0]), abs(d[1]), abs(d[2])) > 0.98
+    vazio = _modelo_vazio(doc)
+    if vazio or de_perfil:
+        ori = coin.SbRotation(*ISOMETRICA)
+    c = caixa.getCenter()
+    centro = FreeCAD.Vector(c[0], c[1], c[2])
+    altura = None
+    if vazio and _ortografica(cam):
+        # modelo vazio: zoom de uma peça pequena (200 mm na altura da tela), como no esboço novo; os planos
+        # mantêm o tamanho na tela, então o centro deles anda junto com o zoom
+        # o centro é refeito a cada quadro do movimento (enquadrar_planos)
+        altura = 200.0
+    return ori, centro, altura
+
+
+def enquadrar_planos(tentativas=15, _anterior=None):
+    """Painel de escolha do plano aberto: leva os planos para o meio da tela, num movimento suave.
+
+    Espera os planos assentarem: o FreeCAD mostra os planos e logo depois ajusta o tamanho deles ao modelo
+    (1.14.0: a vista ia para o tamanho antigo e os planos ficavam pequenos e fora do meio)."""
+    try:
+        if not FreeCADGui.Control.activeDialog():
+            return False
+        doc = FreeCAD.ActiveDocument
+        view = FreeCADGui.ActiveDocument.ActiveView
+        caixa = caixa_dos_planos(doc, view)
+        chave = None if caixa.isEmpty() else tuple(round(x, 3) for x in caixa.getMin().getValue() +
+                                                    caixa.getMax().getValue())
+    except Exception:
+        return False
+    if (chave is None or chave != _anterior) and tentativas > 0:
+        QtCore.QTimer.singleShot(50, lambda: enquadrar_planos(tentativas - 1, chave))
+        return False
+    alvo = alvo_dos_planos(doc, view)
+    if alvo is None:
+        return False
+    ori, centro, altura = alvo
+    _ESTADO["alvo_planos"] = (ori, centro, altura)
+
+    def centro_agora():
+        cx = caixa_dos_planos(doc, view)
+        if cx.isEmpty():
+            return None
+        c = cx.getCenter()
+        return FreeCAD.Vector(c[0], c[1], c[2])
+
+    animar_camera(view, ori=ori, centro=centro, altura=altura, duracao_ms=380,
+                  centro_fn=centro_agora)
+    return True
+
+
+def _vista_que_mostra_os_planos(doc):
+    """Mantido para quem chama: agora enquadrar_planos faz isso para qualquer modelo."""
+    return enquadrar_planos()
 
 
 def _nomear_se_vivo(painel):
@@ -278,6 +378,8 @@ class _Filtro(QtCore.QObject):
                 elif nome == "PartDesignGui::TaskFeaturePick":
                     for atraso in (0, 300):
                         QtCore.QTimer.singleShot(atraso, mostrar_eixos)
+                    # depois que os eixos aparecem (entram na caixa), os planos vão para o meio da tela
+                    QtCore.QTimer.singleShot(30, enquadrar_planos)
                     QtCore.QTimer.singleShot(0, lambda p=obj: _nomear_se_vivo(p))
         except Exception:
             pass
@@ -317,84 +419,131 @@ def _suave(t):
     return t * t * (3.0 - 2.0 * t)
 
 
-def centralizar_suave(doc_nome, nome, duracao_ms=260):
-    """Espera o FreeCAD terminar de girar a vista para o esboço e desliza até a origem dele.
+# ------------------------------------------------------------------ câmera num movimento só
+def _rot_coin(rot):
+    from pivy import coin
+    q = rot.Q
+    return coin.SbRotation(q[0], q[1], q[2], q[3])
 
-    1.4.2: antes esperava 900 ms fixos e pulava para o centro — a vista parava e dava um tranco. Agora
-    percebe o fim do giro pela câmera parada (a cada 20 ms) e emenda um deslize curto."""
+
+def _ortografica(cam):
+    from pivy import coin
+    return cam.isOfType(coin.SoOrthographicCamera.getClassTypeId())
+
+
+def parar_animacao():
+    tm = _ESTADO.get("deslize")
+    if tm is not None:
+        try:
+            tm.stop()
+            tm.deleteLater()
+        except Exception:
+            pass
+    _ESTADO["deslize"] = None
+
+
+def animar_camera(view, ori=None, centro=None, altura=None, duracao_ms=420, centro_fn=None):
+    """Leva a câmera da posição atual até `ori` (giro), `centro` (ponto no meio da tela) e `altura` (zoom da
+    câmera ortográfica) num movimento só, que começa e termina devagar. O giro e o deslize andam juntos: não há
+    parada no meio (1.14.0: antes o FreeCAD girava, a vista parava e só depois deslizava até o centro).
+
+    `centro_fn` (opcional) dá o centro a cada quadro, para alvos que mudam com o zoom (os planos de origem têm
+    tamanho fixo na tela); no fim, segue alguns quadros até o alvo parar."""
     import time
-    est = {"ori": None, "parada": 0, "ini": time.time(), "fase": "esperar", "t0": 0.0, "de": None,
-           "para": None, "h0": None, "h1": None}
+    from pivy import coin
+    parar_animacao()
+    try:
+        view.stopAnimating()           # giro do próprio FreeCAD: este movimento o substitui
+    except Exception:
+        pass
+    cam = view.getCameraNode()
+    o0 = cam.orientation.getValue()
+    o1 = ori if ori is not None else o0
+    dist = cam.focalDistance.getValue()
+    d0 = o0.multVec(coin.SbVec3f(0, 0, -1))
+    c0 = cam.position.getValue() + d0 * dist
+    c1 = coin.SbVec3f(centro.x, centro.y, centro.z) if centro is not None else c0
+    orto = _ortografica(cam)
+    h0 = cam.height.getValue() if orto else None
+    h1 = altura if (orto and altura is not None) else h0
+    est = {"t0": None, "c1": c1, "extra": 0}   # o relógio começa no 1º quadro (o FreeCAD pode estar ocupado)
     tm = QtCore.QTimer(QtWidgets.QApplication.instance())
-    tm.setInterval(16)
+    tm.setInterval(15)
     _ESTADO["deslize"] = tm
 
-    def parar():
-        tm.stop()
-        tm.deleteLater()
-        if _ESTADO.get("deslize") is tm:
-            _ESTADO["deslize"] = None
+    def pose(k):
+        o = coin.SbRotation.slerp(o0, o1, k)
+        c = c0 + (est["c1"] - c0) * k
+        d = o.multVec(coin.SbVec3f(0, 0, -1))
+        cam.orientation.setValue(o)
+        cam.position.setValue(c - d * dist)
+        if h0 is not None:
+            cam.height.setValue(h0 + (h1 - h0) * k)
 
     def passo():
         try:
-            o = FreeCAD.getDocument(doc_nome).getObject(nome)
-            gd = FreeCADGui.ActiveDocument
-            vp = gd.getInEdit() if gd is not None else None
-            if o is None or vp is None or vp.Object is not o:
-                return parar()
-            cam = gd.ActiveView.getCameraNode()
-            if est["fase"] == "esperar":
-                q = cam.orientation.getValue().getValue()
-                ori = tuple(round(x, 5) for x in q)
-                est["parada"] = est["parada"] + 1 if ori == est["ori"] else 0
-                est["ori"] = ori
-                if est["parada"] < 3 and time.time() - est["ini"] < 2.0:
-                    return
-                para, h1 = alvo_da_camera(o)
-                est.update(fase="deslizar", t0=time.time(), de=cam.position.getValue(), para=para,
-                           h0=cam.height.getValue() if h1 is not None else None, h1=h1)
+            if est["t0"] is None:
+                est["t0"] = time.time()
             t = min(1.0, (time.time() - est["t0"]) * 1000.0 / max(1, duracao_ms))
-            k = _suave(t)
-            de, para = est["de"], est["para"]
-            cam.position.setValue(de + (para - de) * k)
-            if est["h1"] is not None:
-                cam.height.setValue(est["h0"] + (est["h1"] - est["h0"]) * k)
+            antes = est["c1"]
+            if centro_fn is not None:
+                novo = centro_fn()
+                if novo is not None:
+                    est["c1"] = coin.SbVec3f(novo.x, novo.y, novo.z)
+            pose(_suave(t))
             if t >= 1.0:
-                parar()
+                est["extra"] += 1
+                if centro_fn is None or est["extra"] > 8 or (est["c1"] - antes).length() < 1e-4 * max(1.0, dist):
+                    parar_animacao()
         except Exception:
-            parar()
+            parar_animacao()
 
     tm.timeout.connect(passo)
     tm.start()
     return tm
 
 
+def centralizar_suave(doc_nome, nome, duracao_ms=420):
+    """Esboço novo: gira para o plano do esboço e desliza até a origem dele, tudo junto."""
+    o = FreeCAD.getDocument(doc_nome).getObject(nome)
+    gd = FreeCADGui.getDocument(doc_nome)
+    _p, altura = alvo_da_camera(o)
+    return animar_camera(gd.ActiveView, ori=_rot_coin(o.getGlobalPlacement().Rotation),
+                         centro=o.getGlobalPlacement().Base, altura=altura, duracao_ms=duracao_ms)
+
+
+def _centralizar_ligado():
+    return FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Prumo3D").GetBool("CentralizarEsbocoNovo", True)
+
+
+class _ObsEdicao:
+    """Avisado pelo FreeCAD no mesmo instante em que o esboço entra em edição (o giro do FreeCAD acabou de
+    começar): troca esse giro pelo movimento único até a origem do esboço."""
+
+    def slotInEdit(self, vp):
+        try:
+            obj = vp.Object
+            _ESTADO["editando"] = (obj.Document.Name, obj.Name)
+            if obj.TypeId == "Sketcher::SketchObject" and obj.GeometryCount == 0 and _centralizar_ligado():
+                centralizar_suave(obj.Document.Name, obj.Name)
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: centralizar esboço: %s\n" % exc)
+
+    def slotResetEdit(self, vp):
+        _ESTADO["editando"] = None
+
+
 def _vigiar_esbocos():
-    """Esboço novo (vazio) entrou em edição: depois que o FreeCAD gira a vista para ele, centraliza na origem
-    do esboço (antes abria fora do centro da tela)."""
-    try:
-        gd = FreeCADGui.ActiveDocument
-        vp = gd.getInEdit() if gd is not None else None
-        obj = vp.Object if vp is not None else None
-    except Exception:
-        obj = None
-    chave = (obj.Document.Name, obj.Name) if obj is not None else None
-    if chave == _ESTADO.get("editando"):
-        return
-    _ESTADO["editando"] = chave
-    if obj is not None and obj.TypeId == "Sketcher::SketchObject" and obj.GeometryCount == 0 and \
-            FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Prumo3D").GetBool("CentralizarEsbocoNovo", True):
-        centralizar_suave(obj.Document.Name, obj.Name)   # depois do giro da vista para o esboço
+    """Mantido para quem chama; o centro do esboço novo agora vem do aviso de edição (_ObsEdicao)."""
+    return None
 
 
 def instalar():
     if _ESTADO["filtro"] is not None:
         return
-    t = QtCore.QTimer(QtWidgets.QApplication.instance())
-    t.setInterval(100)       # percebe logo que um esboço entrou em edição (o deslize emenda no giro)
-    t.timeout.connect(_vigiar_esbocos)
-    t.start()
-    _ESTADO["vigia_esboco"] = t
+    obs = _ObsEdicao()
+    FreeCADGui.addDocumentObserver(obs)
+    _ESTADO["vigia_esboco"] = obs
     f = _Filtro(QtWidgets.QApplication.instance())
     QtWidgets.QApplication.instance().installEventFilter(f)
     _ESTADO["filtro"] = f

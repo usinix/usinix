@@ -17176,6 +17176,82 @@ class T129CorposEEstruturas(unittest.TestCase):
             self.assertIn("Prumo_PecaNaFace", FreeCADGui.listCommands())
 
 
+
+class T130CameraDoEsboco(unittest.TestCase):
+    """1.14.0: "os planos (ao clicar em novo esboço) continuam não abrindo no centro da tela e ao escolher um plano
+    os eixos dão uma travada no movimento até se posicionarem no centro da tela". Os planos vão para o meio da
+    tela e o esboço novo abre com um movimento só (giro e deslize juntos)."""
+
+    def _amostrar(self, v, seg):
+        am, t0 = [], time.time()
+        while time.time() - t0 < seg:
+            QtWidgets.QApplication.processEvents()
+            c = v.getCameraNode()
+            p = c.position.getValue()
+            am.append((time.time() - t0, tuple(c.orientation.getValue().getValue()), (p[0], p[1], p[2])))
+            time.sleep(0.005)
+        mud = [b[0] for a, b in zip(am, am[1:]) if sum(abs(x - y) for x, y in zip(a[1], b[1])) > 1e-5
+               or sum(abs(x - y) for x, y in zip(a[2], b[2])) > 1e-3]
+        if not mud:
+            return None, None, None
+        gaps = [b - a for a, b in zip(mud, mud[1:])]
+        return mud[0], mud[-1], (sorted(gaps)[len(gaps) // 2] if gaps else 0, max(gaps) if gaps else 0)
+
+    def setUp(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        global QtWidgets
+        from PySide import QtWidgets
+
+    def test_planos_no_meio_da_tela_e_esboco_num_movimento_so(self):
+        import Part
+        import PrumoNovoEsboco as N
+        for caso in ("vazio", "com_peca"):
+            doc = novo_doc("PrumoTesteCam" + caso)
+            try:
+                if caso == "com_peca":
+                    o = doc.addObject("Part::Feature", "Bloco")
+                    o.Shape = Part.makeBox(300, 200, 100, FreeCAD.Vector(2000, 1500, 0))
+                body = doc.addObject("PartDesign::Body", "Body")
+                doc.recompute()
+                v = FreeCADGui.ActiveDocument.ActiveView
+                v.viewTop()
+                v.fitAll()
+                self._amostrar(v, 0.6)
+                v.setActiveObject("pdbody", body)
+                FreeCADGui.Selection.clearSelection()
+                FreeCADGui.runCommand("PartDesign_NewSketch")
+                self._amostrar(v, 1.5)
+                w, h = v.getSize()
+                c = N.caixa_dos_planos(doc, v).getCenter()
+                px = v.getPointOnViewport(FreeCAD.Vector(c[0], c[1], c[2]))
+                self.assertAlmostEqual(px[0], w / 2.0, delta=w * 0.04, msg="%s: planos fora do meio (x)" % caso)
+                self.assertAlmostEqual(px[1], h / 2.0, delta=h * 0.04, msg="%s: planos fora do meio (y)" % caso)
+                FreeCADGui.Control.closeDialog()
+                self._amostrar(v, 0.3)
+                # esboço novo num plano afastado: um movimento só, curto, terminando na origem do esboço
+                sk = body.newObject("Sketcher::SketchObject", "Sketch")
+                xz = [f for f in body.Origin.OriginFeatures if f.Role == "XZ_Plane"][0]
+                sk.AttachmentSupport = [(xz, "")]
+                sk.MapMode = "FlatFace"
+                sk.AttachmentOffset = FreeCAD.Placement(FreeCAD.Vector(800, 400, 0), FreeCAD.Rotation())
+                doc.recompute()
+                FreeCADGui.ActiveDocument.setEdit(sk.Name)
+                ini, fim, (quadro, maior) = self._amostrar(v, 1.5)
+                self.assertLess(fim - ini, 0.8, "%s: o movimento demorou %.2f s" % (caso, fim - ini))
+                self.assertLess(maior, max(0.15, 3 * quadro), "%s: parada de %.0f ms no meio do movimento" % (
+                    caso, maior * 1000))
+                px = v.getPointOnViewport(sk.getGlobalPlacement().Base)
+                self.assertAlmostEqual(px[0], w / 2.0, delta=3)
+                self.assertAlmostEqual(px[1], h / 2.0, delta=3)
+                FreeCADGui.ActiveDocument.resetEdit()
+            finally:
+                try:
+                    FreeCADGui.Control.closeDialog()
+                except Exception:
+                    pass
+                fechar(doc)
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -17788,33 +17864,46 @@ class T123AcabamentoEVisual(unittest.TestCase):
             self.skipTest("sem interface")
         import Part
         from PySide import QtWidgets
+        import PrumoBarraVista as B
         G.install()
-        botao = FreeCADGui.getMainWindow().findChild(QtWidgets.QToolButton, "PrumoBotaoGrade")
-        self.assertIsNotNone(botao, "botão Grade na barra inferior")
         antes = G.ligada()
         try:
             o = self.doc.addObject("Part::Feature", "Peca")
             o.Shape = Part.makeBox(200, 100, 20)
             self.doc.recompute()
             FreeCAD.setActiveDocument(self.doc.Name)
+            for _ in range(20):
+                QtWidgets.QApplication.processEvents()
+            B.instalar_nas_vistas()
+            botoes = G.botoes()
+            self.assertTrue(botoes, "botão Grade na barra de vistas (embaixo da vista 3D)")
+            botao = botoes[0]
+            ordem = list(botao.parentWidget().botoes.keys())
+            self.assertEqual(ordem.index("Prumo_Grade"), ordem.index("Prumo_Aparencia") + 1, "ao lado de Aparência")
+            self.assertTrue(botao.isCheckable())
+            self.assertIn("Prumo_Grade", FreeCADGui.listCommands())
 
             def tem_grade():
                 raiz = FreeCADGui.getDocument(self.doc.Name).ActiveView.getViewer().getSceneGraph()
                 return any(raiz.getChild(i).getName().getString() == G.NOME_NO for i in range(raiz.getNumChildren()))
-            botao.click() if not G.ligada() else G.atualizar()
+            if G.ligada():
+                G.alternar(False)
+            botao.click()
             self.assertTrue(G.ligada())
             self.assertTrue(tem_grade())
             self.assertTrue(botao.isChecked())
-            self.assertEqual(botao.text(), "Grade 10 mm")
+            self.assertIn("quadrado de 10 mm", botao.toolTip())
             o.Shape = Part.makeBox(30000, 12000, 500)          # o modelo cresce: o quadrado acompanha
             self.doc.recompute()
             G.atualizar(self.doc)
             self.assertEqual(G.passo_atual(), 2000.0)
-            self.assertEqual(botao.text(), "Grade 2 m")
+            self.assertIn("quadrado de 2 m", botao.toolTip())
             botao.click()
             self.assertFalse(G.ligada())
             self.assertFalse(tem_grade(), "desligou: some da vista")
-            self.assertEqual(botao.text(), "Grade")
+            self.assertFalse(botao.isChecked())
+            self.assertIsNone(FreeCADGui.getMainWindow().statusBar().findChild(QtWidgets.QToolButton, "PrumoBotaoGrade"),
+                              "saiu da barra de status")
         finally:
             G.alternar(antes)
 
@@ -17942,4 +18031,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T122DoModeloParaAFabrica,
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
-           T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas]
+           T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco]
