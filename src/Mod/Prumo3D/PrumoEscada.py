@@ -34,13 +34,16 @@ TIPOS_DEGRAU = ("Grade de piso (sem espelho)", "Chapa xadrez dobrada (sem espelh
                 "Chapa xadrez com espelho")
 LADOS = ("Os dois lados", "Lado esquerdo", "Lado direito", "Sem guarda-corpo")
 FIXACOES = ("Sem chapas", "Chapa na base e no topo")
+APOIOS = ("Apoiada nas pontas", "Com pés de apoio")
+PERFIL_PES = "W 150 x 13,0"
 PERFIL_BANZO = 'U 8" x 17,10'          # NBR 15980:2024, Tabela A.2 (o I 8" não está na norma)
 PERFIL_GUARDA = "Tubo ○ 38,1 x 2"
 NR12 = "NR-12, Anexo III (Portaria MTP n.º 4.219/2022)"
 PARAMETROS = ("Posicao", "Desnivel", "Angulo", "LarguraUtil", "NumeroEspelhos", "TipoDegrau", "EspessuraDegrau",
               "Sobreposicao", "PerfilBanzo", "ElevacaoBanzo", "LadosGuarda", "PerfilGuarda", "AlturaGuarda",
               "AlturaIntermediario", "EspacamentoMontantes", "Rodape", "AlturaRodape", "Material", "Patamares",
-              "AlturaMaxLance", "ComprimentoPatamar", "FixacaoBanzos", "EspessuraChapa", "DiametroFuroChapa")
+              "AlturaMaxLance", "ComprimentoPatamar", "FixacaoBanzos", "EspessuraChapa", "DiametroFuroChapa",
+              "Apoio", "PerfilPes", "VaoMaxPes")
 DENS = 7850.0
 
 
@@ -159,6 +162,52 @@ def linhas_banzos(m):
     for y in (-m.y_banzo, m.y_banzo):
         vs = [FreeCAD.Vector(x, y, z) for x, z in pts]
         res.append(list(zip(vs, vs[1:])))
+    return res
+
+
+def pes_de_apoio(esc, m):
+    """[(x, z do pé, z do topo, plano do topo ou None)] dos pés de apoio sob cada viga (locais, y = ±y_banzo).
+
+    Um par de pés no começo e no fim de cada patamar e, com VaoMaxPes, pés intermediários nos lances para que
+    nenhum trecho entre apoios (as pontas da escada contam como apoio) passe do vão máximo."""
+    if getattr(esc, "Apoio", APOIOS[0]) != APOIOS[1]:
+        return []
+    import PrumoPerfis
+    it = PrumoPerfis.perfil(getattr(esc, "PerfilPes", PERFIL_PES) or PERFIL_PES)
+    larg, alt_p = PrumoPerfis.dimensoes(it) if it else (100.0, 100.0)
+    off = (m.sobra - m.alt / 2.0) / m.cos
+    meia = m.alt / 2.0 / m.cos                       # do eixo ao fundo da viga, na vertical (lance)
+    folga = max(larg, alt_p) / 2.0 + 5.0
+    xs = []
+    for (x0, x1, zp), (xl, zl, _n) in zip(m.patamares(), m.lances):
+        # no começo do patamar a viga inclinada ainda desce abaixo da viga do patamar até o joelho: o pé vai
+        # para onde o fundo da inclinada já passou do fundo da horizontal
+        zfundo = zp - max(m.e, 25.0) - m.alt
+        x_livre = xl + (zfundo - zl - off + meia) / m.tan
+        xs += [max(x0, x_livre) + folga, x1 - folga]
+    vao = float(getattr(esc, "VaoMaxPes", 0) or 0)
+    if vao > 0:
+        apoios = sorted([0.0, m.L] + xs)
+        extra = []
+        for a, b in zip(apoios, apoios[1:]):
+            n = int(math.ceil((b - a) / vao - 1e-9))
+            extra += [a + (b - a) * k / n for k in range(1, n)]
+        xs = sorted(xs + extra)
+    res = []
+    z0 = m.tc if m.chapas else 0.0
+    for x in xs:
+        noPatamar = None
+        for (p0, p1, zp) in m.patamares():
+            if p0 - 1e-6 <= x <= p1 + 1e-6:
+                noPatamar = zp
+        if noPatamar is not None:
+            topo = noPatamar - max(m.e, 25.0) - m.alt           # fundo da viga horizontal do patamar
+            plano = None
+        else:
+            topo = m.z_passo(x) + off - meia                     # fundo da viga inclinada
+            plano = (FreeCAD.Vector(x, 0, topo), FreeCAD.Vector(-m.sen, 0, m.cos))
+        if topo - z0 > 50.0:
+            res.append((x, 0.0, topo, plano))
     return res
 
 
@@ -426,6 +475,13 @@ class Escada:
         add("App::PropertyLength", "EspessuraChapa", "Fixação", "Espessura das chapas de fixação", 12.5)
         add("App::PropertyLength", "DiametroFuroChapa", "Fixação", "Diâmetro dos furos (chumbador ou parafuso)",
             18.0)
+        enum("Apoio", "Apoio", "Só nas pontas (piso e topo) ou com pés de apoio sob as vigas", APOIOS, APOIOS[0])
+        add("App::PropertyString", "PerfilPes", "Apoio", "Perfil dos pés de apoio (qualquer perfil do Usinix)",
+            PERFIL_PES)
+        add("App::PropertyLength", "VaoMaxPes", "Apoio", "Vão máximo entre apoios ao longo da viga (na horizontal); "
+            "0 = pés só nos patamares", 0.0)
+        add("App::PropertyLinkHidden", "EsqPes", "Partes", "Esqueleto dos pés de apoio")
+        add("App::PropertyLinkHidden", "Pes", "Partes", "Estrutura dos pés de apoio")
         add("App::PropertyString", "Material", "Lista", "Material", "Aço carbono")
         for nome, tipo, doc in (("AlturaEspelho", "App::PropertyFloat", "Altura entre degraus h (mm)"),
                                 ("ProfundidadeLivre", "App::PropertyFloat", "Profundidade livre g (mm)"),
@@ -631,10 +687,61 @@ def _reconstruir(esc):
                               E.valor_plano(pl.multVec(a), normal))
         if list(esc.GuardaCorpo.Pontas or []) != cortes:
             esc.GuardaCorpo.Pontas = cortes
+            E._referencias_das_pontas(esc.GuardaCorpo)
+            for b in E.barras_de(esc.GuardaCorpo):
+                b.touch()
     elif esc.GuardaCorpo is not None:
         _apagar_estrutura(esc.GuardaCorpo)
         esc.GuardaCorpo = None
-    for o in (esc.EsqBanzos, esc.EsqGuarda):
+    # pés de apoio
+    pes = pes_de_apoio(esc, m)
+    if pes:
+        linhas_p = []
+        for x, z0, z1, _pl in pes:
+            for y in (-m.y_banzo, m.y_banzo):
+                linhas_p.append((FreeCAD.Vector(x, y, z0), FreeCAD.Vector(x, y, z1)))
+        if esc.EsqPes is None:
+            sk = doc.addObject("Part::Feature", "EsqueletoPes")
+            sk.Label = "Esqueleto dos pés"
+            esc.EsqPes = sk
+            esc.addObject(sk)
+        velho = esc.EsqPes.Shape
+        esc.EsqPes.Shape = _arame(linhas_p, pl)
+        if esc.Pes is not None and len(velho.Edges) != len(esc.EsqPes.Shape.Edges):
+            _apagar_estrutura(esc.Pes)
+            esc.Pes = None
+        if esc.Pes is None:
+            est = E.criar(doc, esc.EsqPes, esc.PerfilPes or PERFIL_PES, transacao=False, material=esc.Material)
+            est.Label = "Pés de apoio"
+            esc.Pes = est
+            esc.addObject(est)
+        else:
+            esc.Pes.Perfil = esc.PerfilPes or PERFIL_PES
+            esc.Pes.Material = esc.Material
+            E.sincronizar_barras(esc.Pes)
+        # topo do pé cortado no plano do fundo da viga inclinada (no patamar, reto)
+        cortes = []
+        normal = pl.Rotation.multVec(FreeCAD.Vector(-m.sen, 0, m.cos))
+        i = 0
+        for x, z0, z1, plano in pes:
+            for _y in (-1, 1):
+                if plano is not None:
+                    a, b = linhas_p[i]
+                    cortes.append(E.chave_ponta(i, 1) + "=" + E.valor_plano(pl.multVec(b), normal))
+                i += 1
+        if list(esc.Pes.Pontas or []) != cortes:
+            esc.Pes.Pontas = cortes
+            E._referencias_das_pontas(esc.Pes)
+            for b in E.barras_de(esc.Pes):
+                b.touch()
+    else:
+        if esc.Pes is not None:
+            _apagar_estrutura(esc.Pes)
+            esc.Pes = None
+        if esc.EsqPes is not None:
+            doc.removeObject(esc.EsqPes.Name)
+            esc.EsqPes = None
+    for o in (esc.EsqBanzos, esc.EsqGuarda, esc.EsqPes):
         if o is not None and FreeCAD.GuiUp:
             try:
                 o.ViewObject.Visibility = False
@@ -825,6 +932,22 @@ if P is not None:
                      "contra a face do piso de cima.", "Fixação")
             self.esp_chapa = P.numero(12.5, 3.0, 50.0)
             s3.linha("espessura", self.esp_chapa, "Espessura das chapas de fixação.", "Chapa")
+            s3b = f.secao("Apoio", "estrutura")
+            self.apoio = P.lista(list(APOIOS), APOIOS[0])
+            s3b.linha("tipo", self.apoio, "Apoiada só no piso e no topo, ou com pés de apoio sob as vigas (um par "
+                      "em cada ponta de patamar e onde o vão pedir).", "Apoio")
+            todos = [it["nome"] for fam in ("W", "HP", "I", "U", "L", "TQ", "TQT", "TRT", "TUBO", "TCT")
+                     for it in (PrumoPerfis.familia(fam) or {}).get("itens", [])]
+            self.perfil_pes = P.lista(todos or [PERFIL_PES], PERFIL_PES)
+            self.perfil_pes.setEditable(True)
+            s3b.linha("perfil", self.perfil_pes, "Perfil dos pés (qualquer perfil do Usinix).", "Perfil dos pés")
+            self.vao_pes = P.numero(0.0, 0.0, 20000.0)
+            s3b.linha("comprimento", self.vao_pes, "Vão máximo entre apoios ao longo da viga, na horizontal; 0 = pés "
+                      "só nos patamares.", "Vão máximo")
+            self.apoio.currentTextChanged.connect(lambda t: (self.perfil_pes.setEnabled(t == APOIOS[1]),
+                                                             self.vao_pes.setEnabled(t == APOIOS[1])))
+            self.perfil_pes.setEnabled(False)
+            self.vao_pes.setEnabled(False)
             s4 = f.secao("Guarda-corpo", "posicao")
             self.lados = P.lista(list(LADOS), LADOS[0])
             s4.linha("posicao", self.lados, "A NR-12 pede guarda-corpo dos dois lados.", "Lados")
@@ -852,6 +975,8 @@ if P is not None:
             import PrumoPerfis
             if PrumoPerfis.perfil(self.perfil.currentText()) is None:
                 return "Perfil desconhecido: %s" % self.perfil.currentText()
+            if self.apoio.currentText() == APOIOS[1] and PrumoPerfis.perfil(self.perfil_pes.currentText()) is None:
+                return "Perfil dos pés desconhecido: %s" % self.perfil_pes.currentText()
             return None
 
         def pronto_texto(self):
@@ -865,7 +990,8 @@ if P is not None:
                     "AlturaGuarda": self.hg.value(), "Rodape": self.rodape.isChecked(),
                     "Patamares": self.patamar.isChecked(), "AlturaMaxLance": self.hmax.value(),
                     "ComprimentoPatamar": self.lp.value(), "FixacaoBanzos": self.fixacao.currentText(),
-                    "EspessuraChapa": self.esp_chapa.value(),
+                    "EspessuraChapa": self.esp_chapa.value(), "Apoio": self.apoio.currentText(),
+                    "PerfilPes": self.perfil_pes.currentText(), "VaoMaxPes": self.vao_pes.value(),
                     "Posicao": FreeCAD.Placement(FreeCAD.Vector(self.px.value(), self.py.value(), self.pz.value()),
                                                  FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), self.giro.value()))}
 
@@ -885,6 +1011,9 @@ if P is not None:
             self.lp.setValue(obj.ComprimentoPatamar.Value)
             self.fixacao.setCurrentText(obj.FixacaoBanzos)
             self.esp_chapa.setValue(obj.EspessuraChapa.Value)
+            self.apoio.setCurrentText(obj.Apoio)
+            self.perfil_pes.setCurrentText(obj.PerfilPes)
+            self.vao_pes.setValue(obj.VaoMaxPes.Value)
             b = obj.Posicao.Base
             self.px.setValue(b.x)
             self.py.setValue(b.y)

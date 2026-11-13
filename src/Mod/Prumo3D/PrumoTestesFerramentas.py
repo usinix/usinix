@@ -17508,6 +17508,29 @@ class T133EscadaPatamarEChapas(unittest.TestCase):
         self.assertEqual(orfas, [])
         self.assertEqual([x.texto for x in I.verificar(self._pecas(esc))], [])
 
+    def test_pes_de_apoio(self):
+        import PrumoEscada as PE
+        import PrumoEstrutura as E
+        import PrumoInterferencia as I
+        esc = PE.criar(self.doc, Desnivel=4800, Patamares=True, Apoio=PE.APOIOS[1], PerfilPes="W 150 x 13,0",
+                       VaoMaxPes=2000)
+        self.doc.recompute()
+        ps = E.barras_de(esc.Pes)
+        self.assertEqual(len(ps), 8, "par de pés nas duas pontas do patamar e um par em cada lance")
+        self.assertTrue(all(b.Perfil == "W 150 x 13,0" for b in ps))
+        for b in ps:
+            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 0.0, delta=0.01, msg="pé no piso")
+            self.assertLess(min(b.Shape.distToShape(v.Shape)[0] for v in E.barras_de(esc.Banzos)), 0.01,
+                            "pé encosta na viga")
+        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc) + ps)], [])
+        esc.PerfilPes = 'U 6" x 12,20'
+        PE.reconstruir(esc)
+        self.assertTrue(all(b.Perfil == 'U 6" x 12,20' for b in E.barras_de(esc.Pes)))
+        esc.Apoio = PE.APOIOS[0]
+        PE.reconstruir(esc)
+        self.assertIsNone(esc.Pes)
+        self.assertEqual([o for o in self.doc.Objects if E.eh_barra(o) and o.Estrutura is None], [])
+
     def test_chapas_de_fixacao_na_base_e_no_topo(self):
         import json
         import PrumoEscada as PE

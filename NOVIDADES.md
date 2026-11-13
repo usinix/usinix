@@ -15,6 +15,19 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.15.1 — 13/11/2026
+
+![Escada com patamar e pés de apoio](.github/images/novidades/1.15.1.webp)
+
+### Escada
+
+- **Pés de apoio:** escolha "Apoiada nas pontas" ou "Com pés de apoio". Com pés, vai um par sob as vigas em cada
+  ponta de patamar e, com o vão máximo preenchido, pés intermediários nos lances. O perfil dos pés é qualquer um
+  do Usinix (W, I, U, cantoneira, tubo redondo, quadrado ou retangular); o topo do pé é cortado no plano do
+  fundo da viga inclinada e a verificação de interferência não acusa nada.
+- **Comprimento do patamar** conferido no texto da NR-12 (Anexo III, 11 e / 12 e: plataforma de descanso de
+  0,60 m no mínimo): o painel não aceita menos e a conferência acusa patamar curto.
+
 ## 1.15.0 — 13/11/2026
 
 ![Escada com patamar, chapas de fixação e guarda-corpo contínuo](.github/images/novidades/1.15.0.webp)
