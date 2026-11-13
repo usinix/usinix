@@ -15,6 +15,24 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.15.2 — 13/11/2026
+
+![Enrijecedores em série na placa de base](.github/images/novidades/1.15.2.webp)
+
+### Estruturas
+
+- **Vários enrijecedores de uma vez:** no Reforço (mão-francesa e enrijecedor da placa de base) entrou a seção
+  "Vários reforços (padrão linear)", com a quantidade de chapas e o espaçamento, como no padrão linear:
+  "Distância entre eles" (de uma chapa à próxima) ou "Distância total" (da primeira à última), sempre de eixo a
+  eixo das chapas. Com distância 0, o Usinix distribui as chapas na largura do perfil, as das pontas rentes às
+  faces; no lado da alma de um perfil I, elas ficam entre as mesas. O grupo segue a posição escolhida (centro,
+  frente ou trás). Avisa quando as chapas se sobrepõem ou passam da largura do perfil.
+- A lista de materiais conta cada chapa (quantidade e massa de uma chapa) e a solda soma o cordão de todas.
+
+### Testes automáticos
+
+- Rodar a bateria não abre mais o navegador (o endereço de "Enviar sugestão" e outros links só é anotado).
+
 ## 1.15.1 — 13/11/2026
 
 ![Escada com patamar e pés de apoio](.github/images/novidades/1.15.1.webp)

@@ -35,6 +35,7 @@ DENSIDADE_ACO = 7850.0  # kg/m³ (metal depositado: aço carbono)
 PONTAS = ["Início", "Fim"]
 POSICOES = ["Centro", "Frente", "Trás"]
 TIPOS_REFORCO = ["Triangular", "Poligonal"]
+MODOS_ESPACO = ["Distância entre eles", "Distância total"]               # vários reforços lado a lado
 LADOS_APOIO = ["+Altura", "-Altura", "+Largura", "-Largura"]       # lado do perfil (reforço barra-placa)
 CONJUNTOS_LADOS = {"Os quatro lados": LADOS_APOIO, "Dois lados (na altura do perfil)": LADOS_APOIO[:2],
                    "Dois lados (na largura do perfil)": LADOS_APOIO[2:], "Um lado (+altura)": LADOS_APOIO[:1],
@@ -141,13 +142,17 @@ class _Base:
 
     def execute(self, obj):
         try:
-            sh, den = self.forma(obj)
+            res = self.forma(obj)
         except (ValueError, ZeroDivisionError) as ex:
             obj.Avisos = [str(ex)]
             FreeCAD.Console.PrintWarning("Usinix: %s: %s\n" % (obj.Label, ex))
             return
+        sh, den = res[0], res[1]
+        avisos = list(res[2]) if len(res) > 2 else []
         obj.Shape = sh
-        obj.Avisos = []
+        obj.Avisos = avisos
+        for av in avisos:
+            FreeCAD.Console.PrintWarning("Usinix: %s: %s\n" % (obj.Label, av))
         if "Denominacao" in obj.PropertiesList:
             obj.Denominacao = den
         if "Massa" in obj.PropertiesList:
@@ -217,6 +222,13 @@ class Reforco(_Base):
                   "Placa (placa de base, chapa ou corpo) onde a barra apoia: reforço entre a barra e a placa "
                   "(no lugar da segunda barra)")
         self._enum(obj, "Lado", "Reforço", "Reforço barra-placa: de que lado do perfil", LADOS_APOIO)
+        self._add(obj, "App::PropertyInteger", "Quantidade", "Reforço",
+                  "Quantas chapas iguais, lado a lado na largura do perfil (como um padrão linear)", 1)
+        self._enum(obj, "ModoEspaco", "Reforço", "Vários reforços: a distância é entre um e o próximo ou do "
+                   "primeiro ao último (de eixo a eixo das chapas)", MODOS_ESPACO)
+        self._add(obj, "App::PropertyLength", "Espacamento", "Reforço",
+                  "Vários reforços: distância de eixo a eixo (0 = distribui na largura do perfil, chapas das "
+                  "pontas rentes às faces)", 0.0)
         self._props_chapa(obj)
 
     def forma(self, obj):
@@ -265,11 +277,11 @@ class Reforco(_Base):
         # posição na largura do perfil (direção n)
         frente = min(secA.extremos(n)[1], secB.extremos(n)[1])
         tras = max(secA.extremos(n)[0], secB.extremos(n)[0])
-        z0 = {"Centro": -t / 2.0, "Frente": frente - t, "Trás": tras}[obj.Posicao]
-        face = _poligono([q + n * z0 for q in pts])
-        sh = face.extrude(n * t)
+        face = _poligono(pts)
+        centros, avisos = posicoes_reforcos(obj, tras, frente, t, obj.Posicao)
+        sh = _chapas(face, n, t, centros)
         den = "Reforço %s %s × %s × %s mm" % (obj.Tipo.lower(), fmt_dim(d1), fmt_dim(d2), fmt_dim(t))
-        return sh, den
+        return sh, den, avisos
 
 
     def _forma_apoio(self, obj):
@@ -315,10 +327,56 @@ class Reforco(_Base):
         else:
             pts += [c + a * d1, c + pa * d2]
         n = a.cross(pa).normalize()
-        face = _poligono([pt - n * (t / 2.0) for pt in pts])
-        sh = face.extrude(n * t)
+        avisos = []
+        if max(1, int(getattr(obj, "Quantidade", 1) or 1)) > 1:
+            # onde as chapas encostam no perfil, na fatia junto à placa (c fica no meio do perfil: n·(c−c0) = 0)
+            tras, frente = _largura_livre(b, q, nP, pa, n, h)
+            centros, avisos = posicoes_reforcos(obj, tras, frente, t, "Centro")
+        else:
+            centros = [0.0]
+        sh = _chapas(_poligono(pts), n, t, centros)
         den = "Reforço %s %s × %s × %s mm" % (obj.Tipo.lower(), fmt_dim(d1), fmt_dim(d2), fmt_dim(t))
-        return sh, den
+        return sh, den, avisos
+
+
+def posicoes_reforcos(obj, tras, frente, t, posicao="Centro"):
+    """(centros das chapas na direção da espessura, avisos) para Quantidade/ModoEspaco/Espacamento.
+
+    tras/frente: faces do perfil nessa direção (0 = eixo). Uma chapa: segue a Posição de sempre. Várias: o
+    passo é a distância entre elas, ou a total ÷ (n − 1), de eixo a eixo como no padrão linear; com
+    espaçamento 0, as das pontas ficam rentes às faces do perfil. O grupo segue a Posição (centro, frente,
+    trás)."""
+    qtd = max(1, int(getattr(obj, "Quantidade", 1) or 1))
+    if qtd == 1:
+        return [{"Centro": 0.0, "Frente": frente - t / 2.0, "Trás": tras + t / 2.0}[posicao]], []
+    esp = float(getattr(getattr(obj, "Espacamento", None), "Value", 0.0) or 0.0)
+    modo = str(getattr(obj, "ModoEspaco", MODOS_ESPACO[0]) or MODOS_ESPACO[0])
+    largura = frente - tras
+    if esp <= 1e-9:
+        passo = (largura - t) / (qtd - 1)
+    elif modo == MODOS_ESPACO[1]:
+        passo = esp / (qtd - 1)
+    else:
+        passo = esp
+    if passo < t - 1e-6:
+        raise ValueError("%d chapas de %s mm não cabem com passo de %s mm (elas se sobrepõem)" % (
+            qtd, fmt_dim(t), fmt_dim(passo)))
+    vao = passo * (qtd - 1)
+    ini = {"Centro": (tras + frente) / 2.0 - vao / 2.0, "Frente": frente - t / 2.0 - vao,
+           "Trás": tras + t / 2.0}[posicao]
+    centros = [ini + passo * k for k in range(qtd)]
+    avisos = []
+    if centros[0] - t / 2.0 < tras - 0.05 or centros[-1] + t / 2.0 > frente + 0.05:
+        avisos.append("os %d reforços ocupam %s mm e passam da largura do perfil (%s mm): as chapas de fora "
+                      "não encostam no perfil" % (qtd, fmt_dim(vao + t), fmt_dim(largura)))
+    return centros, avisos
+
+
+def _chapas(face, n, t, centros):
+    """Uma chapa de espessura t por centro (deslocamento na direção n a partir do plano da face)."""
+    import Part
+    sols = [face.translated(n * (z - t / 2.0)).extrude(n * t) for z in centros]
+    return sols[0] if len(sols) == 1 else Part.makeCompound(sols)
 
 
 def face_de_apoio(barra, apoio, tol=2.0):
@@ -362,6 +420,52 @@ def _contato_no_lado(barra, q, nP, pa, recuo=1.0):
 
     Mede na própria forma da barra, numa fatia logo acima da placa: vale para qualquer perfil e corte."""
     import Part
+    fc = _secao_junto(barra, q, nP, recuo)
+    c0 = fc.CenterOfMass - nP * recuo
+    L = 2.0 * fc.BoundBox.DiagonalLength + 10.0
+    linha = Part.makeLine(fc.CenterOfMass - pa * L, fc.CenterOfMass + pa * L)
+    com = fc.common(linha)
+    h = max([(v.Point - fc.CenterOfMass).dot(pa) for v in com.Vertexes] or [0.0])
+    if h <= 0:
+        h = max((v.Point - fc.CenterOfMass).dot(pa) for v in fc.Vertexes)
+    return c0, h
+
+
+def _largura_livre(barra, q, nP, pa, n, h, recuo=1.0):
+    """(trás, frente) na direção n, a partir do meio do perfil: onde as chapas do lado pa encostam no perfil sem
+    bater em outra parte dele (ex.: no lado da alma de um I, entre as mesas; no lado da mesa, a largura dela)."""
+    import Part
+    fc = _secao_junto(barra, q, nP, recuo)
+    o = fc.CenterOfMass
+    L = 2.0 * fc.BoundBox.DiagonalLength + 10.0
+    # contato: a face do perfil no lado pa (uma linha logo para dentro dela)
+    linha = Part.makeLine(o + pa * (h - 0.05) - n * L, o + pa * (h - 0.05) + n * L)
+    trechos = sorted(sorted(((v.Point - o).dot(n) for v in e.Vertexes)) for e in fc.common(linha).Edges)
+    if not trechos:
+        raise ValueError("não achei a face do perfil desse lado")
+    tras, frente = min(t[0] for t in trechos), max(t[1] for t in trechos)
+    # obstáculos: partes do perfil além da face (mesas, abas) na frente das chapas
+    try:
+        caixa = Part.Face(Part.makePolygon([o + pa * (h + 0.05) + n * s1 + pa * s2 for s1, s2 in
+                                            ((-L, 0), (L, 0), (L, L), (-L, L), (-L, 0))]))
+        alem = fc.common(caixa)
+    except Exception:
+        alem = Part.Shape()
+    for f in getattr(alem, "Faces", []):
+        if f.Area < 1e-3:
+            continue
+        lo = min((v.Point - o).dot(n) for v in f.Vertexes)
+        hi = max((v.Point - o).dot(n) for v in f.Vertexes)
+        if hi <= 0:
+            tras = max(tras, hi)
+        elif lo >= 0:
+            frente = min(frente, lo)
+    return tras, frente
+
+
+def _secao_junto(barra, q, nP, recuo=1.0):
+    """A seção da barra numa fatia logo acima da placa (face, com furos no tubo)."""
+    import Part
     fatias = barra.Shape.slice(nP, q.dot(nP) + recuo)
     faces = []
     for w in fatias:
@@ -380,14 +484,7 @@ def _contato_no_lado(barra, q, nP, pa, recuo=1.0):
             fc = fc.cut(f) if fc.common(f).Area > f.Area * 0.99 else fc.fuse(f)
         except Exception:
             pass
-    c0 = fc.CenterOfMass - nP * recuo
-    L = 2.0 * fc.BoundBox.DiagonalLength + 10.0
-    linha = Part.makeLine(fc.CenterOfMass - pa * L, fc.CenterOfMass + pa * L)
-    com = fc.common(linha)
-    h = max([(v.Point - fc.CenterOfMass).dot(pa) for v in com.Vertexes] or [0.0])
-    if h <= 0:
-        h = max((v.Point - fc.CenterOfMass).dot(pa) for v in fc.Vertexes)
-    return c0, h
+    return fc
 
 
 def _ate_a_borda(face, c, pa):
@@ -955,11 +1052,29 @@ class PainelReforco(P.PainelTarefa):
         self.material = s3.linha("material", QtWidgets.QLineEdit(_ultimo_material()), "Material da chapa "
                                  "(vai para a lista de materiais).", "Material")
         self.material.setPlaceholderText("ex.: ASTM A36")
+        s4 = f.secao("Vários reforços (padrão linear)", "quantidade")
+        self.qtd = QtWidgets.QSpinBox()
+        self.qtd.setRange(1, 50)
+        self.qtd.setValue(1)
+        self.qtd.setKeyboardTracking(False)
+        s4.linha("quantidade", self.qtd, "Quantas chapas iguais em cada canto, lado a lado na largura do perfil "
+                 "(como um padrão linear).", "Quantidade")
+        self.modo_esp = s4.linha("largura", P.lista(MODOS_ESPACO), "Distância entre eles: de uma chapa à próxima. "
+                                 "Distância total: da primeira à última. Sempre de eixo a eixo das chapas.",
+                                 "Espaçamento")
+        self.espaco = s4.linha("comprimento", P.numero(0.0, maximo=5000.0), "Valor da distância (de eixo a eixo). "
+                               "0 = distribui na largura do perfil, com as chapas das pontas rentes às faces.",
+                               "Distância")
+        self.espaco.setSpecialValueText("automática (largura do perfil)")
         self.tipo.currentTextChanged.connect(lambda *_: self._tipo())
+        self.qtd.valueChanged.connect(lambda *_: self._tipo())
         self._tipo()
 
     def _tipo(self):
         self.ponta_h.setEnabled(self.tipo.currentText() != TIPOS_REFORCO[0])
+        varios = self.qtd.value() > 1
+        self.modo_esp.setEnabled(varios)
+        self.espaco.setEnabled(varios)
 
     def atualizar(self):
         bs = self.barras.valores()
@@ -999,7 +1114,9 @@ class PainelReforco(P.PainelTarefa):
     def props(self):
         return dict(Tipo=self.tipo.currentText(), Perna1=self.perna1.value(), Perna2=self.perna2.value(),
                     Ponta=self.ponta_h.value(), Espessura=self.esp.value(), Chanfro=self.chanfro.value(),
-                    Posicao=self.posicao.currentText(), Material=self.material.text().strip())
+                    Posicao=self.posicao.currentText(), Material=self.material.text().strip(),
+                    Quantidade=self.qtd.value(), ModoEspaco=self.modo_esp.currentText(),
+                    Espacamento=self.espaco.value())
 
     def carregar(self, obj):
         for b in (obj.BarraA, obj.Apoio if getattr(obj, "Apoio", None) is not None else obj.BarraB):
@@ -1013,6 +1130,9 @@ class PainelReforco(P.PainelTarefa):
         self.chanfro.setValue(obj.Chanfro.Value)
         self.posicao.setCurrentText(obj.Posicao)
         self.material.setText(obj.Material)
+        self.qtd.setValue(int(getattr(obj, "Quantidade", 1) or 1))
+        self.modo_esp.setCurrentText(str(getattr(obj, "ModoEspaco", MODOS_ESPACO[0])))
+        self.espaco.setValue(float(getattr(getattr(obj, "Espacamento", None), "Value", 0.0) or 0.0))
         self.lados.setEnabled(False)
 
     def props_edicao(self):

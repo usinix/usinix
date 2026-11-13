@@ -254,7 +254,7 @@ def coletar(objs, densidade_padrao=None, mapa=None):
                 # material em texto (como nas barras); massa pela densidade padrão (aço)
                 mat_txt = _prop(base, "Material")
                 nome_mat, definido = (mat_txt, True) if mat_txt else ("—", True)
-                massa = sum(s.Volume for s in sh.Solids) * densidade_padrao * 1e-9
+                massa = sum(s.Volume for s in sh.Solids) * densidade_padrao * 1e-9 / _vezes(base)
                 obs = "" if mat_txt else "material a definir"
             if chave[0] == "padrao":
                 mat_txt = _prop(base, "Material")
@@ -276,9 +276,19 @@ def coletar(objs, densidade_padrao=None, mapa=None):
             linhas[chave] = Linha(chave, den, nome_mat if definido else "—", _dimensoes(base, sh),
                                   massa, obs, str(_prop(base, "Codigo") or ""))
             ordem.append(chave)
-        linhas[chave].qtd += 1
+        linhas[chave].qtd += _vezes(base) if chave[0] == "chapa" else 1
         marcar(obj, chave, sh)
     return [linhas[k] for k in ordem]
+
+
+def _vezes(base):
+    """Quantas peças iguais um objeto representa (reforços em série: Quantidade); 1 nos demais."""
+    if "ModoEspaco" not in getattr(base, "PropertiesList", ()):
+        return 1
+    try:
+        return max(1, int(getattr(base, "Quantidade", 1) or 1))
+    except (TypeError, ValueError):
+        return 1
 
 
 def gravar_planilha(doc, linhas, titulo="Lista de materiais"):

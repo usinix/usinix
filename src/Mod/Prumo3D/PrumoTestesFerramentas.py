@@ -18537,6 +18537,168 @@ class T124Bibliotecas(unittest.TestCase):
         self.assertAlmostEqual(furo, 12.5, places=3, msg="furo de 25 mm")
         self.assertIn("transmissao", [c[0] for c in C.CATALOGO])
 
+class T138EnrijecedoresEmSerie(unittest.TestCase):
+    """1.15.2: "nos enrijecedores quero que as configurações tragam quantos eu quero colocar de uma vez só, as
+    configurações de distância total ou distância entre eles, tipo do padrão linear". O Reforço ganha Quantidade,
+    ModoEspaco (entre eles / total, de eixo a eixo) e Espacamento (0 = distribui na largura do perfil)."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteEnrijSerie")
+
+    def tearDown(self):
+        if FreeCAD.GuiUp:
+            try:
+                FreeCADGui.Control.closeDialog()
+            except Exception:
+                pass
+        fechar(self.doc)
+
+    def _quadro(self):
+        import PrumoEstrutura as E
+        sk = esboco_linhas(self.doc, [((0, 0), (1000, 0)), ((1000, 0), (1000, 600)), ((1000, 600), (0, 600)),
+                                      ((0, 600), (0, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 150 x 13,0")
+        self.doc.recompute()
+        return est, E.barras_de(est)
+
+    def _coluna(self, perfil="W 150 x 13,0"):
+        import PrumoEstrutura as E
+        sk = esboco_linhas(self.doc, [((0, 0), (0, 2000))], "XZ", "Col")
+        est = E.criar(self.doc, sk, perfil)
+        self.doc.recompute()
+        return est, E.barras_de(est)[0]
+
+    def test_varios_no_canto_entre_eles_total_e_automatico(self):
+        import PrumoEstruturaExtras as X
+        import PrumoPerfis
+        import PrumoBOM
+        est, bs = self._quadro()
+        bf = PrumoPerfis.perfil("W 150 x 13,0")["bf"]
+        um = X.criar_reforco(bs[0], bs[1], Perna1=150, Perna2=150, Espessura=8, Chanfro=15)
+        r = X.criar_reforco(bs[0], bs[1], Perna1=150, Perna2=150, Espessura=8, Chanfro=15, Quantidade=2)
+        self.assertEqual(list(r.Avisos), [])
+        self.assertEqual(len(r.Shape.Solids), 2)
+        self.assertAlmostEqual(r.Shape.Volume, 2 * um.Shape.Volume, places=3)
+        # automático: as das pontas rentes às faces do perfil
+        self.assertAlmostEqual(r.Shape.BoundBox.YMin, -bf / 2.0, places=6)
+        self.assertAlmostEqual(r.Shape.BoundBox.YMax, bf / 2.0, places=6)
+        for sol in r.Shape.Solids:
+            self.assertLess(min(sol.distToShape(b.Shape)[0] for b in bs[:2]), 1e-6, "cada chapa encosta")
+        for b in bs[:2]:
+            self.assertLess(r.Shape.common(b.Shape).Volume, 1e-3)
+        self.assertAlmostEqual(r.Massa, 2 * um.Massa, places=9)
+        # distância entre eles (eixo a eixo)
+        r.Quantidade = 3
+        r.ModoEspaco = "Distância entre eles"
+        r.Espacamento = 40
+        self.doc.recompute()
+        self.assertEqual(len(r.Shape.Solids), 3)
+        self.assertAlmostEqual(r.Shape.BoundBox.YLength, 2 * 40 + 8, places=6)
+        self.assertAlmostEqual(r.Shape.BoundBox.Center.y, 0.0, places=6)
+        # distância total: do primeiro ao último
+        r.ModoEspaco = "Distância total"
+        r.Espacamento = 60
+        self.doc.recompute()
+        self.assertAlmostEqual(r.Shape.BoundBox.YLength, 60 + 8, places=6)
+        # grupo na frente
+        r.Posicao = "Frente"
+        self.doc.recompute()
+        self.assertAlmostEqual(r.Shape.BoundBox.YMax, bf / 2.0, places=6)
+        r.Posicao = "Trás"
+        self.doc.recompute()
+        self.assertAlmostEqual(r.Shape.BoundBox.YMin, -bf / 2.0, places=6)
+        # lista de materiais: uma linha, quantidade de chapas, massa de uma chapa
+        linhas = [l for l in PrumoBOM.coletar([est]) if "Reforço" in l.denominacao]
+        self.assertEqual(len(linhas), 1)
+        self.assertEqual(linhas[0].qtd, 4)
+        self.assertAlmostEqual(linhas[0].massa, um.Massa, places=6)
+
+    def test_avisos_de_sobreposicao_e_largura(self):
+        import PrumoEstruturaExtras as X
+        _est, bs = self._quadro()
+        r = X.criar_reforco(bs[0], bs[1], Espessura=8, Quantidade=3, ModoEspaco="Distância entre eles",
+                            Espacamento=5)
+        self.assertIn("sobrepõem", r.Avisos[0])
+        r.Espacamento = 300
+        self.doc.recompute()
+        self.assertIn("passam da largura do perfil", r.Avisos[0])
+        r.Espacamento = 30
+        self.doc.recompute()
+        self.assertEqual(list(r.Avisos), [])
+
+    def test_solda_conta_todas_as_chapas(self):
+        import PrumoEstruturaExtras as X
+        _est, bs = self._quadro()
+        um = X.criar_reforco(bs[0], bs[1], Perna1=150, Perna2=150, Espessura=8, Chanfro=15)
+        s1 = X.criar_solda([um, bs[0]], perna=5)
+        dois = X.criar_reforco(bs[2], bs[3], Perna1=150, Perna2=150, Espessura=8, Chanfro=15, Quantidade=2)
+        s2 = X.criar_solda([dois, bs[2]], perna=5)
+        self.assertAlmostEqual(s2.ComprimentoTotal.Value, 2 * s1.ComprimentoTotal.Value, delta=0.5)
+
+    def test_varios_na_placa_de_base_sem_bater_nas_mesas(self):
+        import PrumoEstruturaExtras as X
+        import PrumoPerfis
+        _est, b = self._coluna()
+        it = PrumoPerfis.perfil("W 150 x 13,0")
+        pl = X.criar_placa_base(b, "Início", Largura=300, Comprimento=400, Espessura=16)
+        rs = X.criar_reforco_placa(b, pl, Perna1=200, Perna2=0, Espessura=10, Chanfro=15, Quantidade=2)
+        self.assertEqual(len(rs), 4)
+        for r in rs:
+            self.assertEqual(list(r.Avisos), [], r.Lado)
+            self.assertEqual(len(r.Shape.Solids), 2, r.Lado)
+            self.assertLess(r.Shape.common(b.Shape).Volume, 1e-2, "%s: entra na barra" % r.Lado)
+            self.assertLess(r.Shape.common(pl.Shape).Volume, 1e-2, "%s: entra na placa" % r.Lado)
+            for sol in r.Shape.Solids:
+                self.assertLess(sol.distToShape(b.Shape)[0], 0.01, "%s: cada chapa encosta no perfil" % r.Lado)
+                self.assertLess(sol.distToShape(pl.Shape)[0], 0.01, "%s: cada chapa encosta na placa" % r.Lado)
+        # sem interferência entre os conjuntos dos quatro lados
+        for i in range(4):
+            for j in range(i + 1, 4):
+                self.assertLess(rs[i].Shape.common(rs[j].Shape).Volume, 1e-3)
+        # no lado da alma, as chapas ficam entre as mesas (largura livre d − 2·tf)
+        alma = [r for r in rs if "Largura" in r.Lado][0]
+        livre = it["d"] - 2 * it["tf"]
+        c1, c2 = [sol.CenterOfMass for sol in alma.Shape.Solids]
+        self.assertAlmostEqual((c1 - c2).Length, livre - 10.0, delta=0.05)
+        mesa = [r for r in rs if "Altura" in r.Lado][0]
+        c1, c2 = [sol.CenterOfMass for sol in mesa.Shape.Solids]
+        self.assertAlmostEqual((c1 - c2).Length, it["bf"] - 10.0, delta=0.05)
+
+    def test_painel_quantidade_e_espacamento(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoEstruturaExtras as X
+        _est, bs = self._quadro()
+        p = X.PainelReforco()
+        try:
+            self.assertFalse(p.modo_esp.isEnabled(), "uma chapa: sem espaçamento")
+            self.assertFalse(p.espaco.isEnabled())
+            p.qtd.setValue(3)
+            self.assertTrue(p.modo_esp.isEnabled())
+            self.assertTrue(p.espaco.isEnabled())
+            self.assertEqual([p.modo_esp.itemText(i) for i in range(p.modo_esp.count())], X.MODOS_ESPACO)
+            p.modo_esp.setCurrentText("Distância total")
+            p.espaco.setValue(80.0)
+            p.barras.aceitar(bs[0])
+            p.barras.aceitar(bs[1])
+            self.assertTrue(p.accept())
+        finally:
+            if FreeCADGui.Control.activeDialog():
+                FreeCADGui.Control.closeDialog()
+        rs = [o for o in self.doc.Objects if isinstance(getattr(o, "Proxy", None), X.Reforco)]
+        self.assertEqual(len(rs), 1)
+        r = rs[0]
+        self.assertEqual((r.Quantidade, r.ModoEspaco, r.Espacamento.Value), (3, "Distância total", 80.0))
+        self.assertEqual(len(r.Shape.Solids), 3)
+        # reabrir para editar traz os valores
+        q = X.PainelReforco()
+        try:
+            q.carregar(r)
+            self.assertEqual((q.qtd.value(), q.modo_esp.currentText(), q.espaco.value()),
+                             (3, "Distância total", 80.0))
+        finally:
+            q.close()
+
 
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
@@ -18579,4 +18741,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
            T131DadosDasPranchas, T132EnrijecedorPlaca,
            T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
-           T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador]
+           T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
+           T138EnrijecedoresEmSerie]
