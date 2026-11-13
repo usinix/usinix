@@ -11,6 +11,11 @@ refaz. Por dentro:
 
 A escada sobe no sentido +X local, com a largura em Y e o piso em z = 0; Posicao leva a escada para o lugar.
 
+Patamares (1.15.0): com Patamares ligado, a escada se divide em lances retos de até AlturaMaxLance (3 000 mm, item
+11 e / 12 e), com um patamar de ComprimentoPatamar entre eles, no mesmo sentido; as vigas seguem horizontais sob o
+patamar e o guarda-corpo e o rodapé continuam por ele. Fixação: chapa deitada no pé de cada viga (com furos para
+chumbador) e chapa em pé no topo, contra a face do piso de cima; as chapas entram na lista de materiais.
+
 Verificação ao vivo pelo Anexo III da NR-12 (texto atualizado pela Portaria MTP n.º 4.219, de 20/12/2022,
 conferido no gov.br em 10/11/2026): Figura 1 (escada com espelho de 20° a 45°; sem espelho de 45° a 75°, lidos na
 figura), itens 7 (travessão superior de 1,10 m a 1,20 m, intermediário a 0,70 m, rodapé de 0,20 m), 11 (sem
@@ -28,12 +33,14 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 TIPOS_DEGRAU = ("Grade de piso (sem espelho)", "Chapa xadrez dobrada (sem espelho)",
                 "Chapa xadrez com espelho")
 LADOS = ("Os dois lados", "Lado esquerdo", "Lado direito", "Sem guarda-corpo")
+FIXACOES = ("Sem chapas", "Chapa na base e no topo")
 PERFIL_BANZO = 'I 8" x 27,3 kg/m'
 PERFIL_GUARDA = "Tubo ○ 38,1 x 2"
 NR12 = "NR-12, Anexo III (Portaria MTP n.º 4.219/2022)"
 PARAMETROS = ("Posicao", "Desnivel", "Angulo", "LarguraUtil", "NumeroEspelhos", "TipoDegrau", "EspessuraDegrau",
               "Sobreposicao", "PerfilBanzo", "ElevacaoBanzo", "LadosGuarda", "PerfilGuarda", "AlturaGuarda",
-              "AlturaIntermediario", "EspacamentoMontantes", "Rodape", "AlturaRodape", "Material")
+              "AlturaIntermediario", "EspacamentoMontantes", "Rodape", "AlturaRodape", "Material", "Patamares",
+              "AlturaMaxLance", "ComprimentoPatamar", "FixacaoBanzos", "EspessuraChapa", "DiametroFuroChapa")
 DENS = 7850.0
 
 
@@ -44,7 +51,11 @@ def _n(v, casas=0):
 
 # ============================================================================ geometria (sem FreeCAD.Gui)
 class Medidas:
-    """Medidas calculadas da escada (mm e graus)."""
+    """Medidas calculadas da escada (mm e graus).
+
+    Com patamares (1.15.0) a escada se divide em lances retos de até AlturaMaxLance, separados por patamares de
+    ComprimentoPatamar, todos no mesmo sentido (+X). Cada lance tem n_i subidas: n_i - 1 degraus e o patamar (ou o
+    piso de cima) no lugar do último."""
 
     def __init__(self, esc):
         self.H = float(esc.Desnivel.Value)
@@ -53,10 +64,9 @@ class Medidas:
         th = math.radians(self.ang)
         self.tan = math.tan(th)
         self.sen, self.cos = math.sin(th), math.cos(th)
-        self.L = self.H / self.tan                       # projeção horizontal do lance
         alvo = 630.0 / (2.0 + 1.0 / self.tan)            # 2h + g = 630 (meio da faixa 600-660)
         n = int(esc.NumeroEspelhos) if int(esc.NumeroEspelhos) > 0 else max(1, int(round(self.H / alvo)))
-        self.n = n                                       # espelhos (subidas); degraus = n - 1 (o último é o piso)
+        self.n = n                                       # espelhos (subidas) no total
         self.h = self.H / n
         self.g = self.h / self.tan                       # profundidade livre (passo horizontal)
         self.r = float(esc.Sobreposicao.Value)
@@ -72,27 +82,92 @@ class Medidas:
         auto = max(0.0, alt / 2.0 - D / 2.0)
         self.sobra = float(esc.ElevacaoBanzo.Value) if esc.ElevacaoBanzo.Value > 0 else auto
         self.y_banzo = self.W / 2.0 + larg / 2.0         # eixo do banzo (abas na largura útil)
+        # lances e patamares
+        patamar = bool(getattr(esc, "Patamares", False))
+        hmax = float(esc.AlturaMaxLance.Value) if patamar and "AlturaMaxLance" in esc.PropertiesList else 0.0
+        self.Lp = float(esc.ComprimentoPatamar.Value) if patamar and "ComprimentoPatamar" in esc.PropertiesList \
+            else 0.0
+        k = 1
+        if hmax > 0:
+            k = max(1, int(math.ceil(self.H / hmax - 1e-9)))
+            while k < n and max(self._divide(n, k)) * self.h > hmax + 1e-6:
+                k += 1
+        k = min(k, n)
+        self.lances = []                                 # [(x do pé, z do pé, subidas)]
+        x = z = 0.0
+        for ni in self._divide(n, k):
+            self.lances.append((x, z, ni))
+            x += ni * self.g + self.Lp
+            z += ni * self.h
+        self.L = x - self.Lp                             # projeção horizontal total (com os patamares)
+        # chapas de fixação dos banzos (base no piso, topo na face do piso de cima)
+        self.chapas = getattr(esc, "FixacaoBanzos", FIXACOES[0]) == FIXACOES[1]
+        self.tc = float(esc.EspessuraChapa.Value) if self.chapas else 0.0
+
+    @staticmethod
+    def _divide(n, k):
+        base, extra = divmod(n, k)
+        return [base + (1 if i < extra else 0) for i in range(k)]
+
+    def patamares(self):
+        """[(x início, x fim, z do piso)] dos patamares entre os lances."""
+        res = []
+        for (x, z, ni), _prox in zip(self.lances, self.lances[1:]):
+            res.append((x + ni * self.g, x + ni * self.g + self.Lp, z + ni * self.h))
+        return res
+
+    def trechos(self):
+        """[(x0, x1, z0, inclinado)] da linha de passo: lances inclinados e patamares horizontais."""
+        res = []
+        for i, (x, z, ni) in enumerate(self.lances):
+            res.append((x, x + ni * self.g, z, True))
+            if i < len(self.lances) - 1:
+                res.append((x + ni * self.g, x + ni * self.g + self.Lp, z + ni * self.h, False))
+        return res
 
     def z_passo(self, x):
-        """Altura da linha de passo (bordas dos degraus) em x."""
-        return x * self.tan
+        """Altura da linha de passo (bordas dos degraus e piso dos patamares) em x."""
+        for x0, x1, z0, incl in self.trechos():
+            if x <= x1 + 1e-9:
+                return z0 + max(0.0, x - x0) * self.tan if incl else z0
+        x0, x1, z0, _i = self.trechos()[-1]
+        return z0 + (x - x0) * self.tan
 
 
 def linhas_banzos(m):
-    """Linhas de centro dos dois banzos (locais): paralelas à linha de passo, com o topo da viga a `sobra`."""
+    """Linhas de centro dos dois banzos (locais): por lance, paralelas à linha de passo com o topo da viga a
+    `sobra`; nos patamares, horizontais com o topo da viga sob o piso do patamar. [[(a, b), ...] por lado]."""
     off = (m.sobra - m.alt / 2.0) / m.cos                # deslocamento vertical do eixo em relação à linha de passo
-    # o eixo corta o piso (z = 0) e o topo (z = H)
-    x0 = -off / m.tan
-    x1 = (m.H - off) / m.tan
+
+    def x_em(lance, z):                                  # x do eixo do lance na altura z
+        x, z0, _n = lance
+        return x + (z - z0 - off) / m.tan
+    pts = []
+    z_ini = m.tc if m.chapas else 0.0                    # com chapa de base, a viga apoia na chapa
+    pts.append((x_em(m.lances[0], z_ini), z_ini))
+    for (xa, xb, zp), la, lb in zip(m.patamares(), m.lances, m.lances[1:]):
+        zh = zp - max(m.e, 25.0) - m.alt / 2.0           # eixo da viga do patamar (topo sob o piso)
+        pts.append((x_em(la, zh), zh))
+        pts.append((x_em(lb, zh), zh))
+    ult = m.lances[-1]
+    if m.chapas:                                         # termina em pé contra a chapa de topo (face do piso)
+        xf = m.L - m.tc
+        pts.append((xf, ult[1] + (xf - ult[0]) * m.tan + off))
+    else:
+        pts.append((x_em(ult, m.H), m.H))
     res = []
     for y in (-m.y_banzo, m.y_banzo):
-        res.append((FreeCAD.Vector(x0, y, 0.0), FreeCAD.Vector(x1, y, m.H)))
+        vs = [FreeCAD.Vector(x, y, z) for x, z in pts]
+        res.append(list(zip(vs, vs[1:])))
     return res
 
 
 def degraus(m):
-    """[(x da borda, z do piso do degrau)] dos degraus (sem o piso de chegada)."""
-    return [(i * m.g, i * m.h) for i in range(1, m.n)]
+    """[(x da borda, z do piso do degrau)] dos degraus (sem os patamares e sem o piso de chegada)."""
+    res = []
+    for x, z, ni in m.lances:
+        res.extend((x + i * m.g, z + i * m.h) for i in range(1, ni))
+    return res
 
 
 def lados(esc):
@@ -100,23 +175,34 @@ def lados(esc):
 
 
 def linhas_guarda(esc, m):
-    """Linhas do guarda-corpo (locais): montantes, travessão superior e intermediário em cada lado."""
+    """Linhas do guarda-corpo (locais): montantes, travessão superior e intermediário em cada lado. Com patamar há
+    montante no começo e no fim de cada patamar, e os travessões seguem a linha de passo."""
     res = []
     hc = float(esc.AlturaGuarda.Value)
     hi = float(esc.AlturaIntermediario.Value)
     xa = min(m.g * 0.5, 150.0) if m.n > 1 else 0.0
     xb = max(m.L - 100.0, xa + 1.0)
     vao = max(float(esc.EspacamentoMontantes.Value), 300.0)
-    nm = max(2, int(math.ceil((xb - xa) / vao)) + 1)
-    xs = [xa + (xb - xa) * k / (nm - 1) for k in range(nm)]
-    # base do montante: topo do banzo (perpendicular `sobra` acima da linha de passo, medido na vertical)
+    quebras = [xa] + [x for p in m.patamares() for x in p[:2]] + [xb]
+    xs = []
+    for x0, x1 in zip(quebras, quebras[1:]):
+        if x1 - x0 < 1.0:
+            continue
+        nm = max(2, int(math.ceil((x1 - x0) / vao)) + 1)
+        xs.extend(x0 + (x1 - x0) * k / (nm - 1) for k in range(nm))
+    xs = sorted(set(round(x, 6) for x in xs))
+    # base do montante: topo do banzo (`sobra` acima da linha de passo no lance; no patamar, o piso)
     dz_base = m.sobra / m.cos
+
+    def base(x):
+        noPatamar = any(p0 + 1e-6 < x < p1 - 1e-6 for p0, p1, _z in m.patamares())
+        return m.z_passo(x) + (0.0 if noPatamar else dz_base)
     for s in lados(esc):
         y = s * m.y_banzo
         topo = [FreeCAD.Vector(x, y, m.z_passo(x) + hc) for x in xs]
         meio = [FreeCAD.Vector(x, y, m.z_passo(x) + hi) for x in xs]
         for x, pt in zip(xs, topo):
-            res.append((FreeCAD.Vector(x, y, m.z_passo(x) + dz_base), pt))
+            res.append((FreeCAD.Vector(x, y, base(x)), pt))
         # travessões em trechos de montante a montante (os montantes passam inteiros)
         for k in range(len(xs) - 1):
             res.append((topo[k], topo[k + 1]))
@@ -156,6 +242,7 @@ def forma_degraus(esc, m):
         s.translate(FreeCAD.Vector(x, 0, z))
         sol.append(s)
     itens = []
+    n_deg = len(sol)
     if sol:
         massa = base.Volume * 1e-9 * DENS
         if esc.TipoDegrau == TIPOS_DEGRAU[0]:
@@ -164,24 +251,72 @@ def forma_degraus(esc, m):
             den = "Degrau de grade de piso %s × %s mm" % (_n(m.t), _n(comp))
         else:
             den = "Degrau de chapa xadrez %s mm, %s × %s mm" % (_n(m.e, 2), _n(m.t), _n(comp))
-        itens.append((den, len(sol), massa, "%s × %s" % (_n(m.t), _n(comp))))
-    # rodapé (chapa 1/8" × 200 mm) ao longo da escada, por dentro, em cada lado com guarda-corpo
+        itens.append((den, n_deg, massa, "%s × %s" % (_n(m.t), _n(comp))))
+    # patamares: piso de grade (ou chapa xadrez) sobre as vigas do patamar
+    pats = m.patamares()
+    if pats:
+        alt_p = max(m.e, 25.0)
+        lp = m.Lp
+        for x0, x1, zp in pats:
+            sol.append(Part.makeBox(x1 - x0, comp, alt_p, FreeCAD.Vector(x0, -comp / 2.0, zp - alt_p)))
+        grade = esc.TipoDegrau == TIPOS_DEGRAU[0]
+        massa_p = lp * comp * alt_p * 1e-9 * DENS * (0.22 if grade else m.e / alt_p)
+        itens.append(("Piso do patamar (%s) %s × %s mm" % ("grade de piso" if grade else "chapa xadrez", _n(lp),
+                      _n(comp)), len(pats), massa_p, "%s × %s" % (_n(lp), _n(comp))))
+    # rodapé (chapa 1/8" × 200 mm) ao longo da escada e dos patamares, por dentro, em cada lado com guarda-corpo
     if esc.Rodape and lados(esc):
         alt_r = float(esc.AlturaRodape.Value)
         esp = 3.0
-        x0, x1 = 0.0, m.L
-        for s in lados(esc):
-            y = s * (m.W / 2.0 + esp / 2.0)
-            off = 0.0
-            pts = [FreeCAD.Vector(x0, y - esp / 2.0, m.z_passo(x0) + off),
-                   FreeCAD.Vector(x1, y - esp / 2.0, m.z_passo(x1) + off),
-                   FreeCAD.Vector(x1, y - esp / 2.0, m.z_passo(x1) + off + alt_r),
-                   FreeCAD.Vector(x0, y - esp / 2.0, m.z_passo(x0) + off + alt_r)]
-            f = Part.Face(Part.makePolygon(pts + [pts[0]]))
-            sol.append(f.extrude(FreeCAD.Vector(0, esp, 0)))
-        compr = math.hypot(m.L, m.H)
+        compr = 0.0
+        for x0, x1, _z0, _incl in m.trechos():
+            if x1 - x0 < 1e-6:
+                continue
+            compr += math.hypot(x1 - x0, m.z_passo(x1) - m.z_passo(x0))
+            for s in lados(esc):
+                y = s * (m.W / 2.0 - esp / 2.0)     # por dentro da largura útil (antes entrava na aba da viga)
+                pts = [FreeCAD.Vector(x0, y - esp / 2.0, m.z_passo(x0)),
+                       FreeCAD.Vector(x1, y - esp / 2.0, m.z_passo(x1)),
+                       FreeCAD.Vector(x1, y - esp / 2.0, m.z_passo(x1) + alt_r),
+                       FreeCAD.Vector(x0, y - esp / 2.0, m.z_passo(x0) + alt_r)]
+                f = Part.Face(Part.makePolygon(pts + [pts[0]]))
+                sol.append(f.extrude(FreeCAD.Vector(0, esp, 0)))
         itens.append(("Rodapé chapa %s × %s mm" % (_n(esp), _n(alt_r)), len(lados(esc)),
                       compr * alt_r * esp * 1e-9 * DENS, "%s mm" % _n(compr)))
+    # chapas de fixação dos banzos: na base (deitada no piso) e no topo (em pé, contra a face do piso de cima)
+    if m.chapas:
+        tc = m.tc
+        df = float(esc.DiametroFuroChapa.Value)
+        folga = 50.0
+        larg = m.bf + 2 * (df + 30.0)
+        linhas = linhas_banzos(m)
+        for lado in linhas:
+            a0, a1 = lado[0]
+            b0, b1 = lado[-1]
+            # base: pegada do corte horizontal (altura do perfil / sen) + folga
+            cb = m.alt / m.sen + 2 * folga
+            pb = Part.makeBox(cb, larg, tc, FreeCAD.Vector(a0.x - cb / 2.0, a0.y - larg / 2.0, 0.0))
+            # topo: pegada do corte vertical (altura do perfil / cos) + folga
+            ct = m.alt / m.cos + 2 * folga
+            pt = Part.makeBox(tc, larg, ct, FreeCAD.Vector(b1.x, b1.y - larg / 2.0, b1.z - ct / 2.0))
+            for chapa, eixo in ((pb, "z"), (pt, "x")):
+                c = chapa.BoundBox.Center
+                for sy in (-1, 1):
+                    y = c.y + sy * (m.bf / 2.0 + df / 2.0 + 15.0)
+                    if eixo == "z":
+                        furo = Part.makeCylinder(df / 2.0, tc + 2, FreeCAD.Vector(c.x, y, -1), FreeCAD.Vector(0, 0, 1))
+                    else:
+                        furo = Part.makeCylinder(df / 2.0, tc + 2, FreeCAD.Vector(c.x - tc, y, c.z),
+                                                 FreeCAD.Vector(1, 0, 0))
+                    chapa = chapa.cut(furo)
+                sol.append(chapa)
+        itens.append(("Chapa de base do banzo %s × %s × %s mm — 2 furos Ø%s" % (
+            _n(m.alt / m.sen + 2 * folga), _n(larg), _n(tc, 1), _n(df)), 2,
+            (m.alt / m.sen + 2 * folga) * larg * tc * 1e-9 * DENS, "%s × %s" % (_n(m.alt / m.sen + 2 * folga),
+                                                                                 _n(larg))))
+        itens.append(("Chapa de topo do banzo %s × %s × %s mm — 2 furos Ø%s" % (
+            _n(m.alt / m.cos + 2 * folga), _n(larg), _n(tc, 1), _n(df)), 2,
+            (m.alt / m.cos + 2 * folga) * larg * tc * 1e-9 * DENS, "%s × %s" % (_n(m.alt / m.cos + 2 * folga),
+                                                                                 _n(larg))))
     return (Part.makeCompound(sol) if sol else Part.Shape()), itens
 
 
@@ -211,8 +346,13 @@ def verificar(esc, m=None):
         f = m.g + 2 * m.h
         item(600.0 - 1e-6 <= f <= 660.0 + 1e-6, "g + 2h = %s mm — de 600 a 660 mm (11 g)" % _n(f))
         item(m.r >= -1e-6, "Projeção de um degrau sobre o outro r = %s mm — maior ou igual a 0 (11 f)" % _n(m.r))
-    item(m.H <= 3000.0 + 1e-6, "Desnível %s mm — patamar de descanso a cada 3 000 mm no máximo (11 e / 12 e)%s"
-         % (_n(m.H), "" if m.H <= 3000.0 else ": divida em lances com patamar"))
+    hl = max(ni for _x, _z, ni in m.lances) * m.h
+    if len(m.lances) > 1:
+        item(hl <= 3000.0 + 1e-6, "%d lances com patamar, o mais alto com %s mm — patamar de descanso a cada "
+             "3 000 mm no máximo (11 e / 12 e)" % (len(m.lances), _n(hl)))
+    else:
+        item(m.H <= 3000.0 + 1e-6, "Desnível %s mm — patamar de descanso a cada 3 000 mm no máximo (11 e / 12 e)%s"
+             % (_n(m.H), "" if m.H <= 3000.0 else ": ligue Patamares para dividir em lances"))
     if lados(esc):
         hc = float(esc.AlturaGuarda.Value)
         item(1100.0 - 1e-6 <= hc <= 1200.0 + 1e-6, "Travessão superior a %s mm — de 1 100 a 1 200 mm (7 c)" % _n(hc))
@@ -271,6 +411,16 @@ class Escada:
             "(na horizontal)", 1200.0)
         add("App::PropertyBool", "Rodape", "Guarda-corpo", "Chapa de rodapé", True)
         add("App::PropertyLength", "AlturaRodape", "Guarda-corpo", "Altura do rodapé", 200.0)
+        add("App::PropertyBool", "Patamares", "Patamares", "Divide a escada em lances com patamar entre eles", False)
+        add("App::PropertyLength", "AlturaMaxLance", "Patamares", "Altura máxima de cada lance (NR-12, Anexo III, "
+            "11 e / 12 e: patamar a cada 3 000 mm no máximo)", 3000.0)
+        add("App::PropertyLength", "ComprimentoPatamar", "Patamares", "Comprimento do patamar (no sentido da "
+            "subida)", 1000.0)
+        add("App::PropertyInteger", "Lances", "Resultado", "Número de lances", 1, so_ler=True)
+        enum("FixacaoBanzos", "Fixação", "Chapas de fixação dos banzos", FIXACOES, FIXACOES[0])
+        add("App::PropertyLength", "EspessuraChapa", "Fixação", "Espessura das chapas de fixação", 12.5)
+        add("App::PropertyLength", "DiametroFuroChapa", "Fixação", "Diâmetro dos furos (chumbador ou parafuso)",
+            18.0)
         add("App::PropertyString", "Material", "Lista", "Material", "Aço carbono")
         for nome, tipo, doc in (("AlturaEspelho", "App::PropertyFloat", "Altura entre degraus h (mm)"),
                                 ("ProfundidadeLivre", "App::PropertyFloat", "Profundidade livre g (mm)"),
@@ -319,8 +469,10 @@ class Escada:
         m = Medidas(obj)
         obj.AlturaEspelho = m.h
         obj.ProfundidadeLivre = m.g
-        obj.Degraus = max(0, m.n - 1)
+        obj.Degraus = len(degraus(m))
         obj.Vao = m.L
+        if "Lances" in obj.PropertiesList:
+            obj.Lances = len(m.lances)
         v = verificar(obj, m)
         obj.Conforme = all(ok for ok, _t in v)
         obj.Verificacao = [("✓ " if ok else "✗ ") + t for ok, t in v]
@@ -402,11 +554,17 @@ def _reconstruir(esc):
         sk.Label = "Esqueleto dos banzos"
         esc.EsqBanzos = sk
         esc.addObject(sk)
-    esc.EsqBanzos.Shape = _arame(linhas_banzos(m), pl)
-    # as duas linhas dos banzos ficam num plano inclinado: a altura da viga tem de ficar no plano vertical
-    # da escada (giro de 90° quando o Usinix toma o plano inclinado como "pórtico"; em escada quase deitada
-    # ele já põe a altura na vertical)
-    giro = 0.0 if abs(m.cos) > 0.9 else 90.0
+    lados_b = linhas_banzos(m)
+    velho = esc.EsqBanzos.Shape
+    esc.EsqBanzos.Shape = _arame([l for lado in lados_b for l in lado], pl)
+    por_lado = len(lados_b[0])
+    if esc.Banzos is not None and len(velho.Edges) != len(esc.EsqBanzos.Shape.Edges):
+        _apagar_estrutura(esc.Banzos)            # mudou o número de lances: refaz as vigas
+        esc.Banzos = None
+    # lance único: as duas linhas ficam num plano inclinado e a altura da viga tem de ficar no plano vertical da
+    # escada (giro de 90° quando o Usinix toma o plano inclinado como "pórtico"; em escada quase deitada ele já
+    # põe a altura na vertical). Com patamar as linhas já formam um pórtico vertical: sem giro
+    giro = 0.0 if (abs(m.cos) > 0.9 or por_lado > 1) else 90.0
     if esc.Banzos is None:
         est = E.criar(doc, esc.EsqBanzos, esc.PerfilBanzo, rotacao=giro, transacao=False, material=esc.Material)
         est.Label = "Banzos"
@@ -417,9 +575,11 @@ def _reconstruir(esc):
         esc.Banzos.Rotacao = giro
         esc.Banzos.Material = esc.Material
         E.sincronizar_barras(esc.Banzos)
-    for i in range(2):
-        E.definir_ponta(esc.Banzos, i, 0, E.PONTA_HORIZONTAL)
-        E.definir_ponta(esc.Banzos, i, 1, E.PONTA_HORIZONTAL)
+    esc.Banzos.Pontas = []
+    for lado in range(2):
+        E.definir_ponta(esc.Banzos, lado * por_lado, 0, E.PONTA_HORIZONTAL)
+        E.definir_ponta(esc.Banzos, lado * por_lado + por_lado - 1, 1,
+                        E.PONTA_VERTICAL if m.chapas else E.PONTA_HORIZONTAL)
     # degraus e rodapés
     if esc.PecasDegraus is None:
         dg = doc.addObject("Part::FeaturePython", "Degraus")
@@ -452,6 +612,20 @@ def _reconstruir(esc):
         else:
             esc.GuardaCorpo.Perfil = esc.PerfilGuarda
             E.sincronizar_barras(esc.GuardaCorpo)
+        # pé do montante cortado no plano do topo da viga (reto, metade do tubo entrava na viga inclinada)
+        nm = len(_xs)
+        por_lado_g = nm + 2 * (nm - 1)
+        cortes = []
+        normal = pl.Rotation.multVec(FreeCAD.Vector(-m.sen, 0, m.cos))
+        for k_lado in range(len(lados(esc))):
+            for j, x in enumerate(_xs):
+                if any(p0 + 1e-6 < x < p1 - 1e-6 for p0, p1, _z in m.patamares()):
+                    continue                     # no patamar o montante apoia no piso: corte reto
+                a, _b = linhas[k_lado * por_lado_g + j]
+                cortes.append(E.chave_ponta(k_lado * por_lado_g + j, 0) + "=" +
+                              E.valor_plano(pl.multVec(a), normal))
+        if list(esc.GuardaCorpo.Pontas or []) != cortes:
+            esc.GuardaCorpo.Pontas = cortes
     elif esc.GuardaCorpo is not None:
         _apagar_estrutura(esc.GuardaCorpo)
         esc.GuardaCorpo = None
@@ -628,11 +802,23 @@ if P is not None:
                      "Subidas")
             self.esp = P.numero(30.0, 2.0, 80.0)
             s2.linha("espessura", self.esp, "Altura da grade ou espessura da chapa.", "Espessura")
+            s2b = f.secao("Patamares", "altura")
+            self.patamar = s2b.linha("altura", P.marcar("Dividir em lances com patamar"), "")
+            self.hmax = P.numero(3000.0, 500.0, 3000.0)
+            s2b.linha("altura", self.hmax, "Altura máxima de cada lance (NR-12: patamar a cada 3 000 mm no máximo).",
+                      "Lance até")
+            self.lp = P.numero(1000.0, 300.0, 10000.0)
+            s2b.linha("comprimento", self.lp, "Comprimento do patamar, no sentido da subida.", "Patamar")
             s3 = f.secao("Vigas (banzos)", "estrutura")
             nomes = [it["nome"] for fam in ("I", "U", "W") for it in (PrumoPerfis.familia(fam) or {}).get("itens", [])]
             self.perfil = P.lista(nomes or [PERFIL_BANZO], PERFIL_BANZO)
             self.perfil.setEditable(True)
             s3.linha("perfil", self.perfil, "Perfil das duas vigas.", "Perfil")
+            self.fixacao = P.lista(list(FIXACOES), FIXACOES[0])
+            s3.linha("furo", self.fixacao, "Chapa deitada no pé de cada viga (chumbador) e chapa em pé no topo, "
+                     "contra a face do piso de cima.", "Fixação")
+            self.esp_chapa = P.numero(12.5, 3.0, 50.0)
+            s3.linha("espessura", self.esp_chapa, "Espessura das chapas de fixação.", "Chapa")
             s4 = f.secao("Guarda-corpo", "posicao")
             self.lados = P.lista(list(LADOS), LADOS[0])
             s4.linha("posicao", self.lados, "A NR-12 pede guarda-corpo dos dois lados.", "Lados")
@@ -671,6 +857,9 @@ if P is not None:
                     "NumeroEspelhos": int(self.n.value()), "EspessuraDegrau": self.esp.value(),
                     "PerfilBanzo": self.perfil.currentText(), "LadosGuarda": self.lados.currentText(),
                     "AlturaGuarda": self.hg.value(), "Rodape": self.rodape.isChecked(),
+                    "Patamares": self.patamar.isChecked(), "AlturaMaxLance": self.hmax.value(),
+                    "ComprimentoPatamar": self.lp.value(), "FixacaoBanzos": self.fixacao.currentText(),
+                    "EspessuraChapa": self.esp_chapa.value(),
                     "Posicao": FreeCAD.Placement(FreeCAD.Vector(self.px.value(), self.py.value(), self.pz.value()),
                                                  FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), self.giro.value()))}
 
@@ -685,6 +874,11 @@ if P is not None:
             self.lados.setCurrentText(obj.LadosGuarda)
             self.hg.setValue(obj.AlturaGuarda.Value)
             self.rodape.setChecked(bool(obj.Rodape))
+            self.patamar.setChecked(bool(obj.Patamares))
+            self.hmax.setValue(obj.AlturaMaxLance.Value)
+            self.lp.setValue(obj.ComprimentoPatamar.Value)
+            self.fixacao.setCurrentText(obj.FixacaoBanzos)
+            self.esp_chapa.setValue(obj.EspessuraChapa.Value)
             b = obj.Posicao.Base
             self.px.setValue(b.x)
             self.py.setValue(b.y)
@@ -729,7 +923,8 @@ if P is not None:
                 return
             cor = "#2E8B57" if esc.Conforme else "#C0392B"
             L = ["<b style='color:%s'>%s</b>" % (cor, "Confere com a NR-12" if esc.Conforme else "Não confere"),
-                 "%d degraus · h = %s mm · g = %s mm · vão %s mm" % (
+                 "%s%d degraus · h = %s mm · g = %s mm · vão %s mm" % (
+                     "%d lances · " % esc.Lances if getattr(esc, "Lances", 1) > 1 else "",
                      esc.Degraus, _n(esc.AlturaEspelho, 1), _n(esc.ProfundidadeLivre, 1), _n(esc.Vao))]
             for v in esc.Verificacao:
                 c = "#2E8B57" if v.startswith("✓") else "#C0392B"

@@ -17441,6 +17441,92 @@ class T132EnrijecedorPlaca(unittest.TestCase):
         self.assertEqual(len(novos), 4, "um enrijecedor em cada lado do perfil")
         self._confere(novos, pl)
 
+
+class T133EscadaPatamarEChapas(unittest.TestCase):
+    """1.15.0: escada com patamar (lances de até 3 000 mm, NR-12 Anexo III 11 e / 12 e) e chapas de fixação dos
+    banzos (base e topo)."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteEscadaPatamar")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def _pecas(self, esc):
+        import PrumoEstrutura as E
+        res = [esc.PecasDegraus] + E.barras_de(esc.Banzos)
+        if esc.GuardaCorpo is not None:
+            res += E.barras_de(esc.GuardaCorpo)
+        return res
+
+    def test_patamar_divide_em_lances_sem_interferencia(self):
+        import json
+        import PrumoEscada as PE
+        import PrumoEstrutura as E
+        import PrumoInterferencia as I
+        esc = PE.criar(self.doc, Desnivel=4800, Patamares=True)
+        self.doc.recompute()
+        m = PE.Medidas(esc)
+        self.assertEqual(esc.Lances, 2)
+        self.assertTrue(all(ni * m.h <= 3000.0 + 1e-6 for _x, _z, ni in m.lances))
+        self.assertEqual(sum(ni for _x, _z, ni in m.lances), m.n)
+        self.assertAlmostEqual(m.L, m.n * m.g + 1000.0, places=6)
+        self.assertTrue(esc.Conforme, esc.Verificacao)
+        self.assertTrue(any("2 lances com patamar" in v for v in esc.Verificacao))
+        bs = E.barras_de(esc.Banzos)
+        self.assertEqual(len(bs), 6, "dois lados × (lance, patamar, lance)")
+        for b in bs:
+            self.assertTrue(b.Shape.isValid())
+            self.assertAlmostEqual(b.Shape.BoundBox.YLength, m.bf, delta=0.5, msg="altura da viga na vertical")
+        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc))], [])
+        itens = [json.loads(t)["den"] for t in esc.PecasDegraus.Itens]
+        self.assertTrue(any(t.startswith("Piso do patamar") for t in itens), itens)
+        # topo da viga do patamar sob o piso do patamar
+        x0, x1, zp = m.patamares()[0]
+        meio = [b for b in bs if b.Shape.BoundBox.XMin > x0 - 200 and b.Shape.BoundBox.XMax < x1 + 200]
+        self.assertEqual(len(meio), 2)
+        self.assertAlmostEqual(meio[0].Shape.BoundBox.ZMax, zp - max(m.e, 25.0), delta=0.5)
+        # mais alto: três lances; desligado: volta a um lance (sem sobrar barra)
+        esc.Desnivel = 6500
+        PE.reconstruir(esc)
+        self.assertEqual(esc.Lances, 3)
+        self.assertEqual(len(E.barras_de(esc.Banzos)), 10)
+        esc.Patamares = False
+        esc.Desnivel = 2400
+        PE.reconstruir(esc)
+        self.assertEqual(esc.Lances, 1)
+        self.assertEqual(len(E.barras_de(esc.Banzos)), 2)
+        orfas = [o for o in self.doc.Objects if E.eh_barra(o) and o.Estrutura is None]
+        self.assertEqual(orfas, [])
+        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc))], [])
+
+    def test_chapas_de_fixacao_na_base_e_no_topo(self):
+        import json
+        import PrumoEscada as PE
+        import PrumoEstrutura as E
+        import PrumoInterferencia as I
+        esc = PE.criar(self.doc, Desnivel=2400, FixacaoBanzos=PE.FIXACOES[1], EspessuraChapa=12.5)
+        self.doc.recompute()
+        m = PE.Medidas(esc)
+        itens = [json.loads(t) for t in esc.PecasDegraus.Itens]
+        base = [d for d in itens if d["den"].startswith("Chapa de base")]
+        topo = [d for d in itens if d["den"].startswith("Chapa de topo")]
+        self.assertEqual((len(base), len(topo)), (1, 1))
+        self.assertEqual(base[0]["qtd"], 2)
+        bs = E.barras_de(esc.Banzos)
+        for b in bs:
+            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 12.5, delta=0.05, msg="a viga apoia na chapa de base")
+            self.assertAlmostEqual(b.Shape.BoundBox.XMax, m.L - 12.5, delta=0.05, msg="a viga encosta na chapa de topo")
+        sol = esc.PecasDegraus.Shape.Solids
+        chapas = [s for s in sol if abs(s.BoundBox.ZMin) < 1e-6 and abs(s.BoundBox.ZLength - 12.5) < 1e-6]
+        self.assertEqual(len(chapas), 2, "chapas deitadas no piso")
+        self.assertTrue(all(len(c.Faces) > 6 for c in chapas), "com furos")
+        em_pe = [s for s in sol if abs(s.BoundBox.XLength - 12.5) < 1e-6 and abs(s.BoundBox.XMax - m.L) < 1e-6]
+        self.assertEqual(len(em_pe), 2, "chapas em pé na face do piso de cima")
+        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc))], [])
+        for b in bs:
+            self.assertTrue(any(c.distToShape(b.Shape)[0] < 0.01 for c in chapas + em_pe))
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -18221,4 +18307,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
            T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
-           T131DadosDasPranchas, T132EnrijecedorPlaca]
+           T131DadosDasPranchas, T132EnrijecedorPlaca,
+           T133EscadaPatamarEChapas]
