@@ -350,6 +350,11 @@ def verificar(esc, m=None):
     if len(m.lances) > 1:
         item(hl <= 3000.0 + 1e-6, "%d lances com patamar, o mais alto com %s mm — patamar de descanso a cada "
              "3 000 mm no máximo (11 e / 12 e)" % (len(m.lances), _n(hl)))
+        # 11 e / 12 e: "plataforma de descanso com largura útil mínima de 0,60 m (sessenta centímetros) e
+        # comprimento a intervalos de, no máximo, 3,00 m..." (texto conferido no gov.br em 13/11/2026); a medida
+        # de 0,60 m vale para a largura útil e, na leitura usada aqui, também para o comprimento do patamar
+        item(m.Lp >= 600.0 - 1e-6, "Patamar com %s mm de comprimento — plataforma de descanso de 0,60 m no "
+             "mínimo (11 e / 12 e)" % _n(m.Lp))
     else:
         item(m.H <= 3000.0 + 1e-6, "Desnível %s mm — patamar de descanso a cada 3 000 mm no máximo (11 e / 12 e)%s"
              % (_n(m.H), "" if m.H <= 3000.0 else ": ligue Patamares para dividir em lances"))
@@ -807,8 +812,9 @@ if P is not None:
             self.hmax = P.numero(3000.0, 500.0, 3000.0)
             s2b.linha("altura", self.hmax, "Altura máxima de cada lance (NR-12: patamar a cada 3 000 mm no máximo).",
                       "Lance até")
-            self.lp = P.numero(1000.0, 300.0, 10000.0)
-            s2b.linha("comprimento", self.lp, "Comprimento do patamar, no sentido da subida.", "Patamar")
+            self.lp = P.numero(1000.0, 600.0, 10000.0)
+            s2b.linha("comprimento", self.lp, "Comprimento do patamar, no sentido da subida (NR-12: plataforma "
+                      "de descanso com 0,60 m no mínimo).", "Patamar")
             s3 = f.secao("Vigas (banzos)", "estrutura")
             nomes = [it["nome"] for fam in ("I", "U", "W") for it in (PrumoPerfis.familia(fam) or {}).get("itens", [])]
             self.perfil = P.lista(nomes or [PERFIL_BANZO], PERFIL_BANZO)

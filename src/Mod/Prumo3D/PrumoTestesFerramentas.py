@@ -17474,6 +17474,13 @@ class T133EscadaPatamarEChapas(unittest.TestCase):
         self.assertAlmostEqual(m.L, m.n * m.g + 1000.0, places=6)
         self.assertTrue(esc.Conforme, esc.Verificacao)
         self.assertTrue(any("2 lances com patamar" in v for v in esc.Verificacao))
+        self.assertTrue(any(v.startswith("✓ Patamar com 1000 mm") for v in esc.Verificacao), esc.Verificacao)
+        esc.ComprimentoPatamar = 500
+        esc.recompute()
+        self.assertTrue(any(v.startswith("✗ Patamar com 500 mm") for v in esc.Verificacao))
+        self.assertFalse(esc.Conforme)
+        esc.ComprimentoPatamar = 1000
+        esc.recompute()
         bs = E.barras_de(esc.Banzos)
         self.assertEqual(len(bs), 6, "dois lados × (lance, patamar, lance)")
         for b in bs:
