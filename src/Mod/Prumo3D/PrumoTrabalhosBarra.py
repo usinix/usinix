@@ -325,8 +325,9 @@ def itens_bom(obj):
 
 # ============================================================================ tabela de furos (desenho)
 NOME_TABELA = "TabelaFuros"
-COLS_TABELA = ["Barra", "Furo", "Onde", "Medido de", "Distância (mm)", "Transversal (mm)", "Ø (mm)", "Parafuso"]
-LARG_TABELA = [120, 45, 110, 80, 100, 110, 60, 75]
+COLS_TABELA = ["Barra", "Furo", "Onde", "Medido de", "Distância (mm)", "Transversal (mm)", "Ø (mm)",
+               "Parafuso / origem"]
+LARG_TABELA = [120, 45, 110, 80, 100, 110, 100, 170]
 
 
 def linhas_furos(objs):
@@ -364,7 +365,83 @@ def linhas_furos(objs):
                         n += 1
                         res.append((b.Label, n, lado, "início" if ref == "inicio" else "fim", d, w,
                                     float(f.get("diam", 0)), f.get("parafuso") or "—"))
+        for linha in _furos_dos_cortes(b, e):
+            n += 1
+            res.append((b.Label, n) + linha)
     return res
+
+
+def _furos_dos_cortes(b, e):
+    """Furos e recortes que os cortes da estrutura (Cortar barras) fazem na barra: (onde, medido de, distância,
+    transversal, Ø ou medidas do recorte, origem). Cada sólido separado da ferramenta conta como um furo."""
+    cortes = [c for c in (getattr(b, "CortesEstrutura", None) or []) if c is not None]
+    if not cortes:
+        return []
+    import Part
+    import PrumoCorteEstrutura as C
+    import PrumoEstruturaExtras as X
+    try:
+        _est, _eds, _n, sec = X._contexto(b)
+    except Exception:
+        return []
+    p0 = e.valueAt(e.FirstParameter)
+    t = E._dir(e, True)
+    u, v = sec.u, sec.v
+    caixa = b.Shape.BoundBox
+    bloco = Part.makeBox(caixa.XLength + 2, caixa.YLength + 2, caixa.ZLength + 2,
+                         FreeCAD.Vector(caixa.XMin - 1, caixa.YMin - 1, caixa.ZMin - 1))
+    res = []
+    for c in cortes:
+        try:
+            ferr = C.forma_ferramenta(c)
+        except Exception:
+            ferr = None
+        if ferr is None or not ferr.BoundBox.intersect(caixa):
+            continue
+        for sol in ferr.Solids:
+            if not sol.BoundBox.intersect(caixa):
+                continue
+            pedaco = sol.common(bloco)
+            if pedaco.Solids:
+                pedaco = pedaco.Solids[0] if len(pedaco.Solids) == 1 else Part.makeCompound(pedaco.Solids)
+            if pedaco.Volume < 1e-3 or b.Shape.distToShape(pedaco)[0] > 0.5:
+                continue
+            centro = pedaco.CenterOfMass if hasattr(pedaco, "CenterOfMass") else pedaco.BoundBox.Center
+            x = (centro - p0).dot(t)
+            if x < -1e-6 or x > e.Length + 1e-6:
+                continue
+            eixo_meio = p0 + t * x + u * sec.du + v * sec.dv
+            cil = [f for f in sol.Faces if f.Surface.TypeId == "Part::GeomCylinder"]
+            if cil:
+                a = FreeCAD.Vector(cil[0].Surface.Axis).normalize()
+                medida = 2.0 * cil[0].Surface.Radius
+            else:
+                # recorte: atravessa na direção em que o pedaço ocupa toda a seção
+                dims = {k: _extensao(pedaco, d) for k, d in (("u", u), ("v", v))}
+                a = u if dims["u"] >= sec.larg - 1e-3 else v
+                medida = None
+            if abs(a.dot(t)) > 0.9:
+                onde = "na ponta (ao longo da barra)"
+                transv = 0.0
+            elif abs(a.dot(u)) >= abs(a.dot(v)):
+                onde = "alma" if (sec.it or {}).get("tipo") in ("W", "I", "U", "HP") else "lado"
+                transv = (centro - eixo_meio).dot(v)
+            else:
+                onde = "mesas" if (sec.it or {}).get("tipo") in ("W", "I", "U", "HP") else "topo e fundo"
+                transv = (centro - eixo_meio).dot(u)
+            if medida is None:
+                perp = v if a is u else u
+                medida_txt = "recorte %s × %s" % (fmt(_extensao(pedaco, t), 0), fmt(_extensao(pedaco, perp), 0))
+            else:
+                medida_txt = medida
+            res.append((onde, "início", x, transv, medida_txt, "Cortar barras: %s" % c.Label))
+    res.sort(key=lambda r: r[2])
+    return res
+
+
+def _extensao(sh, d):
+    vs = [p.Point.dot(d) for p in sh.Vertexes] or [0.0]
+    return max(vs) - min(vs)
 
 
 def gravar_tabela(doc, linhas):
@@ -389,7 +466,10 @@ def gravar_tabela(doc, linhas):
         sheet.set("D%d" % r, "'" + ref)
         sheet.set("E%d" % r, "'" + fmt(d, 1))
         sheet.set("F%d" % r, "'" + fmt(w, 1))
-        sheet.set("G%d" % r, "'" + (fmt(diam, 0) if abs(diam - round(diam)) < 1e-6 else fmt(diam, 1)))
+        if isinstance(diam, str):
+            sheet.set("G%d" % r, "'" + diam)
+        else:
+            sheet.set("G%d" % r, "'" + (fmt(diam, 0) if abs(diam - round(diam)) < 1e-6 else fmt(diam, 1)))
         sheet.set("H%d" % r, "'" + par)
     if linhas:
         sheet.setAlignment("B2:H%d" % (len(linhas) + 1), "center|vcenter")
@@ -435,8 +515,9 @@ def inserir_tabela_na_folha(page, sheet, n_linhas):
 class CmdTabelaFuros:
     def GetResources(self):
         return {"Pixmap": PrumoUtil.icone("lista_corte.svg"), "MenuText": "Tabela de furos",
-                "ToolTip": "Planilha com cada furo das barras (onde, distância da ponta, transversal, Ø e "
-                           "parafuso). Com uma folha de desenho aberta, coloca a tabela na folha."}
+                "ToolTip": "Planilha com cada furo das barras — os de Trabalhos na barra e os furos e recortes de "
+                           "Cortar barras — (onde, distância da ponta, transversal, Ø e parafuso ou origem). Com "
+                           "uma folha de desenho aberta, coloca a tabela na folha."}
 
     def IsActive(self):
         return FreeCAD.ActiveDocument is not None
@@ -447,7 +528,8 @@ class CmdTabelaFuros:
         linhas = linhas_furos(objs)
         if not linhas:
             QtWidgets.QMessageBox.information(FreeCADGui.getMainWindow(), "Tabela de furos",
-                                              "Nenhuma barra com furos. Use Trabalhos na barra para furar.")
+                                              "Nenhuma barra com furos. Use Trabalhos na barra ou Cortar barras "
+                                              "para furar.")
             return
         doc.openTransaction("Tabela de furos")
         sheet = gravar_tabela(doc, linhas)

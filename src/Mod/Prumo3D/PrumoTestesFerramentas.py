@@ -17527,6 +17527,114 @@ class T133EscadaPatamarEChapas(unittest.TestCase):
         for b in bs:
             self.assertTrue(any(c.distToShape(b.Shape)[0] < 0.01 for c in chapas + em_pe))
 
+
+class T134EsqueletoDeArestasETabelaDeCortes(unittest.TestCase):
+    """1.15.0: estrutura sobre arestas de um corpo (ligada a elas) e Tabela de furos com os furos e recortes de
+    Cortar barras."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTesteArestas")
+
+    def tearDown(self):
+        if FreeCAD.GuiUp:
+            import PrumoEstrutura as E
+            for d in list(E._dialogos):
+                try:
+                    d.reject()
+                except Exception:
+                    pass
+        fechar(self.doc)
+
+    def _caixa(self):
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        box = body.newObject("PartDesign::AdditiveBox", "Box")
+        box.Length, box.Width, box.Height = 1000, 600, 400
+        self.doc.recompute()
+        topo = ["Edge%d" % (i + 1) for i, e in enumerate(box.Shape.Edges)
+                if abs(e.BoundBox.ZMin - 400) < 1e-6 and abs(e.BoundBox.ZMax - 400) < 1e-6]
+        return body, box, topo
+
+    def test_estrutura_nas_arestas_acompanha_o_corpo(self):
+        import PrumoEstrutura as E
+        import PrumoEsqueletoArestas as EA
+        import PrumoInterferencia as I
+        _body, box, topo = self._caixa()
+        esq = EA.criar([(box, tuple(topo))])
+        self.assertEqual(len(E.arestas(esq)), 4)
+        est = E.criar(self.doc, esq, E.PERFIL_PADRAO)
+        self.doc.recompute()
+        bs = E.barras_de(est)
+        self.assertEqual(len(bs), 4)
+        self.assertTrue(all(b.Shape.isValid() for b in bs))
+        self.assertEqual([x.texto for x in I.verificar(bs)], [])
+        z0 = max(b.Shape.BoundBox.ZMax for b in bs)
+        box.Height = 500
+        self.doc.recompute()
+        self.assertAlmostEqual(max(b.Shape.BoundBox.ZMax for b in bs) - z0, 100.0, delta=0.01)
+        box.Length = 1200
+        self.doc.recompute()
+        self.assertGreater(max(b.Shape.BoundBox.XMax for b in bs), 1200 - 1e-6)
+
+    def test_selecionar_arestas_e_estrutura_soldada(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import time
+        from PySide import QtWidgets
+        import PrumoEstrutura as E
+        import PrumoEsqueletoArestas as EA
+        body, box, topo = self._caixa()
+        FreeCADGui.Selection.clearSelection()
+        for n in topo:
+            FreeCADGui.Selection.addSelection(self.doc.Name, body.Name, "%s.%s" % (box.Name, n))
+        self.assertEqual(sum(len(s) for _o, s in EA.arestas_selecionadas()), 4)
+        FreeCADGui.runCommand("Prumo_Estrutura")
+        t = time.time()
+        while time.time() - t < 1.0:
+            QtWidgets.QApplication.processEvents()
+        esqs = [o for o in self.doc.Objects if isinstance(getattr(o, "Proxy", None), EA.EsqueletoArestas)]
+        self.assertEqual(len(esqs), 1)
+        self.assertTrue(E._dialogos, "abriu o diálogo da estrutura")
+        d = E._dialogos[-1]
+        self.assertEqual(d.linhas_sem_barra(), [], "as quatro arestas começam com barra")
+        d._ok()
+        t = time.time()
+        while time.time() - t < 1.0:
+            QtWidgets.QApplication.processEvents()
+        ests = [o for o in self.doc.Objects if E.eh_estrutura(o)]
+        self.assertEqual(len(ests), 1)
+        self.assertEqual(len(E.barras_de(ests[0])), 4, "as quatro arestas viram barra")
+
+    def test_tabela_de_furos_com_cortes(self):
+        import Part
+        import PrumoEstrutura as E
+        import PrumoCorteEstrutura as C
+        import PrumoTrabalhosBarra as T
+        sk = self.doc.addObject("Sketcher::SketchObject", "Sk")
+        sk.addGeometry(Part.LineSegment(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(2000, 0, 0)))
+        self.doc.recompute()
+        est = E.criar(self.doc, sk, E.PERFIL_PADRAO)
+        self.doc.recompute()
+        b = E.barras_de(est)[0]
+        furo = self.doc.addObject("Part::Feature", "Furo")
+        furo.Shape = Part.makeCylinder(11, 600, FreeCAD.Vector(500, -300, 30), FreeCAD.Vector(0, 1, 0))
+        rec = self.doc.addObject("Part::Feature", "Recorte")
+        rec.Shape = Part.makeBox(40, 20, 600, FreeCAD.Vector(1200, -10, -300))
+        self.doc.recompute()
+        C.criar(self.doc, furo, [b])
+        C.criar(self.doc, rec, [b])
+        self.doc.recompute()
+        ls = T.linhas_furos([est])
+        self.assertEqual(len(ls), 2)
+        self.assertEqual(ls[0][2:5], ("alma", "início", 500.0))
+        self.assertAlmostEqual(abs(ls[0][5]), 30.0, delta=0.01)
+        self.assertAlmostEqual(ls[0][6], 22.0, delta=1e-6)
+        self.assertIn("Cortar barras", ls[0][7])
+        self.assertEqual(ls[1][2], "mesas")
+        self.assertAlmostEqual(ls[1][4], 1220.0, delta=0.01)
+        self.assertEqual(ls[1][6], "recorte 40 × 20")
+        sh = T.gravar_tabela(self.doc, ls)
+        self.assertEqual(sh.get("G3"), "recorte 40 × 20")
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -18308,4 +18416,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T124Bibliotecas, T125InstalarNoClaude,
            T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
            T131DadosDasPranchas, T132EnrijecedorPlaca,
-           T133EscadaPatamarEChapas]
+           T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes]

@@ -2725,13 +2725,26 @@ class CmdEstrutura:
         return {"Pixmap": PrumoUtil.icone("estrutura.svg"),
                 "MenuText": "Estrutura soldada",
                 "ToolTip": "Cria barras de perfil (W, U, I, cantoneira, tubo) sobre as linhas do esboço "
-                           "selecionado, em grupos de perfis, com tratamento dos cantos."}
+                           "selecionado — ou sobre arestas de um corpo (Ctrl + clique nas arestas) —, em grupos de "
+                           "perfis, com tratamento dos cantos."}
 
     def IsActive(self):
         return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
         esq = _esqueleto_selecionado()
+        if esq is None:
+            # arestas de corpo selecionadas: o esqueleto sai delas (ligado ao corpo) — 1.15.0
+            import PrumoEsqueletoArestas as EA
+            refs = EA.arestas_selecionadas()
+            if refs:
+                doc = refs[0][0].Document
+                doc.openTransaction("Esqueleto das arestas")
+                esq = EA.criar(refs)
+                doc.commitTransaction()
+                # as arestas escolhidas são as linhas da estrutura: todas começam com barra
+                abrir_dialogo(esq, linhas=list(range(len(arestas(esq)))))
+                return
         if esq is None:
             import PrumoSelecao
             PrumoSelecao.pedir("Estrutura soldada", "Escolha o esboço com as linhas de centro da estrutura "
