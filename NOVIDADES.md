@@ -15,6 +15,34 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.15.0 — 13/11/2026
+
+![Escada com patamar, chapas de fixação e guarda-corpo contínuo](.github/images/novidades/1.15.0.webp)
+
+### Estruturas
+
+- **Enrijecedor da placa de base:** o Reforço agora aceita uma barra e a placa onde ela apoia (placa de base,
+  chapa ou face plana de um corpo). Escolha os lados do perfil — os quatro, dois ou um — e a perna sobre a placa
+  (0 = até a borda). Mudou a placa ou o perfil, os enrijecedores acompanham.
+- **Estrutura sobre arestas de um corpo:** selecione as arestas (Ctrl + clique) e clique em Estrutura soldada; o
+  esqueleto sai das arestas, ligado ao corpo, e todas as linhas já começam com barra.
+- **Tabela de furos** com os furos e recortes de Cortar barras: onde (alma, mesas), distância da ponta,
+  transversal, Ø ou medidas do recorte e de que corte veio.
+
+### Escada
+
+- **Patamares:** ligue "Dividir em lances com patamar" e a escada se divide em lances de até 3 000 mm (NR-12,
+  Anexo III, 11 e / 12 e), com patamar entre eles. As vigas seguem horizontais sob o patamar; guarda-corpo e
+  rodapé continuam por ele.
+- **Chapas de fixação:** chapa deitada no pé de cada viga e chapa em pé no topo, com furos; entram na lista de
+  materiais.
+- Rodapé por dentro da largura útil e pé do montante cortado no plano da viga (antes encostavam com
+  interferência).
+
+### Faixa
+
+- O grupo que você alarga arrastando o divisor volta com a mesma largura.
+
 ## 1.14.0 — 10/11/2026
 
 ![Estrutura apoiada no tampo de uma base e batente desenhado na alma da viga](.github/images/novidades/1.14.0.webp)
