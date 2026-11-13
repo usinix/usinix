@@ -16625,7 +16625,7 @@ class T120ConectarIA(unittest.TestCase):
         corte = json.loads(resp[6]["result"]["content"][0]["text"])
         self.assertEqual(corte[0]["perfil"], "W 150 x 13,0")
         self.assertAlmostEqual(corte[0]["corte_a"], 45.0, places=0)
-        self.assertEqual(corte[0]["furacao"], "4 × Ø13,5")
+        self.assertEqual(corte[0]["furacao"], "4 × Ø14")
         self.assertEqual(resp[7]["result"]["content"][0]["type"], "image")
         self.assertTrue(resp[8]["result"]["isError"])
         # cada ferramenta é um Desfazer
@@ -17660,6 +17660,46 @@ class T135FuroPadraoNBR8800(unittest.TestCase):
         self.g.SetFloat("FolgaFuroParafuso", 1.5)          # a preferência gravada continua mandando
         self.assertAlmostEqual(T.diametro_para("M16"), 17.5, places=6)
 
+
+class T136ComponentesDetalhados(unittest.TestCase):
+    """1.15.0: componentes com mais detalhe (revolução, arredondamentos, parafusos), caldeira em escala real,
+    pessoa de 1,70 m como padrão, trole no formato do de catálogo, talhas e combate a incêndio."""
+
+    def test_escala_padroes_e_categorias(self):
+        import PrumoComponentes as C
+        cats = {c[0]: [m[0] for m in c[2]] for c in C.CATALOGO}
+        self.assertEqual(cats["incendio"], ["extintor", "extintor_suporte", "extintor_carreta", "hidrante", "abrigo"])
+        self.assertEqual(cats["icamento"], ["talha", "talha_cabo", "talha_manual"])
+        self.assertEqual(C.ALTURAS[0], "1,70 m", "1,70 m é o padrão (primeiro da lista)")
+        f, _c, _i = C.gerar("pessoa_pe", "1,70 m")
+        self.assertAlmostEqual(f.BoundBox.ZLength, 1700, delta=60)
+        f, _c, _i = C.gerar("caldeira_flamotubular", "2000")
+        bb = f.BoundBox
+        self.assertTrue(2800 < bb.ZLength < 3800, "caldeira de 2 000 kg/h com cerca de 3 m de altura: %.0f" % bb.ZLength)
+        self.assertGreater(bb.XLength, 5000, "e mais de 5 m de comprimento")
+        f, _c, _i = C.gerar("trole", "aba até 150 mm")
+        bb = f.BoundBox
+        self.assertTrue(180 < bb.XLength < 230 and 150 < bb.ZLength < 260, "trole de cerca de 200 × 190 mm")
+        f, _c, _i = C.gerar("hidrante", "Duplo 2½\"")
+        self.assertGreater(f.BoundBox.XLength, f.BoundBox.YLength, "duas saídas lado a lado")
+        # detalhe: o motor tem bem mais faces que um cilindro com caixas
+        f, _c, _i = C.gerar("motor_iec", "132S")
+        self.assertGreater(len(f.Faces), 250)
+
+    def test_acabamento_metal_brilha(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoComponentes as C
+        doc = novo_doc("PrumoTesteCompAcab")
+        try:
+            o = C.inserir(doc, "valvula_gaveta", "100")
+            mats = o.ViewObject.ShapeAppearance
+            self.assertEqual(len(mats), len(o.Shape.Faces))
+            self.assertGreater(max(m.Shininess for m in mats), 0.5, "metal com brilho")
+            self.assertLess(min(m.Shininess for m in mats), 0.3, "tinta fosca")
+        finally:
+            fechar(doc)
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -18442,4 +18482,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
            T131DadosDasPranchas, T132EnrijecedorPlaca,
            T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
-           T135FuroPadraoNBR8800]
+           T135FuroPadraoNBR8800, T136ComponentesDetalhados]

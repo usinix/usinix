@@ -43,6 +43,22 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 
 - O grupo que você alarga arrastando o divisor volta com a mesma largura.
 
+### Componentes com mais detalhe
+
+- **Todos os componentes redesenhados:** peças de revolução lisas, cantos arredondados, furação e porcas nos
+  flanges, volantes com raios, motor com aletas, chaveta, pés e caixa de ligação aparafusada, grades, painéis e
+  manômetros. Metal brilha, tinta fica fosca e vidro fica transparente.
+- **Caldeira em escala real:** a de 2 000 kg/h fica com cerca de 3 m de altura e 6 m de comprimento com o
+  queimador (antes saía pequena); a chaminé segue à parte, só a saída de gases com flange fica no modelo.
+- **Pessoa de 1,70 m** como padrão (1,60, 1,80 e 1,90 m continuam), com colete refletivo e capacete com aba.
+- **Trole** no formato do trole de 0,5 t de catálogo: placas em escudo dobradas, quatro rodas com aba, rebites,
+  eixo central com porca e olhal de carga.
+- **Içamento** (categoria nova): talha elétrica de corrente, talha elétrica de cabo de aço com trole e talha
+  manual de corrente.
+- **Combate a incêndio** (categoria nova): extintor portátil, extintor no suporte de piso com placa, extintor
+  sobre rodas, hidrante de parede simples e duplo e abrigo de mangueira simples e duplo. Alturas e medidas
+  representativas (conferir NBR 13714 e a IT do Corpo de Bombeiros).
+
 ### Normas conferidas (catálogo ABNT/Confea, 13/11/2026)
 
 - **Furo para parafuso:** Trabalhos na barra usa o furo-padrão da ABNT NBR 8800:2024 (Tabela 14): M16 → 18,
