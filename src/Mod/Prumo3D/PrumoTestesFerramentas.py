@@ -17322,6 +17322,101 @@ class T131DadosDasPranchas(unittest.TestCase):
         self.assertEqual(self.g.GetString("Folha_crea", ""), "")
         self.assertEqual(PrumoFolhas.campos_padrao(self.doc).get("crea", ""), "")
 
+
+class T132EnrijecedorPlaca(unittest.TestCase):
+    """1.15.0: "criei uma estrutura e coloquei uma placa na base e com esses dois elementos não foi possível
+    colocar um enrijecedor entre eles". O Reforço aceita uma barra e a placa onde ela apoia."""
+
+    def setUp(self):
+        import Part
+        import PrumoEstrutura as E
+        self.doc = novo_doc("PrumoTesteEnrij")
+        sk = self.doc.addObject("Sketcher::SketchObject", "Sk")
+        sk.Placement = FreeCAD.Placement(FreeCAD.Vector(), FreeCAD.Rotation(FreeCAD.Vector(1, 0, 0), 90))
+        sk.addGeometry(Part.LineSegment(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 2000, 0)))
+        self.doc.recompute()
+        self.est = E.criar(self.doc, sk, E.PERFIL_PADRAO)
+        self.doc.recompute()
+        self.b = E.barras_de(self.est)[0]
+
+    def tearDown(self):
+        if FreeCAD.GuiUp:
+            try:
+                FreeCADGui.Control.closeDialog()
+            except Exception:
+                pass
+        fechar(self.doc)
+
+    def _confere(self, rs, pl):
+        self.assertEqual(len(rs), 4)
+        for r in rs:
+            self.assertEqual(r.Avisos, [], r.Lado)
+            self.assertTrue(r.Shape.isValid())
+            self.assertGreater(r.Shape.Volume, 1000)
+            self.assertLess(r.Shape.common(self.b.Shape).Volume, 1.0, "%s: entra na barra" % r.Lado)
+            self.assertLess(r.Shape.common(pl.Shape).Volume, 1.0, "%s: entra na placa" % r.Lado)
+            self.assertLess(r.Shape.distToShape(self.b.Shape)[0], 0.01, "%s: encosta na barra" % r.Lado)
+            self.assertLess(r.Shape.distToShape(pl.Shape)[0], 0.01, "%s: encosta na placa" % r.Lado)
+            bb, bp = r.Shape.BoundBox, pl.Shape.BoundBox
+            self.assertTrue(bp.XMin - 1e-6 <= bb.XMin and bb.XMax <= bp.XMax + 1e-6 and
+                            bp.YMin - 1e-6 <= bb.YMin and bb.YMax <= bp.YMax + 1e-6, "não passa da placa")
+
+    def test_enrijecedor_entre_barra_e_placa_de_base(self):
+        import PrumoEstruturaExtras as X
+        import PrumoBOM
+        pl = X.criar_placa_base(self.b, "Início", Largura=300, Comprimento=400, Espessura=16)
+        rs = X.criar_reforco_placa(self.b, pl, Perna1=200, Perna2=0, Espessura=10, Chanfro=15)
+        self._confere(rs, pl)
+        self.assertTrue(all(r in self.est.Group for r in rs), "entra na estrutura")
+        # a placa cresce: o enrijecedor "até a borda" acompanha
+        pl.Comprimento = 500
+        pl.Largura = 360
+        self.doc.recompute()
+        self.assertEqual([r.Avisos for r in rs], [[]] * 4)
+        self._confere(rs, pl)
+        self.assertAlmostEqual(max(r.Shape.BoundBox.XMax for r in rs), 250.0, delta=0.01)
+        self.assertAlmostEqual(max(r.Shape.BoundBox.YMax for r in rs), 180.0, delta=0.01)
+        # perna maior que a placa: aviso claro
+        rs[0].Perna2 = 900
+        self.doc.recompute()
+        self.assertIn("passa da borda", rs[0].Avisos[0])
+        self.assertTrue(any("Reforço" in l.denominacao for l in PrumoBOM.coletar([self.est, pl])))
+
+    def test_enrijecedor_em_face_de_corpo(self):
+        import Part
+        import PrumoEstruturaExtras as X
+        base = self.doc.addObject("Part::Feature", "Base")
+        base.Shape = Part.makeBox(500, 500, 40, FreeCAD.Vector(-250, -250, -40))
+        self.doc.recompute()
+        rs = X.criar_reforco_placa(self.b, base, Perna1=150, Perna2=80, Espessura=8)
+        self._confere(rs, base)
+
+    def test_painel_aceita_barra_e_placa(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import time
+        from PySide import QtWidgets
+        import PrumoEstruturaExtras as X
+        pl = X.criar_placa_base(self.b, "Início", Largura=300, Comprimento=400, Espessura=16)
+        self.doc.recompute()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(self.b)
+        FreeCADGui.Selection.addSelection(pl)
+        antes = len(self.doc.Objects)
+        FreeCADGui.runCommand("Prumo_Reforco")
+        t = time.time()
+        while time.time() - t < 1.0:
+            QtWidgets.QApplication.processEvents()
+        self.assertTrue(FreeCADGui.Control.activeDialog())
+        caixas = [b for b in FreeCADGui.getMainWindow().findChildren(QtWidgets.QDialogButtonBox) if b.isVisible()]
+        caixas[-1].button(QtWidgets.QDialogButtonBox.Ok).click()
+        t = time.time()
+        while time.time() - t < 1.5:
+            QtWidgets.QApplication.processEvents()
+        novos = [o for o in self.doc.Objects[antes:] if isinstance(getattr(o, "Proxy", None), X.Reforco)]
+        self.assertEqual(len(novos), 4, "um enrijecedor em cada lado do perfil")
+        self._confere(novos, pl)
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -18102,4 +18197,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
            T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
-           T131DadosDasPranchas]
+           T131DadosDasPranchas, T132EnrijecedorPlaca]

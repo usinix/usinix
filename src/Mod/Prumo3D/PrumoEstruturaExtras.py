@@ -3,7 +3,9 @@
 """Complementos paramétricos das barras da estrutura soldada.
 
 - Reforço (mão-francesa / gusset): chapa triangular ou poligonal no canto entre duas barras,
-  apoiada nas faces internas, com chanfro para a solda e posição (centro, frente, trás).
+  apoiada nas faces internas, com chanfro para a solda e posição (centro, frente, trás). Também entre
+  uma barra e uma placa (placa de base, chapa ou face plana de corpo): o enrijecedor da placa de base,
+  de um lado, dos dois ou dos quatro lados do perfil (1.15.0).
 - Tampa de extremidade: fecha a ponta de tubo redondo ou quadrado, por fora ou por dentro,
   com folga para a solda.
 - Placa de base (sapata): chapa na ponta da barra, com furação.
@@ -33,6 +35,10 @@ DENSIDADE_ACO = 7850.0  # kg/m³ (metal depositado: aço carbono)
 PONTAS = ["Início", "Fim"]
 POSICOES = ["Centro", "Frente", "Trás"]
 TIPOS_REFORCO = ["Triangular", "Poligonal"]
+LADOS_APOIO = ["+Altura", "-Altura", "+Largura", "-Largura"]       # lado do perfil (reforço barra-placa)
+CONJUNTOS_LADOS = {"Os quatro lados": LADOS_APOIO, "Dois lados (na altura do perfil)": LADOS_APOIO[:2],
+                   "Dois lados (na largura do perfil)": LADOS_APOIO[2:], "Um lado (+altura)": LADOS_APOIO[:1],
+                   "Um lado (+largura)": LADOS_APOIO[2:3]}
 TIPOS_TAMPA = ["Externa", "Interna"]
 PROCESSOS = ["SMAW (eletrodo revestido)", "GMAW (MIG/MAG)", "FCAW (arame tubular)", "GTAW (TIG)",
              "SAW (arco submerso)"]
@@ -207,9 +213,15 @@ class Reforco(_Base):
         self._enum(obj, "Posicao", "Reforço", "Posição na largura do perfil", POSICOES)
         self._add(obj, "App::PropertyBool", "InverterLado", "Reforço",
                   "Ligação em T: põe o reforço do outro lado da barra que passa", False)
+        self._add(obj, "App::PropertyLink", "Apoio", "Reforço",
+                  "Placa (placa de base, chapa ou corpo) onde a barra apoia: reforço entre a barra e a placa "
+                  "(no lugar da segunda barra)")
+        self._enum(obj, "Lado", "Reforço", "Reforço barra-placa: de que lado do perfil", LADOS_APOIO)
         self._props_chapa(obj)
 
     def forma(self, obj):
+        if getattr(obj, "Apoio", None) is not None:
+            return self._forma_apoio(obj)
         bA, bB = obj.BarraA, obj.BarraB
         if bA is None or bB is None:
             raise ValueError("escolha as duas barras do canto")
@@ -258,6 +270,142 @@ class Reforco(_Base):
         sh = face.extrude(n * t)
         den = "Reforço %s %s × %s × %s mm" % (obj.Tipo.lower(), fmt_dim(d1), fmt_dim(d2), fmt_dim(t))
         return sh, den
+
+
+    def _forma_apoio(self, obj):
+        """Enrijecedor entre a barra (BarraA) e a placa onde ela apoia (Apoio).
+
+        Perna 1: ao longo da barra, a partir da face da placa. Perna 2: sobre a placa, a partir da face do perfil
+        (0 = até a borda da placa). A chapa fica no plano que passa pelo meio do perfil, do lado escolhido."""
+        b, apoio = obj.BarraA, obj.Apoio
+        if b is None:
+            raise ValueError("escolha a barra")
+        q, nP, f_apoio = face_de_apoio(b, apoio)
+        _e, eds, _nm, sec = _contexto(b)
+        e = eds[b.Indice]
+        a = E._dir(e, True)
+        if a.dot(nP) < 0:
+            a = a * -1                          # ao longo da barra, saindo da placa
+        if abs(a.dot(nP)) < 0.5:
+            raise ValueError("a barra está deitada sobre a placa (mais de 60° da perpendicular)")
+        eixo = {"+Altura": sec.v, "-Altura": sec.v * -1, "+Largura": sec.u, "-Largura": sec.u * -1}[obj.Lado]
+        pa = eixo - nP * eixo.dot(nP)           # sobre a placa
+        if pa.Length < 1e-6:
+            raise ValueError("lado do perfil perpendicular à placa")
+        pa.normalize()
+        c0, h = _contato_no_lado(b, q, nP, pa)
+        c = c0 + pa * h                         # canto: face do perfil sobre a placa
+        d1, d2 = obj.Perna1.Value, obj.Perna2.Value
+        livre = _ate_a_borda(f_apoio, c, pa)
+        if d2 <= 1e-9:
+            d2 = livre
+        if d2 <= 1e-6:
+            raise ValueError("o perfil chega na borda da placa desse lado: não sobra placa para o reforço")
+        if d2 > livre + 1e-6:
+            raise ValueError("a perna sobre a placa (%s) passa da borda (sobra %s)" % (fmt_dim(d2), fmt_dim(livre)))
+        t = obj.Espessura.Value
+        if d1 <= 0 or t <= 0:
+            raise ValueError("pernas e espessura precisam ser positivas")
+        ch = min(obj.Chanfro.Value, 0.45 * min(d1, d2))
+        # a perna ao longo da barra corre na face do perfil (c + a·s); a da placa, na placa (c + pa·r)
+        pts = [c + pa * ch, c + a * ch] if ch > 1e-9 else [c]
+        if obj.Tipo == "Poligonal":
+            hp = min(obj.Ponta.Value, 0.9 * min(d1, d2))
+            pts += [c + a * d1, c + a * d1 + pa * hp, c + pa * d2 + a * hp, c + pa * d2]
+        else:
+            pts += [c + a * d1, c + pa * d2]
+        n = a.cross(pa).normalize()
+        face = _poligono([pt - n * (t / 2.0) for pt in pts])
+        sh = face.extrude(n * t)
+        den = "Reforço %s %s × %s × %s mm" % (obj.Tipo.lower(), fmt_dim(d1), fmt_dim(d2), fmt_dim(t))
+        return sh, den
+
+
+def face_de_apoio(barra, apoio, tol=2.0):
+    """(ponto do eixo da barra na face, normal para o lado da barra, face) — a face plana do apoio em que a barra
+    encosta: a mais perto de uma ponta da barra, cortada pelo eixo dela."""
+    import Part
+    _e, eds, _nm, _sec = _contexto(barra)
+    e = eds[barra.Indice]
+    if not E._reta(e):
+        raise ValueError("reforço com placa vale para barra reta")
+    t = E._dir(e, True)
+    melhor = None
+    for f in getattr(apoio, "Shape", Part.Shape()).Faces:
+        if f.Surface.TypeId != "Part::GeomPlane":
+            continue
+        n = FreeCAD.Vector(f.normalAt(0, 0))
+        if abs(n.dot(t)) < 0.5:
+            continue
+        p0 = f.Surface.Position if hasattr(f.Surface, "Position") else f.Vertexes[0].Point
+        s = (p0 - e.valueAt(e.FirstParameter)).dot(n) / t.dot(n)
+        q = e.valueAt(e.FirstParameter) + t * s
+        if f.distToShape(Part.Vertex(q))[0] > tol:
+            continue                            # o eixo da barra não cruza esta face
+        d = min(barra.Shape.distToShape(f)[0], 1e9)
+        if d > tol:
+            continue
+        # normal para o lado da barra
+        lado = (barra.Shape.BoundBox.Center - q).dot(n)
+        if lado < 0:
+            n = n * -1
+        if melhor is None or d < melhor[0]:
+            melhor = (d, q, n, f)
+    if melhor is None:
+        raise ValueError("%s não encosta numa face plana de %s cortada pelo eixo da barra" % (
+            barra.Label, apoio.Label))
+    return melhor[1], melhor[2], melhor[3]
+
+
+def _contato_no_lado(barra, q, nP, pa, recuo=1.0):
+    """(centro do perfil junto à placa, distância do centro até a face do perfil no lado pa).
+
+    Mede na própria forma da barra, numa fatia logo acima da placa: vale para qualquer perfil e corte."""
+    import Part
+    fatias = barra.Shape.slice(nP, q.dot(nP) + recuo)
+    faces = []
+    for w in fatias:
+        try:
+            if w.isClosed():
+                faces.append(Part.Face(w))
+        except Exception:
+            pass
+    if not faces:
+        raise ValueError("a barra não chega na placa")
+    # face com furos (tubo): a maior externa menos as internas
+    faces.sort(key=lambda f: -f.Area)
+    fc = faces[0]
+    for f in faces[1:]:
+        try:
+            fc = fc.cut(f) if fc.common(f).Area > f.Area * 0.99 else fc.fuse(f)
+        except Exception:
+            pass
+    c0 = fc.CenterOfMass - nP * recuo
+    L = 2.0 * fc.BoundBox.DiagonalLength + 10.0
+    linha = Part.makeLine(fc.CenterOfMass - pa * L, fc.CenterOfMass + pa * L)
+    com = fc.common(linha)
+    h = max([(v.Point - fc.CenterOfMass).dot(pa) for v in com.Vertexes] or [0.0])
+    if h <= 0:
+        h = max((v.Point - fc.CenterOfMass).dot(pa) for v in fc.Vertexes)
+    return c0, h
+
+
+def _ate_a_borda(face, c, pa):
+    """Quanto sobra de placa a partir de c, na direção pa."""
+    import Part
+    L = face.BoundBox.DiagonalLength + 10.0
+    com = face.common(Part.makeLine(c, c + pa * L))
+    return max([(v.Point - c).dot(pa) for v in com.Vertexes] or [0.0])
+
+
+def criar_reforco_placa(barra, apoio, lados=None, **props):
+    """Enrijecedor(es) entre a barra e a placa onde ela apoia; um por lado (padrão: os quatro)."""
+    doc = barra.Document
+
+    def f():
+        return [_novo(doc, Reforco, "Reforco", "Reforço", BarraA=barra, Apoio=apoio, Lado=lado, **props)
+                for lado in (lados or LADOS_APOIO)]
+    return _transacao(doc, "Reforço", f)
 
 
 # ============================================================================ tampa de extremidade
@@ -697,6 +845,27 @@ def _filtro_barras(obj, subs):
     return [(b.Label, b) for b in E.barras_do_item(obj, subs)]
 
 
+def _filtro_barras_ou_placa(obj, subs):
+    """Barras e, para o reforço barra-placa, a placa onde a barra apoia (placa de base, chapa, corpo)."""
+    res = [(b.Label, b) for b in E.barras_do_item(obj, subs)]
+    if res:
+        return res
+    for o, _els in E.resolver_item(obj, subs):
+        if (not E.eh_estrutura(o) and not E.eh_barra(o) and not eh_solda(o) and hasattr(o, "Shape")
+                and o.Shape.Solids and not isinstance(getattr(o, "Proxy", None), Reforco)):
+            res.append((o.Label, o))
+    return res
+
+
+def _barra_e_apoio(itens):
+    """(barra, apoio) quando a escolha é uma barra e uma placa; senão None."""
+    bs = [o for o in itens if E.eh_barra(o)]
+    outros = [o for o in itens if not E.eh_barra(o)]
+    if len(bs) == 1 and len(outros) == 1:
+        return bs[0], outros[0]
+    return None
+
+
 def _filtro_tubos(obj, subs):
     return [(b.Label, b) for b in E.barras_do_item(obj, subs)
             if PrumoPerfis.perfil(b.Perfil) and PrumoPerfis.perfil(b.Perfil)["tipo"] in ("TUBO", "TQ")]
@@ -754,20 +923,22 @@ class PainelReforco(P.PainelTarefa):
             except Exception:
                 pass
         return res
-    ajuda = "Selecione as duas barras do canto (ou da ligação em T)."
+    ajuda = ("Selecione as duas barras do canto (ou da ligação em T), ou uma barra e a placa onde ela apoia "
+             "(placa de base, chapa, corpo) para o enrijecedor da placa.")
 
     def montar(self):
         f = self.form
         s1 = f.secao("Barras", "selecao")
-        self.barras = f.caixa(s1, "Barras do canto", _filtro_barras, minimo=2, maximo=2,
-                              dica="As duas barras que se encontram no canto. Selecione na vista ou na árvore.")
+        self.barras = f.caixa(s1, "Barras do canto", _filtro_barras_ou_placa, minimo=2, maximo=2,
+                              dica="As duas barras que se encontram no canto, ou uma barra e a placa onde ela "
+                                   "apoia. Selecione na vista ou na árvore.")
         s2 = f.secao("Forma", "tipo")
         self.tipo = s2.linha("tipo", P.lista(TIPOS_REFORCO), "Triangular: pontas em canto vivo. Poligonal: "
                              "pontas cortadas retas (ponta reta abaixo).", "Tipo")
         self.perna1 = s2.linha("perna", P.numero(150.0), "Quanto o reforço avança sobre a 1ª barra, a partir "
                                "do canto.", "Perna na 1ª barra")
-        self.perna2 = s2.linha("perna", P.numero(150.0), "Quanto o reforço avança sobre a 2ª barra.",
-                               "Perna na 2ª barra")
+        self.perna2 = s2.linha("perna", P.numero(150.0, minimo=0.0), "Quanto o reforço avança sobre a 2ª barra "
+                               "(ou sobre a placa; 0 = até a borda da placa).", "Perna na 2ª barra / placa")
         self.ponta_h = s2.linha("ponta", P.numero(30.0), "Largura das pontas retas (só no tipo poligonal).",
                                 "Ponta reta")
         self.chanfro = s2.linha("chanfro", P.numero(15.0, maximo=500.0), "Corte no canto interno para a "
@@ -779,6 +950,8 @@ class PainelReforco(P.PainelTarefa):
                                 "Posição")
         self.lados = s3.linha("lado", P.lista(["Um lado", "Os dois lados"]), "Na ligação em T, reforço de um "
                               "lado só ou dos dois.", "Ligação em T")
+        self.lados_placa = s3.linha("lado", P.lista(list(CONJUNTOS_LADOS)), "Barra com placa: em que lados do "
+                                    "perfil vai o enrijecedor (um por lado).", "Lados do perfil")
         self.material = s3.linha("material", QtWidgets.QLineEdit(_ultimo_material()), "Material da chapa "
                                  "(vai para a lista de materiais).", "Material")
         self.material.setPlaceholderText("ex.: ASTM A36")
@@ -790,7 +963,11 @@ class PainelReforco(P.PainelTarefa):
 
     def atualizar(self):
         bs = self.barras.valores()
-        self.lados.setEnabled(len(bs) == 2 and self._em_T(bs))
+        placa = _barra_e_apoio(bs) is not None
+        self.lados.setEnabled(len(bs) == 2 and not placa and self._em_T(bs))
+        self.lados_placa.setEnabled(placa)
+        if placa and self.perna2.value() == 150.0:
+            self.perna2.setValue(0.0)           # 0 = até a borda da placa
         super().atualizar()
 
     def _em_T(self, bs):
@@ -804,6 +981,15 @@ class PainelReforco(P.PainelTarefa):
         if falta:
             return falta
         a, b = self.barras.valores()
+        par = _barra_e_apoio([a, b])
+        if par is not None:
+            try:
+                face_de_apoio(*par)
+            except ValueError as ex:
+                return str(ex)
+            return None
+        if not (E.eh_barra(a) and E.eh_barra(b)):
+            return "escolha duas barras, ou uma barra e uma placa"
         try:
             no_entre(a, b)
         except ValueError as ex:
@@ -816,7 +1002,7 @@ class PainelReforco(P.PainelTarefa):
                     Posicao=self.posicao.currentText(), Material=self.material.text().strip())
 
     def carregar(self, obj):
-        for b in (obj.BarraA, obj.BarraB):
+        for b in (obj.BarraA, obj.Apoio if getattr(obj, "Apoio", None) is not None else obj.BarraB):
             if b is not None:
                 self.barras.aceitar(b)
         self.tipo.setCurrentText(obj.Tipo)
@@ -831,11 +1017,20 @@ class PainelReforco(P.PainelTarefa):
 
     def props_edicao(self):
         a, b = self.barras.valores()
+        par = _barra_e_apoio([a, b])
+        if par is not None:
+            return dict(self.props(), BarraA=par[0], Apoio=par[1], BarraB=None)
         return dict(self.props(), BarraA=a, BarraB=b)
 
     def executar(self):
         a, b = self.barras.valores()
         _guardar_material(self.material.text().strip())
+        par = _barra_e_apoio([a, b])
+        if par is not None:
+            feitos = criar_reforco_placa(par[0], par[1], lados=CONJUNTOS_LADOS[self.lados_placa.currentText()],
+                                         **self.props())
+            _relatar(feitos)
+            return feitos
         feitos = [criar_reforco(a, b, **self.props())]
         if self._em_T([a, b]) and self.lados.currentText() == "Os dois lados":
             feitos.append(criar_reforco(a, b, InverterLado=True, **self.props()))
