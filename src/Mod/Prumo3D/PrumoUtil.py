@@ -94,6 +94,9 @@ def _eh_container(obj):
 def _filhos(obj):
     alvo = obj.LinkedObject if obj.TypeId == "App::Link" and obj.LinkedObject else obj
     filhos = list(getattr(alvo, "Group", []) or [])
+    if type(getattr(alvo, "Proxy", None)).__name__ == "PadraoEstrutura" and getattr(alvo, "Original", None):
+        # Padrão de estrutura: a original (que deixa de ser raiz do documento) conta junto com as cópias
+        filhos.insert(0, alvo.Original)
     membros = set(filhos)
     res = []
     for f in filhos:

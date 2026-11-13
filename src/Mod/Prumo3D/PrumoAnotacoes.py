@@ -76,14 +76,21 @@ def criar_solda(vista, ponto, tipo="filete", lado="seta", garganta="", comprimen
     lider = doc.addObject("TechDraw::DrawLeaderLine", "LinhaSolda")
     lider.Label = "Linha de chamada da solda"
     lider.LeaderParent = vista
-    lider.X, lider.Y = ponto.x, ponto.y
+    # o TechDraw guarda a ponta sem a escala da vista (e multiplica por ela ao desenhar); `ponto` vem em mm de
+    # papel: dividir, senão numa vista 2:1 a seta cai no dobro da distância, fora da peça
+    try:
+        esc = float(vista.getScale()) or 1.0
+    except Exception:
+        esc = 1.0
+    lider.X, lider.Y = ponto.x / esc, ponto.y / esc
     # seta subindo em 45° e a linha de referência para a direita
     # seta saindo para fora da peça (para o lado em que a aresta está) e subindo; linha de referência
     # horizontal. Os pontos vão com Y para baixo, como o TechDraw guarda.
-    sx = -1.0 if ponto.x < 0 else 1.0
+    sx = lado_com_espaco(vista, ponto, page)
     lider.WayPoints = [FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(sx * 15, -15, 0), FreeCAD.Vector(sx * 50, -15, 0)]
     lider.StartSymbol = 0            # seta cheia na ponta
     lider.EndSymbol = 7              # sem símbolo no fim
+    destravar(lider)
     if page is not None:
         page.addView(lider)
     s = doc.addObject("TechDraw::DrawWeldSymbol", "Solda")
@@ -112,6 +119,62 @@ def criar_solda(vista, ponto, tipo="filete", lado="seta", garganta="", comprimen
             t.RightText = comprimento or ""
     doc.recompute()
     return s, lider
+
+
+def destravar(lider):
+    """Linha de chamada sem cadeado: o TechDraw cria a linha travada (e mostra o cadeado ao passar o mouse);
+    no Usinix ela se arrasta pelo símbolo ou pela linha, com a ponta da seta parada na aresta."""
+    try:
+        if lider.LockPosition:
+            lider.LockPosition = False
+    except Exception:
+        pass
+
+
+def lado_com_espaco(vista, ponto, page=None, folga=55.0, margem=25.0):
+    """+1 (direita) ou −1 (esquerda): para fora da peça, mas para dentro se do lado de fora sair da folha."""
+    sx = -1.0 if ponto.x < 0 else 1.0
+    try:
+        page = page or pagina_de(vista)
+        largura = float(page.Template.Width) if page is not None and page.Template is not None else 0.0
+        x = _x_na_folha(vista) + ponto.x
+        if largura > 0:
+            if sx < 0 and x - folga < margem:
+                sx = 1.0
+            elif sx > 0 and x + folga > largura - margem:
+                sx = -1.0
+    except Exception:
+        pass
+    return sx
+
+
+def _x_na_folha(vista):
+    """X do centro da vista na folha (a vista de um grupo de projeção guarda X relativo ao grupo)."""
+    def num(v):
+        return float(v.Value if hasattr(v, "Value") else v)
+    x = num(vista.X)
+    for o in vista.InList:
+        if o.isDerivedFrom("TechDraw::DrawProjGroup"):
+            x += num(o.X)
+            break
+    return x
+
+
+def pontos_arrastados(pontos, dx, dy):
+    """Pontos da linha de chamada depois de arrastar o símbolo (dx, dy em mm, Y para baixo como o TechDraw
+    guarda): a ponta (1º ponto) fica onde está, o resto anda junto. Com 3 pontos (seta, cotovelo, fim), se o
+    cotovelo passar para o outro lado da ponta, a linha de referência vira para continuar saindo para fora."""
+    pts = [FreeCAD.Vector(p) for p in pontos]
+    if len(pts) < 2:
+        return pts
+    d = FreeCAD.Vector(dx, dy, 0)
+    novos = [pts[0]] + [p + d for p in pts[1:]]
+    if len(novos) == 3:
+        cot, fim = novos[1], novos[2]
+        ref = fim.x - cot.x
+        if abs(cot.x) > 1e-6 and ref * cot.x < 0:
+            novos[2] = FreeCAD.Vector(cot.x - ref, fim.y, fim.z)
+    return novos
 
 
 def svg_rugosidade(ra="3,2", processo="remover", metodo="", estrias="", todas=False, n_classe=False):
@@ -350,3 +413,170 @@ def registrar_comandos():
     if FreeCADGui is not None and P is not None:
         FreeCADGui.addCommand("Prumo_Solda2D", CmdSolda())
         FreeCADGui.addCommand("Prumo_Rugosidade", CmdRugosidade())
+        instalar_arrasto()
+
+
+# ======================================================================== arrastar a chamada na folha
+def _lider_do_objeto(obj):
+    """A linha de chamada que um clique no símbolo de solda (ou na própria linha) deve mover."""
+    if obj is None:
+        return None
+    if obj.TypeId == "TechDraw::DrawWeldSymbol":
+        return getattr(obj, "Leader", None)
+    if obj.TypeId == "TechDraw::DrawTileWeld":
+        return _lider_do_objeto(getattr(obj, "TileParent", None))
+    if obj.TypeId == "TechDraw::DrawLeaderLine":
+        return obj
+    return None
+
+
+def _rez():
+    try:
+        return FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/TechDraw/Rez").GetFloat("Resolution", 10.0) \
+            or 10.0
+    except Exception:
+        return 10.0
+
+
+def delta_em_pontos(lider, dx_cena, dy_cena):
+    """Deslocamento na cena (unidades do TechDraw, Y para baixo) → nos pontos da linha (mm, Y para baixo)."""
+    import math
+    dx, dy = dx_cena / _rez(), dy_cena / _rez()
+    try:
+        pai = lider.LeaderParent
+        if getattr(lider, "Scalable", False) and pai is not None:
+            esc = float(pai.getScale())
+            dx, dy = dx / esc, dy / esc
+        rot = float(getattr(pai, "Rotation", 0.0) or 0.0) if pai is not None else 0.0
+        if rot and getattr(lider, "RotatesWithParent", True):
+            a = -math.radians(rot)
+            ux, uy = dx, -dy                         # Y para cima, gira, volta
+            rx, ry = ux * math.cos(a) - uy * math.sin(a), ux * math.sin(a) + uy * math.cos(a)
+            dx, dy = rx, -ry
+    except Exception:
+        pass
+    return dx, dy
+
+
+if FreeCADGui is not None:
+    from PySide import QtCore
+
+    class ArrastoDeChamada(QtCore.QObject):
+        """Filtro no papel do TechDraw: arrastar o símbolo de solda (ou a linha de chamada) move a linha de
+        referência e o símbolo; a ponta da seta fica na aresta. Desfazer volta (uma transação por arrasto)."""
+
+        LIMIAR = 4    # px antes de considerar arrasto (clique simples continua selecionando)
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self._ini = None
+
+        def _objeto(self, view, item):
+            doc = getattr(FreeCADGui.ActiveDocument, "Document", None)
+            while item is not None:
+                if item.data(0) == "QGIV" and doc is not None:
+                    return doc.getObject(str(item.data(1)))
+                item = item.parentItem()
+            return None
+
+        @staticmethod
+        def _pos(ev):
+            try:
+                return ev.position().toPoint()
+            except AttributeError:
+                return ev.pos()
+
+        def eventFilter(self, vp, ev):
+            try:
+                return self._filtrar(vp, ev)
+            except Exception as exc:
+                FreeCAD.Console.PrintLog("Usinix: arrastar chamada: %s\n" % exc)
+                self._ini = None
+                return False
+
+        def _filtrar(self, vp, ev):
+            t = ev.type()
+            if t == QtCore.QEvent.MouseButtonPress:
+                self._ini = None
+                if ev.button() != QtCore.Qt.LeftButton:
+                    return False
+                view = vp.parent()
+                pos = self._pos(ev)
+                lider = _lider_do_objeto(self._objeto(view, view.itemAt(pos)))
+                if lider is None:
+                    return False
+                vo = getattr(lider, "ViewObject", None)
+                if vo is not None and FreeCADGui.ActiveDocument.getInEdit() is not None:
+                    return False                      # editando os pontos (duplo clique): deixa o TechDraw
+                self._ini = {"view": view, "pos": pos, "cena": view.mapToScene(pos), "lider": lider,
+                             "pontos": [FreeCAD.Vector(p) for p in lider.WayPoints], "moveu": False, "t": 0.0}
+                return False                          # o clique segue: seleciona como sempre
+            if self._ini is None:
+                return False
+            if t == QtCore.QEvent.MouseMove:
+                if not (ev.buttons() & QtCore.Qt.LeftButton):
+                    self._ini = None
+                    return False
+                pos = self._pos(ev)
+                if not self._ini["moveu"]:
+                    if (pos - self._ini["pos"]).manhattanLength() < self.LIMIAR:
+                        return True
+                    self._ini["moveu"] = True
+                    doc = self._ini["lider"].Document
+                    doc.openTransaction("Mover chamada")
+                    destravar(self._ini["lider"])
+                import time
+                agora = time.time()
+                if agora - self._ini["t"] > 0.04:
+                    self._ini["t"] = agora
+                    self._aplicar(pos, final=False)
+                return True
+            if t == QtCore.QEvent.MouseButtonRelease and ev.button() == QtCore.Qt.LeftButton:
+                ini = self._ini
+                if ini["moveu"]:
+                    self._aplicar(self._pos(ev), final=True)
+                    ini["lider"].Document.commitTransaction()
+                self._ini = None
+                return False                          # o Qt solta o item normalmente
+            return False
+
+        def _aplicar(self, pos, final):
+            ini = self._ini
+            d = ini["view"].mapToScene(pos) - ini["cena"]
+            dx, dy = delta_em_pontos(ini["lider"], d.x(), d.y())
+            lider = ini["lider"]
+            lider.WayPoints = pontos_arrastados(ini["pontos"], dx, dy)
+            lider.recompute()
+            for o in lider.InList:
+                if o.TypeId == "TechDraw::DrawWeldSymbol":
+                    o.recompute()
+            if final:
+                lider.Document.recompute()
+
+    _FILTRO = []
+
+    def instalar_nas_folhas(*_a):
+        """Põe o filtro de arrasto em todas as folhas abertas (uma vez por folha)."""
+        try:
+            mw = FreeCADGui.getMainWindow()
+        except Exception:
+            return
+        if not _FILTRO:
+            _FILTRO.append(ArrastoDeChamada(mw))
+        from PySide import QtWidgets as _W
+        for v in mw.findChildren(_W.QGraphicsView):
+            if v.metaObject().className() != "TechDrawGui::QGVPage" or v.property("usinix_arrasto"):
+                continue
+            v.viewport().installEventFilter(_FILTRO[0])
+            v.setProperty("usinix_arrasto", True)
+
+    def instalar_arrasto():
+        try:
+            from PySide import QtWidgets as _W
+            area = FreeCADGui.getMainWindow().findChild(_W.QMdiArea)
+            if area is not None and not area.property("usinix_arrasto"):
+                area.subWindowActivated.connect(lambda *_a: QtCore.QTimer.singleShot(0, instalar_nas_folhas))
+                area.setProperty("usinix_arrasto", True)
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: arrasto de chamada: %s\n" % exc)
+        instalar_nas_folhas()

@@ -35,11 +35,14 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.15.2** (13/11/2026)
+**Versão atual: 1.16.0** (13/11/2026)
 
-- **Vários enrijecedores de uma vez:** quantidade e espaçamento como no padrão linear (distância entre eles ou
-  total, de eixo a eixo); com distância 0, as chapas se distribuem na largura do perfil, entre as mesas no lado
-  da alma.
+- **Padrão de estrutura:** repete a estrutura soldada inteira em linha ou em volta de um eixo (vários pórticos,
+  mesas iguais), com "distância entre eles" ou "distância total"; as listas de materiais e de corte contam as
+  cópias.
+- **Símbolo de solda arrastável:** sem cadeado; arraste o símbolo e a ponta da seta fica na aresta.
+
+Na 1.15.2: vários enrijecedores de uma vez, com quantidade e espaçamento como no padrão linear.
 
 | Escada com patamar e pés de apoio | Enrijecedores em série na placa de base |
 |---|---|
@@ -303,6 +306,9 @@ Todos os recursos
 * **Trabalhos na barra e Cortar barras** Cortes de ponta, furos e parafusos sem a barra deixar de ser barra;
   corte ou furo em várias barras de uma vez com qualquer sólido ou esboço; Tabela de furos com o furo-padrão
   da NBR 8800:2024.
+
+* **Padrão de estrutura** Repete a estrutura inteira em linha ou em volta de um eixo, com quantidade e
+  espaçamento; as cópias acompanham a original e entram nas listas de materiais e de corte.
 
 * **Escada industrial** Desnível, ângulo e largura num objeto só: degraus calculados, patamares, guarda-corpo,
   chapas de fixação e pés de apoio, com conferência ao vivo pela NR-12 (Anexo III).

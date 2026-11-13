@@ -1478,6 +1478,21 @@ def lista_de_corte(objs):
             barras.append(o)
         elif hasattr(o, "Group"):
             barras += [b for b in o.Group if "ComprimentoCorte" in b.PropertiesList]
+    vistas = set()
+    barras = [b for b in barras if not (b.Name in vistas or vistas.add(b.Name))]   # cada barra uma vez
+    # cópias feitas pelo Padrão de estrutura contam junto (a barra da original vale 1 + nº de cópias)
+    vezes = {}
+    try:
+        import PrumoPadraoEstrutura as PE
+        cache = {}
+        for b in barras:
+            est = b.Estrutura if eh_estrutura(getattr(b, "Estrutura", None)) else None
+            if est is not None:
+                if est.Name not in cache:
+                    cache[est.Name] = 1 + PE.copias_de(est)
+                vezes[id(b)] = cache[est.Name]
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: cópias do padrão na lista de corte: %s\n" % exc)
     grupos = {}
     ordem = []
     for b in barras:
@@ -1489,7 +1504,7 @@ def lista_de_corte(objs):
             grupos[chave] = [b.Perfil, comp, a0, a1, 0, b.MassaLinear * comp / 1000.0, b.SituacaoDados,
                              b.Material, fu]
             ordem.append(chave)
-        grupos[chave][4] += 1
+        grupos[chave][4] += vezes.get(id(b), 1)
     linhas = [grupos[k] for k in ordem]
     linhas.sort(key=lambda l: (l[0], -l[1]))
     return linhas

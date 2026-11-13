@@ -18699,6 +18699,219 @@ class T138EnrijecedoresEmSerie(unittest.TestCase):
         finally:
             q.close()
 
+class T139PadraoDeEstrutura(unittest.TestCase):
+    """1.16.0: "da pra usar um padrão linear com uma estrutura metálica?" — Padrão de estrutura (aba Estruturas):
+    repete a estrutura inteira em linha ou em volta de um eixo, com quantidade e "distância entre eles / total",
+    e as listas de materiais e de corte contam as cópias. A Matriz leve não aceita mais estrutura (dava vazio)."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTestePadraoEst")
+
+    def tearDown(self):
+        if FreeCAD.GuiUp:
+            try:
+                FreeCADGui.Control.closeDialog()
+            except Exception:
+                pass
+        fechar(self.doc)
+
+    def _quadro(self):
+        import PrumoEstrutura as E
+        sk = esboco_linhas(self.doc, [((0, 0), (1000, 0)), ((1000, 0), (1000, 600)), ((1000, 600), (0, 600)),
+                                      ((0, 600), (0, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 150 x 13,0")
+        self.doc.recompute()
+        return est, E.barras_de(est)
+
+    def _raizes(self):
+        return [o for o in self.doc.RootObjects if o.TypeId not in ("App::Origin", "Spreadsheet::Sheet")]
+
+    def test_linear_entre_eles_e_total_e_as_listas(self):
+        import PrumoEstrutura as E
+        import PrumoEstruturaExtras as X
+        import PrumoPadraoEstrutura as PE
+        import PrumoBOM
+        est, bs = self._quadro()
+        X.criar_reforco(bs[0], bs[1], Quantidade=2)
+        p = PE.criar_padrao_estrutura(bs[0], "linear", 4, "Distância entre eles", 2000.0, FreeCAD.Vector(0, 1, 0))
+        self.assertIs(p.Original, est, "clicar numa barra escolhe a estrutura dela")
+        self.assertEqual(list(p.Avisos), [])
+        self.assertEqual([round(c.Placement.Base.y) for c in p.Group], [2000, 4000, 6000])
+        self.assertTrue(all(c.LinkedObject is est for c in p.Group))
+        bom = [(l.denominacao, l.qtd) for l in PrumoBOM.coletar(self._raizes())]
+        self.assertEqual(sum(q for d, q in bom if d.startswith("Barra")), 16, bom)
+        self.assertEqual(sum(q for d, q in bom if d.startswith("Reforço")), 8, bom)
+        self.assertEqual(sum(l[4] for l in E.lista_de_corte([est])), 16)
+        self.assertEqual(sum(l[4] for l in E.lista_de_corte([est, bs[0], est])), 16, "barra repetida conta uma vez")
+        p.ModoEspaco = "Distância total"
+        p.Espacamento = 3000
+        self.doc.recompute()
+        self.assertEqual([round(c.Placement.Base.y) for c in p.Group], [1000, 2000, 3000])
+        p.Quantidade = 2
+        self.doc.recompute()
+        self.assertEqual(len(p.Group), 1)
+        self.assertEqual(len([o for o in self.doc.Objects if o.TypeId == "App::Link"]), 1, "sobras apagadas")
+        self.assertEqual(sum(l[4] for l in E.lista_de_corte([est])), 8)
+
+    def test_circular(self):
+        import PrumoPadraoEstrutura as PE
+        est, _bs = self._quadro()
+        p = PE.criar_padrao_estrutura(est, "circular", 4, eixo_ponto=FreeCAD.Vector(0, -3000, 0),
+                                      eixo_dir=FreeCAD.Vector(0, 0, 1))
+        angs = [round(c.Placement.Rotation.Angle * 180 / 3.141592653589793) for c in p.Group]
+        self.assertEqual(angs, [90, 180, 270])
+        self.assertAlmostEqual(p.Group[1].Placement.Base.y, -6000, places=6)
+
+    def test_validacoes_e_matriz_leve(self):
+        import PrumoPadraoEstrutura as PE
+        import PrumoDireto as Dd
+        est, _bs = self._quadro()
+        with self.assertRaises(ValueError):
+            PE.criar_padrao_estrutura(est, "linear", 1)
+        with self.assertRaises(ValueError):
+            PE.criar_padrao_estrutura(est, "linear", 3, espacamento=0)
+        with self.assertRaises(ValueError):
+            PE.criar_padrao_estrutura(self.doc.addObject("Part::Box", "Caixa"), "linear", 3)
+        with self.assertRaises(ValueError) as cm:
+            Dd.matriz_leve(est, {"X": (3, "intervalo", 1000.0, False)})
+        self.assertIn("Padrão de estrutura", str(cm.exception))
+
+    def test_painel(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoPadraoEstrutura as PE
+        est, bs = self._quadro()
+        self.assertIn("Prumo_PadraoEstrutura", FreeCADGui.listCommands())
+        pn = PE.PainelPadraoEstrutura()
+        try:
+            pn.est.aceitar(est)
+            pn.qtd.setValue(3)
+            pn.modo.setCurrentText("Distância total")
+            pn.passo.setValue(4000.0)
+            pn.eixo.setCurrentText("Y")
+            self.assertTrue(pn.accept())
+        finally:
+            if FreeCADGui.Control.activeDialog():
+                FreeCADGui.Control.closeDialog()
+        ps = [o for o in self.doc.Objects if isinstance(getattr(o, "Proxy", None), PE.PadraoEstrutura)]
+        self.assertEqual(len(ps), 1)
+        p = ps[0]
+        self.assertEqual((p.Quantidade, p.ModoEspaco, p.Espacamento.Value), (3, "Distância total", 4000.0))
+        self.assertEqual([round(c.Placement.Base.y) for c in p.Group], [2000, 4000])
+        q = PE.PainelPadraoEstrutura()
+        try:
+            q.carregar(p)
+            self.assertEqual((q.qtd.value(), q.modo.currentText(), q.passo.value()), (3, "Distância total", 4000.0))
+        finally:
+            q.close()
+
+
+class T140SoldaArrastavelNaFolha(unittest.TestCase):
+    """1.16.0: "quando coloca um informativo de solda na prancha ele vem bloqueado e não permite que eu
+    arraste, vem com um cadeado". A linha de chamada nasce destravada (sem cadeado), arrastar o símbolo move a
+    linha de referência com a ponta parada na aresta (Desfazer volta) e a seta cai na aresta mesmo em vista 2:1
+    (antes caía no dobro da distância, fora da peça)."""
+
+    _esp = T62PainelDeComando._esp
+
+    def setUp(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import PrumoFolhas
+        import PrumoVistas
+        self.doc = novo_doc("PrumoSoldaArrastar")
+        b = self.doc.addObject("Part::Box", "Chapa")
+        b.Length, b.Width, b.Height = 120, 60, 40
+        self.doc.recompute()
+        self.page = PrumoFolhas.nova_folha(self.doc, "A3", "NBR16752", False, {}, [b], arranjo="frontal_superior")
+        g = PrumoVistas.grupo_da_peca(self.page, [b])
+        PrumoVistas.esperar_vistas(list(g.Views), 30)
+        self.frente = [v for v in g.Views if v.Type == "Front"][0]
+
+    def tearDown(self):
+        try:
+            if FreeCAD.GuiUp and FreeCADGui.Control.activeDialog():
+                FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        fechar(self.doc)
+
+    def test_ponta_na_aresta_sem_cadeado(self):
+        import PrumoAnotacoes as A
+        p = A.ponto_da_aresta(self.frente, "Edge0")
+        s, l = A.criar_solda(self.frente, p, "filete", "seta", "a5", "200")
+        self.assertFalse(l.LockPosition, "sem cadeado")
+        esc = float(self.frente.getScale())
+        self.assertAlmostEqual(l.X.Value * esc, p.x, places=6)
+        self.assertAlmostEqual(l.Y.Value * esc, p.y, places=6)
+        # a linha sai para fora da peça e cabe na folha
+        sx = 1.0 if l.WayPoints[2].x > 0 else -1.0
+        x_fim = A._x_na_folha(self.frente) + p.x + sx * 50 * (esc if l.Scalable else 1.0)
+        self.assertTrue(10 < x_fim < float(self.page.Template.Width) - 10, x_fim)
+
+    def test_pontos_arrastados(self):
+        import PrumoAnotacoes as A
+        V = FreeCAD.Vector
+        base = [V(0, 0, 0), V(-15, -15, 0), V(-50, -15, 0)]
+        n = A.pontos_arrastados(base, -10, 5)
+        self.assertEqual([tuple(v) for v in n], [(0, 0, 0), (-25, -10, 0), (-60, -10, 0)])
+        n = A.pontos_arrastados(base, 40, 0)            # cotovelo passou para a direita: a referência vira
+        self.assertEqual([tuple(v) for v in n], [(0, 0, 0), (25, -15, 0), (60, -15, 0)])
+        self.assertEqual([tuple(v) for v in base], [(0, 0, 0), (-15, -15, 0), (-50, -15, 0)], "não mexe na lista")
+
+    def test_arrastar_o_simbolo_na_folha(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoAnotacoes as A
+        import PrumoFolhas
+        p = A.ponto_da_aresta(self.frente, "Edge0")
+        s, l = A.criar_solda(self.frente, p, "filete", "seta", "a5", "200")
+        PrumoFolhas._abrir_folha(self.page)
+        self._esp(1.5)
+        try:
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        A.instalar_nas_folhas()
+        views = [v for v in FreeCADGui.getMainWindow().findChildren(QtWidgets.QGraphicsView)
+                 if v.isVisible() and v.metaObject().className() == "TechDrawGui::QGVPage"]
+        self.assertTrue(views)
+        v = views[0]
+        self.assertTrue(v.property("usinix_arrasto"))
+        item = [i for i in v.scene().items() if i.data(0) == "QGIV" and i.data(1) == s.Name][0]
+        v.centerOn(item)
+        self._esp(0.3)
+        x0, y0 = l.X.Value, l.Y.Value
+        pts0 = [FreeCAD.Vector(w) for w in l.WayPoints]
+        vp = v.viewport()
+        c = v.mapFromScene(item.sceneBoundingRect().center())
+        L = QtCore.Qt.LeftButton
+
+        def ev(tipo, pt, bt, bts):
+            QtWidgets.QApplication.sendEvent(vp, QtGui.QMouseEvent(tipo, QtCore.QPointF(pt),
+                                                                   QtCore.QPointF(vp.mapToGlobal(pt)), bt, bts,
+                                                                   QtCore.Qt.NoModifier))
+            self._esp(0.04)
+        ev(QtCore.QEvent.MouseButtonPress, c, L, L)
+        for k in range(1, 9):
+            ev(QtCore.QEvent.MouseMove, c + QtCore.QPoint(-6 * k, 4 * k), QtCore.Qt.NoButton, L)
+        ev(QtCore.QEvent.MouseButtonRelease, c + QtCore.QPoint(-48, 32), L, QtCore.Qt.NoButton)
+        self.doc.recompute()
+        self._esp(0.3)
+        self.assertAlmostEqual(l.X.Value, x0, places=6, msg="a ponta fica na aresta")
+        self.assertAlmostEqual(l.Y.Value, y0, places=6)
+        self.assertEqual(tuple(l.WayPoints[0]), (0.0, 0.0, 0.0))
+        d = l.WayPoints[1] - pts0[1]
+        self.assertLess(d.x, -1.0, "andou para a esquerda")
+        self.assertGreater(d.y, 1.0, "e para baixo")
+        self.assertAlmostEqual((l.WayPoints[2] - l.WayPoints[1]).Length, 35.0, places=6)
+        self.assertEqual(self.doc.UndoNames[0], "Mover chamada")
+        self.doc.undo()
+        self.doc.recompute()
+        self.assertTrue(all((a - b).Length < 1e-9 for a, b in zip(l.WayPoints, pts0)), "Desfazer volta")
+
 
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
@@ -18742,4 +18955,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T131DadosDasPranchas, T132EnrijecedorPlaca,
            T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
            T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
-           T138EnrijecedoresEmSerie]
+           T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha]

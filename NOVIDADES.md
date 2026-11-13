@@ -15,6 +15,26 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.16.0 — 13/11/2026
+
+![Pórtico repetido com o Padrão de estrutura](.github/images/novidades/1.16.0.webp)
+
+### Estruturas
+
+- **Padrão de estrutura** (aba Estruturas): repete a estrutura soldada inteira em linha ou em volta de um eixo
+  (vários pórticos, mesas iguais), com a quantidade e o espaçamento como no padrão linear: "Distância entre
+  eles" ou "Distância total". A direção vem de uma aresta ou face, ou dos eixos X, Y e Z. As cópias acompanham
+  a original (mudou a original, mudam todas) e a lista de materiais e a lista de corte contam todas.
+- A Matriz leve, com uma estrutura selecionada, abre o Padrão de estrutura (antes gerava uma matriz vazia).
+
+### Desenho
+
+- **Símbolo de solda arrastável:** a linha de chamada não vem mais travada (sem o cadeado). Arraste o símbolo
+  ou a linha: a linha de referência e o símbolo andam juntos e a ponta da seta fica na aresta; se passar para
+  o outro lado, a linha de referência vira. Desfazer volta.
+- A seta da solda cai na aresta escolhida também em vista ampliada (numa vista 2:1 ela caía no dobro da
+  distância, fora da peça), e a linha de chamada sai para o lado que tem espaço na folha.
+
 ## 1.15.2 — 13/11/2026
 
 ![Enrijecedores em série na placa de base](.github/images/novidades/1.15.2.webp)

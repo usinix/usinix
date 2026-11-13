@@ -940,6 +940,7 @@ def register_commands():
                                  FreeCADGui.addCommand("Prumo_EditarEstrutura", m.CmdEditarEstrutura()),
                                  FreeCADGui.addCommand("Prumo_Cantos", m.CmdCantos()))),
                              ("PrumoEstruturaExtras", lambda m: m.registrar_comandos()),
+                             ("PrumoPadraoEstrutura", lambda m: m.registrar_comandos()),
                              ("PrumoTrabalhosBarra", lambda m: m.registrar_comandos()),
                              ("PrumoIA", lambda m: m.registrar_comandos()),
                              ("PrumoSecaoPersonalizada", lambda m: FreeCADGui.addCommand(

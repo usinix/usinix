@@ -575,7 +575,15 @@ def passo(modo, valor, tamanho, n):
 def matriz_leve(obj, eixos):
     """eixos: {"X": (n, modo, valor, inverter), ...}. Matriz de vínculos (Draft) com os passos calculados."""
     import Draft
-    bb = obj.Shape.BoundBox if hasattr(obj, "Shape") else FreeCAD.BoundBox(0, 0, 0, 0, 0, 0)
+    try:
+        import PrumoEstrutura as E
+        if E.estrutura_de(obj) is not None:
+            raise ValueError("para estrutura soldada, use o Padrão de estrutura (aba Estruturas)")
+    except ImportError:
+        pass
+    if not hasattr(obj, "Shape") or obj.Shape.isNull() or not obj.Shape.isValid():
+        raise ValueError("%s não tem forma para repetir" % obj.Label)
+    bb = obj.Shape.BoundBox
     tam = {"X": bb.XLength, "Y": bb.YLength, "Z": bb.ZLength}
     vs, ns = {}, {}
     for e, base in (("X", V(1, 0, 0)), ("Y", V(0, 1, 0)), ("Z", V(0, 0, 1))):
@@ -858,7 +866,13 @@ if FreeCAD.GuiUp:
             return len(FreeCADGui.Selection.getSelection()) == 1
 
         def Activated(self):
-            obj = peca_de(FreeCADGui.Selection.getSelection()[0])
+            import PrumoEstrutura as E
+            sel = FreeCADGui.Selection.getSelection()[0]
+            if E.estrutura_de(sel) is not None or E.estrutura_de(peca_de(sel)) is not None:
+                # estrutura soldada: o Padrão de estrutura repete a estrutura inteira e conta nas listas
+                FreeCADGui.runCommand("Prumo_PadraoEstrutura")
+                return
+            obj = peca_de(sel)
             j = _Janela("Matriz leve — %s" % obj.Label)
             campos = {}
             bb = obj.Shape.BoundBox if hasattr(obj, "Shape") else None
