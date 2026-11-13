@@ -40,19 +40,37 @@ OPCOES_PONTA = [
 REFS = ["Início", "Fim", "As duas pontas"]
 
 
-def folga_furo():
-    """Folga entre o furo e o parafuso (mm), nas preferências; o padrão é 1,5 mm."""
-    return FreeCAD.ParamGet(PARAM).GetFloat("FolgaFuroParafuso", 1.5)
+# NBR 8800:2024 (versão corrigida 2025), Tabela 14 — diâmetro do furo-padrão para parafusos (mm), conferido no
+# catálogo ABNT/Confea em 13/11/2026: 16 → 18, 20 → 22, 22 → 24, 24 → 27, 27 → 30, 30 → 33 e, de 36 em diante, d + 3.
+# A edição de 2008 usava d + 1,5 mm (o padrão antigo do Usinix).
+FURO_PADRAO_NBR8800 = {16: 18.0, 20: 22.0, 22: 24.0, 24: 27.0, 27: 30.0, 30: 33.0}
+
+
+def folga_furo(d=None):
+    """Folga entre o furo e o parafuso (mm). Com a preferência FolgaFuroParafuso gravada, vale ela; senão, a do
+    furo-padrão da NBR 8800:2024 (Tabela 14) para o diâmetro d: 2 mm até M22 e 3 mm de M24 em diante. Abaixo de
+    M16 a tabela não dá valor: usa 2 mm (a checar)."""
+    g = FreeCAD.ParamGet(PARAM)
+    manual = g.GetFloat("FolgaFuroParafuso", -1.0)
+    if manual >= 0:
+        return manual
+    if d is None:
+        return 2.0
+    d = float(d)
+    if int(round(d)) in FURO_PADRAO_NBR8800 and abs(d - round(d)) < 1e-9:
+        return FURO_PADRAO_NBR8800[int(round(d))] - d
+    return 3.0 if d >= 24 else 2.0
 
 
 def diametro_para(parafuso):
-    """Diâmetro do furo para o parafuso (ex.: "M12" → 13,5 com folga 1,5) ou None."""
+    """Diâmetro do furo-padrão para o parafuso (ex.: "M16" → 18, "M24" → 27; NBR 8800:2024, Tabela 14) ou None."""
     if not parafuso or not parafuso.startswith("M"):
         return None
     try:
-        return float(parafuso[1:]) + folga_furo()
+        d = float(parafuso[1:])
     except ValueError:
         return None
+    return d + folga_furo(d)
 
 
 def pontas_livres(barra):

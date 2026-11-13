@@ -65,6 +65,10 @@
   "F16": {
    "nome": "Torqbolt - ISO 7089 flat washers 200HV dimensions",
    "url": "https://torqbolt.com/iso-7089-flat-washers-200hv-dimensions-standards-specifications"
+  },
+  "F_NBR10112": {
+   "nome": "ABNT NBR 10112:2010 — Parafuso de cabeça cilíndrica com sextavado interno, grau de produto A — Dimensões, Tabela 2 (conferida no catálogo ABNT/Confea em 13/11/2026)",
+   "url": "https://www.abntcatalogo.com.br/confea/"
   }
  },
  "passo": {
@@ -871,7 +875,8 @@
   "DIN 125-A vs ISO 7089: valores de d1/d2/h coincidem para M3-M24 segundo uso corrente, mas nenhuma tabela DIN 125 foi consultada -> a checar.",
   "Comprimentos ISO 4017 M12-M24 não levantados; M3-M10 só de F5 (fonte única).",
   "Nenhum catálogo de fabricante brasileiro (Ciser, Belenus etc.) com tabela acessível foi encontrado nesta rodada; fasten.it/globalfastener reproduzem a norma.",
-  "fasten.it bloqueou acesso via curl (403); dados obtidos por WebFetch, sujeitos a erro de extração - por isso cada valor tem >= 2 fontes."
+  "fasten.it bloqueou acesso via curl (403); dados obtidos por WebFetch, sujeitos a erro de extração - por isso cada valor tem >= 2 fontes.",
+  "ISO 4762 (allen): b, dk, k e s de M3 a M24 conferidos com a ABNT NBR 10112:2010, Tabela 2 (13/11/2026): b = 18, 20, 22, 24, 28, 32, 36, 44, 52 e 60 mm de M3 a M24."
  ],
  "extra": {
   "fonte": "Medidas nominais da norma, levantadas da tabela pública do projeto FreeCAD Fasteners (FsData). A checar contra a norma (ABNT/ISO/DIN) antes de uso em projeto.",

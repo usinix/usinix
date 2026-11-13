@@ -43,6 +43,18 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 
 - O grupo que você alarga arrastando o divisor volta com a mesma largura.
 
+### Normas conferidas (catálogo ABNT/Confea, 13/11/2026)
+
+- **Furo para parafuso:** Trabalhos na barra usa o furo-padrão da ABNT NBR 8800:2024 (Tabela 14): M16 → 18,
+  M20 → 22, M22 → 24, M24 → 27, M27 → 30, M30 → 33 e d + 3 acima disso. Antes era d + 1,5 mm, da edição de 2008.
+  Abaixo de M16 a tabela não dá valor e o Usinix usa d + 2 mm (a checar); quem gravou uma folga própria nas
+  preferências continua com ela.
+- **Perfis I e U:** as bitolas da ABNT NBR 15980:2024 (Tabelas A.2 e A.3) foram conferidas e sete delas corrigidas
+  (diferenças de décimos de milímetro e na massa). As bitolas que não estão na norma (I de 8" para cima, U de
+  12", entre outras) vêm do catálogo do fabricante e dizem isso na descrição.
+- **Escada:** a viga padrão passa a ser o U 8" × 17,10 (NBR 15980); o I 8" não está na norma.
+- **Parafuso allen:** b, dk, k e s de M3 a M24 conferem com a ABNT NBR 10112:2010.
+
 ## 1.14.0 — 10/11/2026
 
 ![Estrutura apoiada no tampo de uma base e batente desenhado na alma da viga](.github/images/novidades/1.14.0.webp)

@@ -16219,8 +16219,9 @@ class T118TrabalhosNaBarra(unittest.TestCase):
             pn.p0.definir(E.PONTA_HORIZONTAL)
             pn.p1.definir(E.PONTA_HORIZONTAL)
             pn.furar.setChecked(True)
+            pn.parafuso.setCurrentText("M16")
             pn.parafuso.setCurrentText("M12")
-            self.assertAlmostEqual(pn.diam.value(), 12 + T.folga_furo(), places=3)
+            self.assertAlmostEqual(pn.diam.value(), T.diametro_para("M12"), places=3)
             pn.ref.setCurrentText("As duas pontas")
             pn.qtd.setValue(2)
             pn.passo.setValue(70)
@@ -16230,7 +16231,7 @@ class T118TrabalhosNaBarra(unittest.TestCase):
             self.assertEqual(T.parafusamentos(self.doc, b)[0].Quantidade, 4)
             self.assertIsNone(pn.pendencia())
             self.assertAlmostEqual(b.CorteInicio.Value, 45.0, places=3)     # prévia já no desenho
-            self.assertEqual(b.Furacao, "4 × Ø13,5")
+            self.assertEqual(b.Furacao, "4 × Ø14")
             pn.accept()
         finally:
             FreeCADGui.Control.closeDialog()
@@ -16248,12 +16249,12 @@ class T118TrabalhosNaBarra(unittest.TestCase):
             pn.qtd.setValue(3)
             pn.atualizar_previa()
             self.assertEqual(len(est.Furos), 2)
-            self.assertEqual(b.Furacao, "6 × Ø13,5")
+            self.assertEqual(b.Furacao, "6 × Ø14")
             pn.reject()                                  # cancelar volta ao que era
         finally:
             FreeCADGui.Control.closeDialog()
         self.doc.recompute()
-        self.assertEqual(b.Furacao, "4 × Ø13,5")
+        self.assertEqual(b.Furacao, "4 × Ø14")
         self.assertEqual(T.parafusamentos(self.doc, b)[0].Quantidade, 4)
 
     def test_pela_face_de_outra_peca(self):
@@ -17635,6 +17636,30 @@ class T134EsqueletoDeArestasETabelaDeCortes(unittest.TestCase):
         sh = T.gravar_tabela(self.doc, ls)
         self.assertEqual(sh.get("G3"), "recorte 40 × 20")
 
+
+class T135FuroPadraoNBR8800(unittest.TestCase):
+    """1.15.0: furo-padrão da NBR 8800:2024 (versão corrigida 2025), Tabela 14, conferido no catálogo ABNT/Confea em
+    13/11/2026 (a edição de 2008 usava d + 1,5 mm)."""
+
+    def setUp(self):
+        self.g = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Prumo3D")
+        self.antes = self.g.GetFloat("FolgaFuroParafuso", -1.0)
+        self.g.RemFloat("FolgaFuroParafuso")
+
+    def tearDown(self):
+        if self.antes >= 0:
+            self.g.SetFloat("FolgaFuroParafuso", self.antes)
+        else:
+            self.g.RemFloat("FolgaFuroParafuso")
+
+    def test_tabela_14(self):
+        import PrumoTrabalhosBarra as T
+        for m, furo in (("M16", 18.0), ("M20", 22.0), ("M22", 24.0), ("M24", 27.0), ("M27", 30.0), ("M30", 33.0),
+                        ("M36", 39.0)):
+            self.assertAlmostEqual(T.diametro_para(m), furo, places=6, msg=m)
+        self.g.SetFloat("FolgaFuroParafuso", 1.5)          # a preferência gravada continua mandando
+        self.assertAlmostEqual(T.diametro_para("M16"), 17.5, places=6)
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -18416,4 +18441,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T124Bibliotecas, T125InstalarNoClaude,
            T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
            T131DadosDasPranchas, T132EnrijecedorPlaca,
-           T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes]
+           T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
+           T135FuroPadraoNBR8800]

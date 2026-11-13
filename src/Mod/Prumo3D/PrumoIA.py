@@ -638,7 +638,7 @@ def f_memorial(vaso, caminho, classe=None, pressao_operacao=None, tag=None, clie
 
 @ferramenta("escada", "Cria uma escada industrial num objeto só: duas vigas (banzos), degraus e guarda-corpo, e "
             "confere a NR-12 (Anexo III). desnivel e largura_util em mm, angulo em graus; degrau: grade, xadrez ou "
-            "espelho; perfil_banzo (ex.: I 8\" x 27,3 kg/m); lados: dois, esquerdo, direito ou nenhum; x, y, z: pé.",
+            "espelho; perfil_banzo (ex.: U 8\" x 17,10); lados: dois, esquerdo, direito ou nenhum; x, y, z: pé.",
             {"desnivel": {"type": "number"}, "angulo": {"type": "number"}, "largura_util": {"type": "number"},
              "degrau": {"type": "string"}, "perfil_banzo": {"type": "string"}, "lados": {"type": "string"},
              "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},

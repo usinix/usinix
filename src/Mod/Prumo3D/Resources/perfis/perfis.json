@@ -1734,7 +1734,7 @@
   {
    "id": "I",
    "nome": "Perfil I laminado (padrão americano)",
-   "norma": "ABNT NBR 15980 / ASTM A6 (Gerdau, tabela 01/23)",
+   "norma": "ABNT NBR 15980:2024 (Tabelas A.2 e A.3, conferidas no catálogo ABNT/Confea em 13/11/2026) para as bitolas da norma; demais: catálogo Gerdau 01/23 (ASTM A6), fora da NBR 15980",
    "fonte": {
     "chave": "F_GERDAU_2023",
     "nome": "Gerdau - Construção Metálica - Tabela de Bitolas - 01/23 (01/23); convertido da bancada Steel Structures de Marcos Roberto da Silva (github.com/marcos-rds/steel-structures, LGPL-2.1)",
@@ -1752,7 +1752,8 @@
      "d": 76.2,
      "bf": 59.18,
      "tw": 4.32,
-     "tf": 6.6
+     "tf": 6.6,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 76,20 × 8,48"
     },
     {
      "nome": "I 3\" x 9,68",
@@ -1765,7 +1766,8 @@
      "d": 76.2,
      "bf": 61.24,
      "tw": 6.38,
-     "tf": 6.6
+     "tf": 6.6,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 76,20 × 9,68"
     },
     {
      "nome": "I 4\" x 11,46",
@@ -1778,7 +1780,8 @@
      "d": 101.6,
      "bf": 67.6,
      "tw": 4.9,
-     "tf": 7.44
+     "tf": 7.44,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 101,60 × 11,46"
     },
     {
      "nome": "I 4\" x 12,65",
@@ -1791,7 +1794,8 @@
      "d": 101.6,
      "bf": 69.2,
      "tw": 6.43,
-     "tf": 7.44
+     "tf": 7.44,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 101,60 × 12,65"
     },
     {
      "nome": "I 5\" x 14,88",
@@ -1804,7 +1808,8 @@
      "d": 127.0,
      "bf": 76.3,
      "tw": 5.44,
-     "tf": 8.28
+     "tf": 8.28,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 127,00 × 14,88"
     },
     {
      "nome": "I 5\" x 18,24",
@@ -1817,7 +1822,8 @@
      "d": 127.0,
      "bf": 79.7,
      "tw": 8.81,
-     "tf": 8.28
+     "tf": 8.28,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 127,00 × 18,24"
     },
     {
      "nome": "I 6\" x 18,60",
@@ -1830,7 +1836,8 @@
      "d": 152.4,
      "bf": 84.63,
      "tw": 5.89,
-     "tf": 9.12
+     "tf": 9.12,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 152,40 × 18,60"
     },
     {
      "nome": "I 6\" x 22,00",
@@ -1843,7 +1850,8 @@
      "d": 152.4,
      "bf": 87.5,
      "tw": 8.71,
-     "tf": 9.12
+     "tf": 9.12,
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 152,40 × 22,0"
     },
     {
      "nome": "I 3\" x 11,2 kg/m",
@@ -1855,19 +1863,21 @@
      "massa": 11.2,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 4\" x 14,1 kg/m",
      "tipo": "I",
      "d": 101.6,
-     "bf": 71.0,
+     "bf": 71.02,
      "tw": 8.28,
-     "tf": 7.4,
-     "massa": 14.1,
+     "tf": 7.44,
+     "massa": 14.14,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 101,60 × 14,14"
     },
     {
      "nome": "I 4\" x 15,6 kg/m",
@@ -1879,7 +1889,8 @@
      "massa": 15.6,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 5\" x 22,0 kg/m",
@@ -1891,19 +1902,21 @@
      "massa": 22.0,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 6\" x 25,7 kg/m",
      "tipo": "I",
      "d": 152.4,
-     "bf": 90.6,
+     "bf": 90.55,
      "tw": 11.81,
-     "tf": 9.1,
-     "massa": 25.7,
+     "tf": 9.12,
+     "massa": 25.67,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "ABNT NBR 15980:2024, Tabela A.3: I 152,40 × 25,67"
     },
     {
      "nome": "I 8\" x 27,3 kg/m",
@@ -1915,7 +1928,8 @@
      "massa": 27.3,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 8\" x 30,5 kg/m",
@@ -1927,7 +1941,8 @@
      "massa": 30.5,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 8\" x 34,3 kg/m",
@@ -1939,7 +1954,8 @@
      "massa": 34.3,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 8\" x 38,0 kg/m",
@@ -1951,7 +1967,8 @@
      "massa": 38.0,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 10\" x 37,7 kg/m",
@@ -1963,7 +1980,8 @@
      "massa": 37.7,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 10\" x 44,7 kg/m",
@@ -1975,7 +1993,8 @@
      "massa": 44.7,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 10\" x 52,1 kg/m",
@@ -1987,7 +2006,8 @@
      "massa": 52.1,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 10\" x 59,6 kg/m",
@@ -1999,7 +2019,8 @@
      "massa": 59.6,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 12\" x 60,6 kg/m",
@@ -2011,7 +2032,8 @@
      "massa": 60.6,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 12\" x 67,0 kg/m",
@@ -2023,7 +2045,8 @@
      "massa": 67.0,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 12\" x 74,4 kg/m",
@@ -2035,7 +2058,8 @@
      "massa": 74.4,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "I 12\" x 81,9 kg/m",
@@ -2047,14 +2071,15 @@
      "massa": 81.9,
      "status": "a checar",
      "derivado": [],
-     "fonte": "F_FAPRO_I"
+     "fonte": "F_FAPRO_I",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     }
    ]
   },
   {
    "id": "U",
    "nome": "Perfil U laminado (padrão americano)",
-   "norma": "ABNT NBR 15980 / ASTM A6 (Gerdau, tabela 01/23)",
+   "norma": "ABNT NBR 15980:2024 (Tabelas A.2 e A.3, conferidas no catálogo ABNT/Confea em 13/11/2026) para as bitolas da norma; demais: catálogo Gerdau 01/23 (ASTM A6), fora da NBR 15980",
    "fonte": {
     "chave": "F_GERDAU_2023",
     "nome": "Gerdau - Construção Metálica - Tabela de Bitolas - 01/23 (01/23); convertido da bancada Steel Structures de Marcos Roberto da Silva (github.com/marcos-rds/steel-structures, LGPL-2.1)",
@@ -2072,7 +2097,8 @@
      "d": 76.2,
      "bf": 35.81,
      "tw": 4.32,
-     "tf": 6.93
+     "tf": 6.93,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 76,20 × 6,10"
     },
     {
      "nome": "U 4\" x 8,04",
@@ -2084,8 +2110,9 @@
      "tipo": "U",
      "d": 101.6,
      "bf": 40.23,
-     "tw": 4.67,
-     "tf": 7.52
+     "tw": 4.57,
+     "tf": 7.52,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 101,60 × 8,04"
     },
     {
      "nome": "U 4\" x 9,30",
@@ -2098,7 +2125,8 @@
      "d": 101.6,
      "bf": 41.83,
      "tw": 6.27,
-     "tf": 7.52
+     "tf": 7.52,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 101,60 × 9,30"
     },
     {
      "nome": "U 6\" x 12,20",
@@ -2111,7 +2139,8 @@
      "d": 152.4,
      "bf": 48.77,
      "tw": 5.08,
-     "tf": 8.71
+     "tf": 8.71,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 152,40 × 12,20"
     },
     {
      "nome": "U 6\" x 15,62",
@@ -2124,7 +2153,8 @@
      "d": 152.4,
      "bf": 51.66,
      "tw": 7.98,
-     "tf": 8.71
+     "tf": 8.71,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 152,40 × 15,62"
     },
     {
      "nome": "U 8\" x 17,10",
@@ -2137,7 +2167,8 @@
      "d": 203.2,
      "bf": 57.4,
      "tw": 5.59,
-     "tf": 9.5
+     "tf": 9.5,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 203,20 × 17,10"
     },
     {
      "nome": "U 8\" x 20,50",
@@ -2150,7 +2181,8 @@
      "d": 203.2,
      "bf": 59.51,
      "tw": 7.7,
-     "tf": 9.5
+     "tf": 9.5,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 203,20 × 20,50"
     },
     {
      "nome": "U 10\" x 22,77",
@@ -2163,7 +2195,8 @@
      "d": 254.0,
      "bf": 66.04,
      "tw": 6.1,
-     "tf": 11.1
+     "tf": 11.1,
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 254,00 × 22,77"
     },
     {
      "nome": "U 12\" x 37,00",
@@ -2176,7 +2209,8 @@
      "d": 305.0,
      "bf": 77.0,
      "tw": 9.8,
-     "tf": 12.7
+     "tf": 12.7,
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 3\" x 7,44 kg/m (5,00 lb/ft)",
@@ -2184,13 +2218,14 @@
      "d": 76.2,
      "bf": 38.05,
      "tw": 6.55,
-     "tf": 7.12,
+     "tf": 6.93,
      "massa": 7.44,
      "status": "confirmado",
      "derivado": [
       "tf"
      ],
-     "fonte": "F_AM_2019"
+     "fonte": "F_AM_2019",
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 76,20 × 7,44"
     },
     {
      "nome": "U 3\" x 8,9 kg/m",
@@ -2204,7 +2239,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 4\" x 7,4 kg/m",
@@ -2218,35 +2254,38 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 4\" x 10,8 kg/m",
      "tipo": "U",
      "d": 101.6,
-     "bf": 43.7,
-     "tw": 8.1,
-     "tf": 7.76,
-     "massa": 10.8,
+     "bf": 43.71,
+     "tw": 8.2,
+     "tf": 7.52,
+     "massa": 10.79,
      "status": "a checar",
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 101,60 × 10,79"
     },
     {
      "nome": "U 6\" x 19,4 kg/m",
      "tipo": "U",
      "d": 152.4,
-     "bf": 54.8,
+     "bf": 54.79,
      "tw": 11.1,
-     "tf": 8.92,
-     "massa": 19.4,
+     "tf": 8.71,
+     "massa": 19.35,
      "status": "a checar",
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 152,40 × 19,35"
     },
     {
      "nome": "U 6\" x 23,1 kg/m",
@@ -2260,7 +2299,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 8\" x 24,2 kg/m",
@@ -2274,7 +2314,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 8\" x 27,9 kg/m",
@@ -2288,7 +2329,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 8\" x 31,6 kg/m",
@@ -2302,21 +2344,23 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 10\" x 29,8 kg/m",
      "tipo": "U",
      "d": 254.0,
-     "bf": 69.6,
-     "tw": 9.6,
-     "tf": 11.31,
-     "massa": 29.8,
+     "bf": 69.57,
+     "tw": 9.63,
+     "tf": 11.1,
+     "massa": 29.76,
      "status": "a checar",
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "ABNT NBR 15980:2024, Tabela A.2: U 254,00 × 29,76"
     },
     {
      "nome": "U 10\" x 37,2 kg/m",
@@ -2330,7 +2374,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 10\" x 44,7 kg/m",
@@ -2344,7 +2389,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 10\" x 52,1 kg/m",
@@ -2358,7 +2404,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 12\" x 30,7 kg/m",
@@ -2372,7 +2419,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 12\" x 44,7 kg/m",
@@ -2386,7 +2434,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 12\" x 52,1 kg/m",
@@ -2400,7 +2449,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 12\" x 59,6 kg/m",
@@ -2414,7 +2464,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 15\" x 50,4 kg/m",
@@ -2428,7 +2479,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 15\" x 52,1 kg/m",
@@ -2442,7 +2494,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 15\" x 59,6 kg/m",
@@ -2456,7 +2509,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 15\" x 67,0 kg/m",
@@ -2470,7 +2524,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 15\" x 74,4 kg/m",
@@ -2484,7 +2539,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     },
     {
      "nome": "U 15\" x 81,9 kg/m",
@@ -2498,7 +2554,8 @@
      "derivado": [
       "tf"
      ],
-     "fonte": "F_FAPRO_U"
+     "fonte": "F_FAPRO_U",
+     "obs": "Fora da ABNT NBR 15980:2024 (só no catálogo do fabricante): confira a disponibilidade"
     }
    ]
   },

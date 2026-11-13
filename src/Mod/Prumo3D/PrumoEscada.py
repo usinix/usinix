@@ -34,7 +34,7 @@ TIPOS_DEGRAU = ("Grade de piso (sem espelho)", "Chapa xadrez dobrada (sem espelh
                 "Chapa xadrez com espelho")
 LADOS = ("Os dois lados", "Lado esquerdo", "Lado direito", "Sem guarda-corpo")
 FIXACOES = ("Sem chapas", "Chapa na base e no topo")
-PERFIL_BANZO = 'I 8" x 27,3 kg/m'
+PERFIL_BANZO = 'U 8" x 17,10'          # NBR 15980:2024, Tabela A.2 (o I 8" não está na norma)
 PERFIL_GUARDA = "Tubo ○ 38,1 x 2"
 NR12 = "NR-12, Anexo III (Portaria MTP n.º 4.219/2022)"
 PARAMETROS = ("Posicao", "Desnivel", "Angulo", "LarguraUtil", "NumeroEspelhos", "TipoDegrau", "EspessuraDegrau",
