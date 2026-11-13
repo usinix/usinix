@@ -21,6 +21,41 @@ except ImportError:  # pragma: no cover
 
 
 # ======================================================================= modelos de teste
+# --------------------------------------------------------------- navegador bloqueado durante os testes
+# Botões como "Enviar sugestão" e "Abrir PDF" chamam QDesktopServices.openUrl: rodando a bateria, isso abria o
+# navegador (ou o xdg-open) dezenas de vezes. Enquanto os testes rodam, os endereços são só anotados.
+URLS_ABERTAS = []
+_BLOQUEIO = {"obj": None}
+
+
+def bloquear_navegador():
+    if not FreeCAD.GuiUp or _BLOQUEIO["obj"] is not None:
+        return
+    from PySide import QtCore, QtGui
+
+    class _Anotador(QtCore.QObject):
+        @QtCore.Slot(QtCore.QUrl)
+        def abrir(self, url):
+            URLS_ABERTAS.append(url.toString())
+
+    obj = _Anotador()
+    for esquema in ("http", "https", "file", "mailto"):
+        QtGui.QDesktopServices.setUrlHandler(esquema, obj, "abrir")
+    _BLOQUEIO["obj"] = obj
+
+
+def liberar_navegador():
+    if _BLOQUEIO["obj"] is None:
+        return
+    from PySide import QtGui
+    for esquema in ("http", "https", "file", "mailto"):
+        QtGui.QDesktopServices.unsetUrlHandler(esquema)
+    _BLOQUEIO["obj"] = None
+
+
+bloquear_navegador()
+
+
 def novo_doc(nome):
     return FreeCAD.newDocument(nome)
 
@@ -9194,8 +9229,14 @@ class T63FerramentasDePontaAPonta(unittest.TestCase):
             vigia.setInterval(250)
             vigia.timeout.connect(fechar_modal)
             vigia.start()
+            trilha = os.path.join(tempfile.gettempdir(), "usinix_teste_esboco_ultimo_comando.txt")
             for cmd in self._comandos_da_aba(tab):
                 atual["cmd"] = cmd
+                try:                              # se o programa cair, o arquivo diz em que comando foi
+                    with open(trilha, "a", encoding="utf-8") as fh:
+                        fh.write(cmd + "\n")
+                except OSError:
+                    pass
                 if cmd not in FreeCADGui.listCommands():
                     continue          # comando só da compilação completa (ex.: linha de construção, em C++)
                 if not cmd.startswith("Sketcher_") or cmd in ("Sketcher_LeaveSketch", "Sketcher_NewSketch",
@@ -17744,6 +17785,18 @@ class T136ComponentesDetalhados(unittest.TestCase):
         finally:
             fechar(doc)
 
+
+class T137TestesSemAbrirNavegador(unittest.TestCase):
+    """Rodando a bateria, "Enviar sugestão" (e outros links) não abre o navegador: o endereço é só anotado."""
+
+    def test_sugestao_anotada(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        antes = len(URLS_ABERTAS)
+        FreeCADGui.runCommand("Prumo_Sugestao")
+        self.assertEqual(len(URLS_ABERTAS), antes + 1)
+        self.assertIn("usinix.com.br/sugestao.html", URLS_ABERTAS[-1])
+
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
     barra e da chapa com um clique e legenda preenchida pela peça."""
@@ -18526,4 +18579,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
            T131DadosDasPranchas, T132EnrijecedorPlaca,
            T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
-           T135FuroPadraoNBR8800, T136ComponentesDetalhados]
+           T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador]

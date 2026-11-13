@@ -1053,9 +1053,16 @@ def _executar(completo):
     t0 = time.time()
     _abrir_andamento()
     try:
+        import PrumoTestesFerramentas as _TF
+        _TF.bloquear_navegador()
+    except Exception:
+        _TF = None
+    try:
         res = runner.run(suite)
     finally:
         _fechar_andamento()
+        if _TF is not None:
+            _TF.liberar_navegador()      # depois da bateria, os links voltam a abrir o navegador
     total = res.testsRun
     aprov = total - len(res.failures) - len(res.errors) - len(res.skipped)
     linhas = ["Usinix — testes automáticos — %s" % time.strftime("%d/%m/%Y %H:%M"),
