@@ -1,4 +1,4 @@
-<img src="/src/Mod/Prumo3D/Resources/icons/prumo.svg" height="100px" width="100px" alt="Usinix">
+<img src=".github/images/usinix-icone.png" height="100" width="100" alt="Ícone do Usinix">
 
 # Usinix
 
@@ -30,55 +30,49 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 > Até a versão 1.3.1 o Usinix se chamava **Prumo 3D**. Ao instalar a 1.4.0, as configurações do Prumo 3D
 > vêm junto e os arquivos feitos nele abrem normalmente.
 
-![Tela inicial do Usinix](.github/images/prumo/tela-inicial.png)
+![Tela inicial do Usinix](.github/images/usinix/tela-inicial.png)
 
 Novidades
 ---------
 
-**Versão atual: 1.3.1** (04/11/2026)
+**Versão atual: 1.15.2** (13/11/2026)
 
-- **Piso e fechamento:** chapa expandida, tela moeda (perfurada) e chapa xadrez num contorno fechado, com
-  área e peso na lista de materiais.
+- **Vários enrijecedores de uma vez:** quantidade e espaçamento como no padrão linear (distância entre eles ou
+  total, de eixo a eixo); com distância 0, as chapas se distribuem na largura do perfil, entre as mesas no lado
+  da alma.
 
-Na 1.3.0: o CAD 3D da metal-mecânica — saíram arquitetura e BIM, usinagem CNC, robótica, OpenSCAD e nuvem de
-pontos.
+| Escada com patamar e pés de apoio | Enrijecedores em série na placa de base |
+|---|---|
+| ![Escada industrial com patamar e pés de apoio](.github/images/usinix/escada.png) | ![Placa de base com enrijecedores em série](.github/images/usinix/enrijecedores.png) |
 
-Na 1.2.9: barra de varredura sextavada, oval e quadrifólio; faixa com altura fixa.
+Na 1.15.1: escada apoiada nas pontas ou com pés de apoio (perfil à escolha, chapa de base com furos).
 
-Na 1.2.8: Medir em português, arredondar qualquer face, Início e Peça mais enxutos.
+Na 1.15.0: enrijecedor entre a barra e a placa de base; escada com patamar (NR-12) e chapas de fixação;
+estrutura sobre arestas de um corpo; furo-padrão da NBR 8800:2024 e perfis I e U da NBR 15980:2024;
+componentes redesenhados, Içamento e Combate a incêndio.
 
-Na 1.2.7: botões Começar, dutos de ar-condicionado em Tubos e conexões, mais fixadores (medidas a checar).
+Na 1.14.0: peça na face; estrutura apoiada no corpo; dados das pranchas nas Preferências; botão Grade na barra
+de vistas; esboço novo sem tranco.
 
-Na 1.2.6: aba Componentes, dutos HVAC de Francisco Rosa, modelagem direta, explosão animada.
-Na 1.2.5: perfil como num catálogo, sombras, barra de vistas, tecla S, mouse do programa de origem,
-Adicionar / Remover material no painel, cota que diz o porquê.
-Na 1.2.4: OpenCV (cv2) corrigido.
-Na 1.2.3: junta inteligente na montagem; OpenCV no pacote.
-Na 1.2.2: tubulação ajusta o traçado às conexões e curva cortada no aço; caixinha de comprimento e ímãs no
-Esboço 3D; aviso da montagem em português; vistas no meio da folha.
-Na 1.2.1: válvulas na linha de aço; perfis Gerdau, Tuper, Ue e barras; Esboço 3D como no ZW3D;
-arredondamento automático, folhas em lote e cotas do corte.
-Na 1.2.0: tubulação de aço carbono com folha isométrica; solda, rugosidade e ajuste furo/eixo em português;
-batente e trajetória no Mover junta; perímetro do vaso; atualização só do complemento.
-Na 1.1.0: faixa que mostra o que serve no momento, Ctrl+K, Paleta de vistas, Mover junta e Travar juntos,
-pés de chapa nos vasos.
-Na 1.0.2: comprimento digitado durante o desenho no Esboço 3D.
-Na 1.0.1: atualização automática corrigida.
-Na 1.0.0: primeira versão final.
-Na 0.9.12: tudo em abas (sem o menu de bancadas), abas novas BIM e Superfícies, grupo Sólidos da Peça
-completo e, no Esboço, texto em linhas e curvas, importar DXF e matriz ao longo de um caminho.
-Na 0.9.11: instalador seguro (troca a pasta da versão anterior de uma vez e só apaga a antiga no fim).
-Na 0.9.10: esboço sempre no modo normal, cruzeta e avisos na tubulação, treliças nas estruturas e roteiros de
-uso automáticos.
-Na 0.9.9: tê no ramal que chega no meio da linha principal.
-Na 0.9.8: linha ligada a pontos-ímã do esboço sai definida e a janela cabe em notebook com escala alta.
-Na 0.9.7: atualização automática segura (o instalador espera o Usinix fechar).
-Na 0.9.6: peças com mais volume na vista 3D e medidas da Tubulação conferidas com as fichas da Tigre.
-Na 0.9.5: atualização automática pelo Windows e mensagens de erro em português.
-Na 0.9.4: aba Tubulação com água fria, água quente e esgoto Tigre, torneiras e caixas.
-Na 0.9.2: comandos em cartões em todas as abas, Preferências do Usinix e atualização com barra de progresso.
-Na 0.7 e na 0.6: painel lateral único (Árvore, Propriedades e a aba do comando) e propriedades em cartões.
-Na 0.5.0: Esboço 3D com restrições. Na 0.3.0: **Tubulação** de PVC soldável.
+Na 1.13.0: Cortar barras (corte ou furo em várias barras de uma vez, tudo ligado à ferramenta).
+
+Na 1.12.0: escada industrial num objeto só, conferida pela NR-12 (Anexo III).
+
+Na 1.11.0: proteção de máquina NR-12 conferida pela ABNT NBR ISO 13857:2021; memorial NR-13 do vaso em PDF.
+
+Na 1.10.0: classes de parafuso e porca, rolamentos, barras redondas, quadradas e chatas da NBR 16683.
+
+Na 1.9.0: grade na área de trabalho, menu Comandos e barra que acompanha a face de outra peça.
+
+Na 1.8.0: do modelo para a fábrica — DXF de todas as chapas e lista de materiais e de corte em Excel.
+
+Na 1.7.0: folha pronta — cotas gerais com a furação, balões, folhas das barras e folha da chapa planificada.
+
+Na 1.6.0: Conectar IA — o Claude Desktop e outros assistentes compatíveis com MCP usam as ferramentas do Usinix.
+
+Na 1.5.0: Trabalhos na barra (cortes de ponta, furos e parafusos) e Tabela de furos.
+
+Na 1.4.0: o Prumo 3D passou a se chamar Usinix (nome, logotipo e endereço novos; configurações vêm junto).
 
 [Todas as novidades, versão por versão](NOVIDADES.md) • [Baixar a versão atual](https://github.com/usinix/usinix/releases/latest)
 
@@ -95,11 +89,11 @@ referência em vez de deixar tudo vermelho, e os avisos já trazem o botão que 
 
 | Desenho: Paleta de vistas e cotas gerais | Montagem: Mover junta |
 |---|---|
-| ![Aba Desenho com a Paleta de vistas e a folha cotada](.github/images/prumo/aba-desenho.png) | ![Aba Montagem com o painel Mover junta](.github/images/prumo/aba-montagem.png) |
+| ![Aba Desenho com a Paleta de vistas e a folha cotada](.github/images/usinix/aba-desenho.png) | ![Aba Montagem com o painel Mover junta](.github/images/usinix/aba-montagem.png) |
 
 | Procurar comando (Ctrl+K) | Reservatório com pés de chapa |
 |---|---|
-| ![Busca de comandos aberta na faixa](.github/images/prumo/procurar-comando.png) | ![Vaso deitado com pés de chapa dobrada](.github/images/prumo/vaso-pes-de-chapa.png) |
+| ![Busca de comandos aberta na faixa](.github/images/usinix/procurar-comando.png) | ![Vaso deitado com pés de chapa dobrada](.github/images/usinix/vaso-pes-de-chapa.png) |
 
 ### Comandos em cartões e programa que se atualiza sozinho
 
@@ -127,7 +121,7 @@ O **Assistente de estruturas** conduz o cálculo em etapas e só libera quando n
 com valor zero, apoio fora de nó, barra que sumiu do desenho, falta de caso de vento, deslocabilidade
 alta.
 
-![Estrutura soldada com a taxa de uso e o assistente de estruturas](.github/images/prumo/estrutura-assistente.png)
+![Estrutura soldada com a taxa de uso e o assistente de estruturas](.github/images/usinix/estrutura-assistente.png)
 
 ### Detalhe da ligação por elementos finitos
 
@@ -136,7 +130,7 @@ tensões no sólido (CalculiX). As soldas de filete (perna necessária, mínima 
 da placa de base são verificados pela NBR 8800:2024. O Assistente de simulação acompanha malha,
 convergência e relatório.
 
-![Detalhe de ligação calculado por elementos finitos](.github/images/prumo/detalhe-ligacao-fem.png)
+![Detalhe de ligação calculado por elementos finitos](.github/images/usinix/detalhe-ligacao-fem.png)
 
 ### Vasos de pressão do formulário ao desenho
 
@@ -148,7 +142,7 @@ folha A3 com vistas cotadas e tabela de dados de projeto.
 
 | Formulário com prévia | Desenho gerado |
 |---|---|
-| ![Formulário do vaso de pressão](.github/images/prumo/vaso-de-pressao.png) | ![Desenho do vaso em folha A3](.github/images/prumo/vaso-desenho.png) |
+| ![Formulário do vaso de pressão](.github/images/usinix/vaso-de-pressao.png) | ![Desenho do vaso em folha A3](.github/images/usinix/vaso-desenho.png) |
 
 ### Desenho técnico no padrão ABNT e chapa metálica
 
@@ -157,7 +151,7 @@ vistas prontos, Paleta de vistas (um clique por vista), cotas gerais, Salvar PDF
 lista de materiais ligada ao modelo (com itens comprados e de referência), e chapa metálica com fator K por
 material e planificação em DXF num clique.
 
-![Folha ABNT com vistas e lista de materiais](.github/images/prumo/folha-abnt.png)
+![Folha ABNT com vistas e lista de materiais](.github/images/usinix/folha-abnt.png)
 
 ### Todas as abas, em português
 
@@ -165,15 +159,15 @@ Cada área tem a sua aba na faixa de ferramentas: não há menu de bancadas para
 
 | Esboço com relações em cartões | Peça |
 |---|---|
-| ![Aba Esboço com o painel de relações](.github/images/prumo/aba-esboco.png) | ![Aba Peça com um suporte](.github/images/prumo/aba-peca.png) |
+| ![Aba Esboço com o painel de relações](.github/images/usinix/aba-esboco.png) | ![Aba Peça com um suporte](.github/images/usinix/aba-peca.png) |
 
 | Tubulação de PVC com tês e joelhos | Superfícies |
 |---|---|
-| ![Aba Tubulação com o painel da linha](.github/images/prumo/aba-tubulacao.png) | ![Aba Superfícies com uma superfície preenchida](.github/images/prumo/aba-superficies.png) |
+| ![Aba Tubulação com o painel da linha](.github/images/usinix/aba-tubulacao.png) | ![Aba Superfícies com uma superfície preenchida](.github/images/usinix/aba-superficies.png) |
 
-| Chapa metálica |
-|---|
-| ![Chapa metálica dobrada](.github/images/prumo/chapa-metalica.png) |
+| Chapa metálica | Componentes |
+|---|---|
+| ![Chapa metálica dobrada](.github/images/usinix/chapa-metalica.png) | ![Aba Componentes com equipamentos em escala real](.github/images/usinix/componentes.png) |
 
 ### Em resumo
 
@@ -182,11 +176,13 @@ Cada área tem a sua aba na faixa de ferramentas: não há menu de bancadas para
 | Idioma | Tudo em português, inclusive propriedades e listas |
 | Interface | Faixa de ferramentas por abas, comandos em cartões no painel lateral, tela inicial, tutoriais e guia para quem vem do SolidWorks ou ZW3D |
 | Atualização | Avisa quando sai versão nova, baixa com barra de progresso, confere o arquivo e instala ao fechar |
-| Estruturas | Perfis brasileiros, cantos, reforços, soldas, lista de corte, cálculo pela NBR 8800:2024 e NBR 8681:2025 |
+| Estruturas | Perfis brasileiros, cantos, reforços e enrijecedores em série, soldas, trabalhos na barra, escada e proteções pela NR-12, lista de corte, cálculo pela NBR 8800:2024 e NBR 8681:2025 |
 | Simulação | Assistentes passo a passo para elementos finitos e para estruturas, com pendências e relatório em PDF |
-| Vasos | Formulário ASME VIII-1, teste de pressão, desenho cotado |
+| Vasos | Formulário ASME VIII-1, teste de pressão, desenho cotado, memorial NR-13 |
 | Desenho | Folhas ABNT com legenda brasileira e lista de materiais |
 | Materiais | Aços e ligas usados no Brasil, com norma e fonte em cada um |
+| Componentes | Motores, compressores, válvulas, caldeira, içamento, combate a incêndio, pessoas e mais, em escala real |
+| IA | Conectar IA: o Claude Desktop e outros assistentes MCP comandam o Usinix |
 | Base | FreeCAD 1.1: OpenCASCADE, Coin3D, Qt e Python, com tudo o que o FreeCAD oferece |
 
 > [!IMPORTANT]
@@ -201,7 +197,7 @@ Todos os recursos
   que a tradução oficial do FreeCAD ainda não cobre.
 
 * **Faixa de ferramentas** Os comandos principais organizados em abas (Início, Esboço, Peça, Montagem,
-  Desenho, Estruturas, Tubulação, Vasos, Chapa, Planilha, Simulação, Superfícies e Usinix), com ícones
+  Desenho, Estruturas, Tubulação, Componentes, Vasos, Chapa, Planilha, Simulação, Superfícies e Usinix), com ícones
   grandes e rótulos claros, sem menu de bancadas. A aba Esboço aparece sozinha ao editar um esboço, e em
   tela de notebook a linha das abas se compacta para mostrar os nomes inteiros.
 
@@ -293,14 +289,35 @@ Todos os recursos
   material de cada peça; lista de materiais da montagem em planilha e como tabela na folha de desenho.
 
 * **Folhas ABNT** Folhas A0 a A4 no padrão da ABNT NBR 16752 (e no da NBR 10068), com legenda brasileira
-  (responsável técnico, CREA/CFT, ART, 1º diedro) preenchida a partir do documento e vistas no 1º diedro.
+  (responsável técnico, CREA/CFT, ART, 1º diedro) preenchida a partir do documento e das Preferências (dados
+  das pranchas) e vistas no 1º diedro.
 
 * **Estruturas soldadas** Barras de perfis brasileiros (W, HP, U, I, cantoneiras, tubos e metalon, de
   catálogos de fabricantes) sobre um esqueleto de linhas, em grupos (perfil, giro, ponto de fixação e
   espelhamento por grupo). Cantos em meia-esquadria ou de topo (escolhendo qual barra passa), corte reto ou
   recorte pelo contorno nas ligações em T, nós com três ou mais barras, e cantos parecidos tratados de uma
-  vez. Reforços (mão-francesa), tampas de tubo, placas de base com furação, cordões de solda com perna,
-  processo e eletrodo, lista de corte e lista de soldas.
+  vez. Reforços (mão-francesa) e enrijecedores da placa de base, vários de uma vez com espaçamento como no
+  padrão linear, tampas de tubo, placas de base com furação, cordões de solda com perna, processo e eletrodo,
+  lista de corte e lista de soldas. A estrutura também sai sobre as arestas de um corpo.
+
+* **Trabalhos na barra e Cortar barras** Cortes de ponta, furos e parafusos sem a barra deixar de ser barra;
+  corte ou furo em várias barras de uma vez com qualquer sólido ou esboço; Tabela de furos com o furo-padrão
+  da NBR 8800:2024.
+
+* **Escada industrial** Desnível, ângulo e largura num objeto só: degraus calculados, patamares, guarda-corpo,
+  chapas de fixação e pés de apoio, com conferência ao vivo pela NR-12 (Anexo III).
+
+* **Proteções de máquina** Grade ou enclausuramento com quadro de tubo e tela, verificado pela ABNT NBR ISO
+  13857:2021, com relatório e item na lista de materiais.
+
+* **Componentes** Biblioteca em escala real para leiautes: motores IEC, compressores, secadores, válvulas,
+  caldeira, talhas e trole, extintores, hidrantes e abrigos, rolamentos, quadros, paletes e pessoas.
+
+* **Do modelo para a fábrica** Folhas das barras e da chapa planificada, balões, cotas gerais com a furação,
+  DXF de todas as chapas e lista de materiais e de corte em Excel.
+
+* **Conectar IA** O Claude Desktop e outros assistentes compatíveis com MCP usam as ferramentas do Usinix
+  (estruturas, escada, folhas, exportações), com instalação num clique.
 
 * **Chapa metálica** Parede base, abas, dobras, recortes, alívios e planificação (bancada SheetMetal embutida).
 
@@ -316,7 +333,7 @@ Todos os recursos
   e tempo que falta, confere o arquivo (SHA-256), fecha o Usinix perguntando se quer salvar e abre o
   instalador. No Linux, baixa o AppImage novo e indica onde ficou.
 
-* **Testes automatizados** Mais de 500 testes conferem, a cada versão, tradução, aparência, os painéis
+* **Testes automatizados** Mais de 800 testes conferem, a cada versão, tradução, aparência, os painéis
   em cartões, as ferramentas de ponta a ponta (esboço, peça, estruturas, simulação) e os cálculos.
 
 * **Base sólida** Tudo o que o FreeCAD oferece continua disponível: núcleo geométrico OpenCASCADE, cena 3D
