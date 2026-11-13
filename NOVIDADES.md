@@ -24,7 +24,9 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 - **Pés de apoio:** escolha "Apoiada nas pontas" ou "Com pés de apoio". Com pés, vai um par sob as vigas em cada
   ponta de patamar e, com o vão máximo preenchido, pés intermediários nos lances. O perfil dos pés é qualquer um
   do Usinix (W, I, U, cantoneira, tubo redondo, quadrado ou retangular); o topo do pé é cortado no plano do
-  fundo da viga inclinada e a verificação de interferência não acusa nada.
+  fundo da viga inclinada e a verificação de interferência não acusa nada. Cada pé tem chapa de base com 4
+  furos para chumbador (espessura e furo das chapas de fixação), que entra na lista de materiais; dá para
+  desligar.
 - **Comprimento do patamar** conferido no texto da NR-12 (Anexo III, 11 e / 12 e: plataforma de descanso de
   0,60 m no mínimo): o painel não aceita menos e a conferência acusa patamar curto.
 

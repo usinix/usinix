@@ -17518,11 +17518,25 @@ class T133EscadaPatamarEChapas(unittest.TestCase):
         ps = E.barras_de(esc.Pes)
         self.assertEqual(len(ps), 8, "par de pés nas duas pontas do patamar e um par em cada lance")
         self.assertTrue(all(b.Perfil == "W 150 x 13,0" for b in ps))
+        import json
+        tc = esc.EspessuraChapa.Value
         for b in ps:
-            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 0.0, delta=0.01, msg="pé no piso")
+            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, tc, delta=0.01, msg="pé em cima da chapa de base")
             self.assertLess(min(b.Shape.distToShape(v.Shape)[0] for v in E.barras_de(esc.Banzos)), 0.01,
                             "pé encosta na viga")
         self.assertEqual([x.texto for x in I.verificar(self._pecas(esc) + ps)], [])
+        chapas = [json.loads(t) for t in esc.PecasDegraus.Itens if "Chapa de base do pé" in t]
+        self.assertEqual(len(chapas), 1)
+        self.assertEqual(chapas[0]["qtd"], 8)
+        planas = [sl for sl in esc.PecasDegraus.Shape.Solids if abs(sl.BoundBox.ZMin) < 1e-6
+                  and abs(sl.BoundBox.ZLength - tc) < 1e-6]
+        self.assertEqual(len(planas), 8)
+        for b in ps:
+            self.assertTrue(any(c.distToShape(b.Shape)[0] < 0.01 for c in planas), "pé apoiado na chapa")
+        esc.ChapaPes = False
+        PE.reconstruir(esc)
+        self.assertAlmostEqual(min(b.Shape.BoundBox.ZMin for b in E.barras_de(esc.Pes)), 0.0, delta=0.01)
+        esc.ChapaPes = True
         esc.PerfilPes = 'U 6" x 12,20'
         PE.reconstruir(esc)
         self.assertTrue(all(b.Perfil == 'U 6" x 12,20' for b in E.barras_de(esc.Pes)))

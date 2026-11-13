@@ -43,7 +43,7 @@ PARAMETROS = ("Posicao", "Desnivel", "Angulo", "LarguraUtil", "NumeroEspelhos", 
               "Sobreposicao", "PerfilBanzo", "ElevacaoBanzo", "LadosGuarda", "PerfilGuarda", "AlturaGuarda",
               "AlturaIntermediario", "EspacamentoMontantes", "Rodape", "AlturaRodape", "Material", "Patamares",
               "AlturaMaxLance", "ComprimentoPatamar", "FixacaoBanzos", "EspessuraChapa", "DiametroFuroChapa",
-              "Apoio", "PerfilPes", "VaoMaxPes")
+              "Apoio", "PerfilPes", "VaoMaxPes", "ChapaPes")
 DENS = 7850.0
 
 
@@ -194,7 +194,7 @@ def pes_de_apoio(esc, m):
             extra += [a + (b - a) * k / n for k in range(1, n)]
         xs = sorted(xs + extra)
     res = []
-    z0 = m.tc if m.chapas else 0.0
+    z0 = chapa_dos_pes(esc)[0]
     for x in xs:
         noPatamar = None
         for (p0, p1, zp) in m.patamares():
@@ -207,8 +207,22 @@ def pes_de_apoio(esc, m):
             topo = m.z_passo(x) + off - meia                     # fundo da viga inclinada
             plano = (FreeCAD.Vector(x, 0, topo), FreeCAD.Vector(-m.sen, 0, m.cos))
         if topo - z0 > 50.0:
-            res.append((x, 0.0, topo, plano))
+            res.append((x, z0, topo, plano))
     return res
+
+
+def chapa_dos_pes(esc):
+    """(espessura, lado, furo, entre furos) da chapa de base dos pés; espessura 0 = sem chapa."""
+    if getattr(esc, "Apoio", APOIOS[0]) != APOIOS[1] or not getattr(esc, "ChapaPes", True):
+        return 0.0, 0.0, 0.0, 0.0
+    import PrumoPerfis
+    it = PrumoPerfis.perfil(getattr(esc, "PerfilPes", PERFIL_PES) or PERFIL_PES)
+    larg, alt_p = PrumoPerfis.dimensoes(it) if it else (100.0, 100.0)
+    tc = float(esc.EspessuraChapa.Value)
+    df = float(esc.DiametroFuroChapa.Value)
+    entre = max(larg, alt_p) + df + 30.0          # furos por fora do perfil, com folga para a porca
+    lado = entre + 2 * (df / 2.0 + 25.0)          # borda de 25 mm além do furo
+    return tc, lado, df, entre
 
 
 def degraus(m):
@@ -366,6 +380,19 @@ def forma_degraus(esc, m):
             _n(m.alt / m.cos + 2 * folga), _n(larg), _n(tc, 1), _n(df)), 2,
             (m.alt / m.cos + 2 * folga) * larg * tc * 1e-9 * DENS, "%s × %s" % (_n(m.alt / m.cos + 2 * folga),
                                                                                  _n(larg))))
+    # chapas de base dos pés de apoio
+    tcp, lado, dfp, entre = chapa_dos_pes(esc)
+    pes = pes_de_apoio(esc, m) if tcp > 0 else []
+    if pes:
+        for x, _z0, _z1, _pl in pes:
+            for y in (-m.y_banzo, m.y_banzo):
+                ch = Part.makeBox(lado, lado, tcp, FreeCAD.Vector(x - lado / 2.0, y - lado / 2.0, 0.0))
+                for dx in (-entre / 2.0, entre / 2.0):
+                    for dy in (-entre / 2.0, entre / 2.0):
+                        ch = ch.cut(Part.makeCylinder(dfp / 2.0, tcp + 2, FreeCAD.Vector(x + dx, y + dy, -1)))
+                sol.append(ch)
+        itens.append(("Chapa de base do pé %s × %s × %s mm — 4 furos Ø%s" % (_n(lado), _n(lado), _n(tcp, 1), _n(dfp)),
+                      2 * len(pes), lado * lado * tcp * 1e-9 * DENS, "%s × %s" % (_n(lado), _n(lado))))
     return (Part.makeCompound(sol) if sol else Part.Shape()), itens
 
 
@@ -480,6 +507,7 @@ class Escada:
             PERFIL_PES)
         add("App::PropertyLength", "VaoMaxPes", "Apoio", "Vão máximo entre apoios ao longo da viga (na horizontal); "
             "0 = pés só nos patamares", 0.0)
+        add("App::PropertyBool", "ChapaPes", "Apoio", "Chapa de base com 4 furos para chumbador em cada pé", True)
         add("App::PropertyLinkHidden", "EsqPes", "Partes", "Esqueleto dos pés de apoio")
         add("App::PropertyLinkHidden", "Pes", "Partes", "Estrutura dos pés de apoio")
         add("App::PropertyString", "Material", "Lista", "Material", "Aço carbono")
@@ -944,10 +972,14 @@ if P is not None:
             self.vao_pes = P.numero(0.0, 0.0, 20000.0)
             s3b.linha("comprimento", self.vao_pes, "Vão máximo entre apoios ao longo da viga, na horizontal; 0 = pés "
                       "só nos patamares.", "Vão máximo")
+            self.chapa_pes = s3b.linha("furo", P.marcar("Chapa de base com 4 furos em cada pé"), "")
+            self.chapa_pes.setChecked(True)
             self.apoio.currentTextChanged.connect(lambda t: (self.perfil_pes.setEnabled(t == APOIOS[1]),
-                                                             self.vao_pes.setEnabled(t == APOIOS[1])))
+                                                             self.vao_pes.setEnabled(t == APOIOS[1]),
+                                                             self.chapa_pes.setEnabled(t == APOIOS[1])))
             self.perfil_pes.setEnabled(False)
             self.vao_pes.setEnabled(False)
+            self.chapa_pes.setEnabled(False)
             s4 = f.secao("Guarda-corpo", "posicao")
             self.lados = P.lista(list(LADOS), LADOS[0])
             s4.linha("posicao", self.lados, "A NR-12 pede guarda-corpo dos dois lados.", "Lados")
@@ -992,6 +1024,7 @@ if P is not None:
                     "ComprimentoPatamar": self.lp.value(), "FixacaoBanzos": self.fixacao.currentText(),
                     "EspessuraChapa": self.esp_chapa.value(), "Apoio": self.apoio.currentText(),
                     "PerfilPes": self.perfil_pes.currentText(), "VaoMaxPes": self.vao_pes.value(),
+                    "ChapaPes": self.chapa_pes.isChecked(),
                     "Posicao": FreeCAD.Placement(FreeCAD.Vector(self.px.value(), self.py.value(), self.pz.value()),
                                                  FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), self.giro.value()))}
 
@@ -1014,6 +1047,7 @@ if P is not None:
             self.apoio.setCurrentText(obj.Apoio)
             self.perfil_pes.setCurrentText(obj.PerfilPes)
             self.vao_pes.setValue(obj.VaoMaxPes.Value)
+            self.chapa_pes.setChecked(bool(obj.ChapaPes))
             b = obj.Posicao.Base
             self.px.setValue(b.x)
             self.py.setValue(b.y)
