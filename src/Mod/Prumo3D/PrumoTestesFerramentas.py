@@ -2927,7 +2927,8 @@ class T30Faixa(unittest.TestCase):
         largura = sp.sizes()[0]
         self._abrir("peca")
         self._abrir("inicio")
-        self.assertAlmostEqual(self.rb.split.sizes()[0], largura, delta=6)
+        self.assertEqual(int(salvo.split(",")[0]), largura, "o que fica gravado é o que se vê")
+        self.assertAlmostEqual(self.rb.split.sizes()[0], largura, delta=2)
         self.rb.restaurar_larguras()
         self.assertEqual(self.p.GetString("RibbonPaineis_inicio"), "")
 
@@ -9176,7 +9177,25 @@ class T63FerramentasDePontaAPonta(unittest.TestCase):
             self._esp(0.8)
             tab = [t for t in PrumoRibbon.TABS if t["id"] == "esboco"][0]
             erros = []
+            # uma janela modal aberta por um comando (exec) prendia o teste até o limite de tempo (travou uma
+            # vez na suíte): um vigia fecha a janela e anota de qual comando ela veio
+            modais = []
+            atual = {"cmd": None}
+
+            def fechar_modal():
+                w = QtWidgets.QApplication.activeModalWidget()
+                if w is not None:
+                    modais.append("%s: %s" % (atual["cmd"], w.windowTitle() or type(w).__name__))
+                    try:
+                        w.reject() if hasattr(w, "reject") else w.close()
+                    except Exception:
+                        w.close()
+            vigia = QtCore.QTimer()
+            vigia.setInterval(250)
+            vigia.timeout.connect(fechar_modal)
+            vigia.start()
             for cmd in self._comandos_da_aba(tab):
+                atual["cmd"] = cmd
                 if cmd not in FreeCADGui.listCommands():
                     continue          # comando só da compilação completa (ex.: linha de construção, em C++)
                 if not cmd.startswith("Sketcher_") or cmd in ("Sketcher_LeaveSketch", "Sketcher_NewSketch",
@@ -9202,6 +9221,9 @@ class T63FerramentasDePontaAPonta(unittest.TestCase):
                 novo = self._relatorio()[len(antes):]
                 for trecho in self._erros_do_prumo(novo):
                     erros.append("%s: %s" % (cmd, trecho))
+            vigia.stop()
+            if modais:
+                FreeCAD.Console.PrintLog("Usinix teste: janelas fechadas pelo vigia: %s\n" % "; ".join(modais))
             self.assertEqual(erros, [], "\n".join(erros))
         finally:
             self._limpar_tela()
@@ -10550,7 +10572,9 @@ class T73Preferencias(unittest.TestCase):
                 self.assertIn(nome, FreeCADGui.listCommands(), "comando inexistente na aba Tubulação: " + nome)
         rb = R._state.get("ribbon")
         if rb is not None:
-            rb.select_tab("tubulacao")
+            # escolhida pelo usuário (user=True), como no clique: sem isso, uma troca automática de aba deixada por
+            # um teste anterior (folha fechada, situação da faixa) podia levar para a aba Peça
+            rb.select_tab("tubulacao", user=True)
             self._esp(4.0)          # a abertura (que põe a faixa no Início) não tira a aba que o usuário escolheu
             self._esp(1.0)
             self.assertEqual(rb._tabs[rb.tabbar.currentIndex()]["id"], "tubulacao")

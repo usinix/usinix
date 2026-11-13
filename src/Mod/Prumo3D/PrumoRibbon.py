@@ -1806,8 +1806,7 @@ class PrumoRibbon(QtWidgets.QWidget):
         desejado = self._larguras_salvas(tab, paineis)
         self._fixar_minimo(page, split, desejado[:-1])
         split.setSizes(desejado)
-        split.splitterMoved.connect(lambda *_a, t=tab, sp=split, pg=page: (self._guardar_larguras(t, sp),
-                                                                            self._fixar_minimo(pg, sp)))
+        split.splitterMoved.connect(lambda *_a, t=tab, sp=split, pg=page: self._divisor_movido(t, sp, pg))
         hl.addWidget(split, 1)
         self.split = split
         self.paineis = paineis
@@ -1815,6 +1814,29 @@ class PrumoRibbon(QtWidgets.QWidget):
         self.content.setWidget(page)
         if old is not None:
             old.deleteLater()
+        self._acertar_larguras(split, desejado[:-1])
+        QtCore.QTimer.singleShot(0, lambda sp=split, d=desejado[:-1]: self._acertar_larguras(sp, d))
+
+    def _divisor_movido(self, tab, split, page):
+        """Guarda as larguras e alarga a página se preciso; o espaço novo vai para o fim, não para os grupos."""
+        tam = split.sizes()[:-1]
+        self._guardar_larguras(tab, split)
+        self._fixar_minimo(page, split)
+        self._acertar_larguras(split, tam)
+
+    def _acertar_larguras(self, split, tam):
+        """Reaplica as larguras dos grupos com o espaço que sobra todo no fim: o QSplitter reparte a diferença entre
+        a soma pedida e a largura real proporcionalmente, e os grupos voltavam alguns pixels mais estreitos que o
+        arrastado (1.15.0)."""
+        try:
+            import shiboken6
+            if not shiboken6.isValid(split) or split is not getattr(self, "split", None):
+                return
+            split.parentWidget().layout().activate()
+            livre = split.width() - sum(tam) - split.handleWidth() * len(tam)
+            split.setSizes(list(tam) + [max(0, livre)])
+        except Exception:
+            pass
 
     def _fixar_minimo(self, page, split, tam=None):
         """Janela estreita: a faixa rola em vez de espremer os grupos (que só ficam compactos
