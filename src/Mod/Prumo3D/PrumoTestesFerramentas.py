@@ -18942,6 +18942,26 @@ class T141ReservatoriosETorres(unittest.TestCase):
             h1 = C.gerar(mid, tams[-1])[0].BoundBox.ZLength
             self.assertGreater(h1, h0, "%s: maior tamanho, maior altura" % mid)
 
+    def test_sem_pecas_soltas_e_flanges_furados(self):
+        """1.17.1: escada com afastadores no ar, tubo quebrado na curva, flange sem furos — conferido em todos."""
+        import PrumoComponentes as C
+        for cid in ("agua", "recipientes", "resfriamento"):
+            for mid, _n, tams, fn in [c for c in C.CATALOGO if c[0] == cid][0][2]:
+                partes, _info = fn(tams[0])
+                soltas = C.pecas_soltas(partes)
+                self.assertEqual(soltas, [], "%s %s: peças soltas %s" % (
+                    mid, tams[0], [[partes[i][1] for i in g] for g in soltas]))
+        anel = C._flange_local(90, 30)[0]
+        furos = [f for f in anel.Faces if f.Surface.TypeId == "Part::GeomCylinder"
+                 and abs(f.Surface.Radius - 90 * 0.86) > 1 and f.Surface.Radius < 30]
+        self.assertGreaterEqual(len(furos), 8, "flange com os furos dos parafusos")
+        self.assertTrue(any(abs(f.Surface.Radius - 90 * 0.86) < 0.5 for f in anel.Faces
+                            if f.Surface.TypeId == "Part::GeomCylinder"), "e o furo central")
+        # curva de verdade entre dois trechos
+        tub = C._tubulacao(40, [(0, 0, 0), (0, 0, 1000), (800, 0, 1000)])
+        self.assertEqual(len(tub), 3)
+        self.assertTrue(all(sh.isValid() for sh, _c in tub))
+
     def test_galao_transparente(self):
         if not FreeCAD.GuiUp:
             self.skipTest("sem interface")

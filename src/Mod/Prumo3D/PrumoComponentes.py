@@ -1350,6 +1350,91 @@ def _barra(r, p0, p1):
     return cilindro(r, d.Length, base=p0, eixo=(d.x, d.y, d.z))
 
 
+def pecas_soltas(partes, folga=1.5):
+    """Grupos de peças que não encostam no conjunto que está no chão (para conferir os modelos): lista de listas
+    de índices em `partes`. Vazia = tudo ligado."""
+    sols = [p[0] for p in partes]
+    n = len(sols)
+    bbs = [sh.BoundBox for sh in sols]
+    pai = list(range(n))
+
+    def raiz(i):
+        while pai[i] != i:
+            pai[i] = pai[pai[i]]
+            i = pai[i]
+        return i
+    for i in range(n):
+        bi = FreeCAD.BoundBox(bbs[i])
+        bi.enlarge(folga + 0.5)
+        for j in range(i + 1, n):
+            if raiz(i) == raiz(j) or not bi.intersect(bbs[j]):
+                continue
+            try:
+                d = sols[i].distToShape(sols[j])[0]
+            except Exception:
+                d = 0.0
+            if d < folga:
+                pai[raiz(i)] = raiz(j)
+    chao = raiz(min(range(n), key=lambda i: bbs[i].ZMin))
+    grupos = {}
+    for i in range(n):
+        grupos.setdefault(raiz(i), []).append(i)
+    return [g for k, g in grupos.items() if k != chao]
+
+
+def _tubulacao(r, pontos, cor="metal", raio_curva=None, fim_aberto=False, inicio_aberto=False):
+    """Tubo por uma poligonal, com curva de raio 3 r em cada canto (sem emenda quebrada entre os trechos);
+    `fim_aberto` / `inicio_aberto` deixam a boca do último / primeiro ponto vazada."""
+    import Part
+    pts = [_V(*p) for p in pontos]
+    Rb = raio_curva or 3.0 * r
+    res = []
+    ini = pts[0]
+    for i in range(1, len(pts) - 1):
+        a = pts[i] - pts[i - 1]
+        b = pts[i + 1] - pts[i]
+        a.normalize()
+        b.normalize()
+        cosang = max(-1.0, min(1.0, a.dot(b)))
+        theta = math.acos(cosang)
+        if theta < 1e-3:
+            continue
+        t = Rb * math.tan(theta / 2.0)
+        p1, p2 = pts[i] - a * t, pts[i] + b * t
+        if (p1 - ini).Length > 1e-6:
+            res.append((_barra(r, (ini.x, ini.y, ini.z), (p1.x, p1.y, p1.z)), cor))
+        bis = b - a
+        bis.normalize()
+        centro = pts[i] + bis * (Rb / math.cos(theta / 2.0))
+        meio = centro + (pts[i] - centro).normalize() * Rb
+        arco = Part.Arc(p1, meio, p2).toShape()
+        perfil = Part.Wire(Part.makeCircle(r, p1, a))
+        try:
+            curva = Part.Wire(arco).makePipeShell([perfil], True, True)
+            res.append((curva, cor))
+        except Exception:
+            res.append((esfera(r, c=(pts[i].x, pts[i].y, pts[i].z)), cor))
+        ini = p2
+    fim = pts[-1]
+    ultimo = _barra(r, (ini.x, ini.y, ini.z), (fim.x, fim.y, fim.z))
+    if fim_aberto:
+        d = fim - ini
+        prof = min(d.Length * 0.5, 8 * r)
+        d.normalize()
+        b = fim - d * prof
+        ultimo = ultimo.cut(cilindro(r * 0.85, prof + 1, base=(b.x, b.y, b.z), eixo=(d.x, d.y, d.z)))
+    res.append((ultimo, cor))
+    if inicio_aberto and res:
+        p0, p1 = pts[0], pts[1]
+        d = p1 - p0
+        prof = min(d.Length * 0.5, 8 * r)
+        d.normalize()
+        primeiro = res[0][0].cut(cilindro(r * 0.85, prof + 1, base=(p0.x - d.x, p0.y - d.y, p0.z - d.z),
+                                          eixo=(d.x, d.y, d.z)))
+        res[0] = (primeiro, cor)
+    return res
+
+
 def _mover(partes, dx=0.0, dy=0.0, dz=0.0, ang=0.0):
     """Gira as peças em volta do eixo Z (graus) e depois desloca (deslocamento no sistema global)."""
     res = []
@@ -1362,9 +1447,11 @@ def _mover(partes, dx=0.0, dy=0.0, dz=0.0, ang=0.0):
     return res
 
 
-def escada_marinheiro(z0, z1, gaiola=True, larg=420, afast=200, cor="amarelo"):
+def escada_marinheiro(z0, z1, gaiola=True, larg=420, afast=200, cor="amarelo", fixacoes=None, gaiola_ate=None):
     """Escada marinheiro com gaiola. Parede no plano y = 0; a escada fica em y = −afast, subindo de z0 a z1.
-    Degraus a cada 300 mm; gaiola a partir de 2,3 m da base (aros a cada 1 m e 5 montantes)."""
+    Degraus a cada 300 mm; gaiola a partir de 2,3 m da base (aros a cada 1 m e 5 montantes). `fixacoes` =
+    alturas dos afastadores presos na parede (padrão: a cada ~2,5 m) — só onde há parede atrás; `gaiola_ate` =
+    onde a gaiola termina (na chegada a uma plataforma, para não fechar a passagem)."""
     import Part
     res = []
     y = -afast
@@ -1375,21 +1462,23 @@ def escada_marinheiro(z0, z1, gaiola=True, larg=420, afast=200, cor="amarelo"):
         res.append((_barra(13, (-larg / 2.0, y, z), (larg / 2.0, y, z)), cor))
         z += 300
     # afastadores presos na parede a cada ~2,5 m
-    n = max(2, int((z1 - z0) / 2500) + 1)
-    for i in range(n):
-        zz = z0 + 150 + i * (z1 - z0 - 300) / max(1, n - 1)
+    if fixacoes is None:
+        n = max(2, int((z1 - z0) / 2500) + 1)
+        fixacoes = [z0 + 150 + i * (z1 - z0 - 300) / max(1, n - 1) for i in range(n)]
+    for zz in fixacoes:
         for s in (-1, 1):
-            res.append((caixa(40, afast, 8, x=s * larg / 2.0, y=-afast / 2.0, z=zz), "escuro"))
+            res.append((caixa(40, afast + 60, 8, x=s * larg / 2.0, y=-afast / 2.0 + 30, z=zz), "escuro"))
     if gaiola and z1 - z0 > 3000:
         R = 360.0
         yc = y - R + 160
         aros = []
+        topo = z1 if gaiola_ate is None else min(z1, gaiola_ate)
         za = z0 + 2300
-        while za <= z1 + 1:
+        while za <= topo + 1:
             aros.append(za)
             za += 1000
-        if aros and z1 - aros[-1] > 300:
-            aros.append(z1)
+        if aros and topo - aros[-1] > 300:
+            aros.append(topo)
         corte = Part.makeBox(4 * R, 3 * R - 160, 200, _V(-2 * R, -2 * R, -100))   # C aberto para a parede
         for za in aros:
             aro = toro(R, 12).common(corte).translated(_V(0, yc, za))
@@ -1401,31 +1490,51 @@ def escada_marinheiro(z0, z1, gaiola=True, larg=420, afast=200, cor="amarelo"):
             for k in range(5):
                 a = math.radians(-160 + k * 35)
                 px, py = R * math.cos(a), yc + R * math.sin(a)
-                res.append((caixa(50, 8, aros[-1] - aros[0], x=px, y=py, z=aros[0]), cor))
+                res.append((cilindro(10, aros[-1] - aros[0], base=(px, py, aros[0])), cor))
     return res
 
 
-def guarda_corpo_circular(R, z, cor="amarelo", h=1100):
-    """Guarda-corpo em volta de um círculo de raio R: montantes, travessão superior, intermediário e rodapé."""
-    res = [(toro(R, 20, c=(0, 0, z + h)), cor), (toro(R, 16, c=(0, 0, z + h / 2.0)), cor),
-           (tubo(R + 3, R - 3, 150, base=(0, 0, z)), cor)]
+def guarda_corpo_circular(R, z, cor="amarelo", h=1100, abertura=None):
+    """Guarda-corpo em volta de um círculo de raio R: montantes, travessão superior, intermediário e rodapé.
+    `abertura` = (ângulo em graus, largura) deixa a passagem de quem chega pela escada."""
+    import Part
+    aneis = [toro(R, 20, c=(0, 0, z + h)), toro(R, 16, c=(0, 0, z + h / 2.0)), tubo(R + 3, R - 3, 150, base=(0, 0, z))]
+    angs = []
     n = max(6, int(2 * math.pi * R / 1500.0) + 1)
-    for i in range(n):
-        a = 2 * math.pi * i / n
+    if abertura:
+        a0, larg = abertura
+        meia = math.degrees(larg / 2.0 / R)
+        cunha = Part.makeCylinder(R + 200, h + 200, _V(0, 0, z - 100), _V(0, 0, 1), 2 * meia)
+        cunha.rotate(_V(0, 0, 0), _V(0, 0, 1), a0 - meia)
+        aneis = [a.cut(cunha) for a in aneis]
+        livre = 360.0 - 2 * meia
+        n = max(4, int(math.radians(livre) * R / 1500.0) + 1)
+        angs = [a0 + meia + livre * i / n for i in range(n + 1)]
+    else:
+        angs = [360.0 * i / n for i in range(n)]
+    res = [(a, cor) for a in aneis]
+    for ang in angs:
+        a = math.radians(ang)
         res.append((cilindro(20, h, base=(R * math.cos(a), R * math.sin(a), z)), cor))
     return res
 
 
-def guarda_corpo_retangular(c, l, z, cor="amarelo", h=1100, abertura=None):
+def guarda_corpo_retangular(c, l, z, cor="amarelo", h=1100, abertura=None, lados=("-y", "+x", "+y", "-x")):
     """Guarda-corpo num retângulo c × l centrado; `abertura` = (lado, largura) deixa a passagem da escada
-    (lado "-y")."""
+    ("-y", "+x", "+y" ou "-x", no meio do lado); `lados` = quais lados recebem guarda-corpo."""
     res = []
     cantos = [(-c / 2.0, -l / 2.0), (c / 2.0, -l / 2.0), (c / 2.0, l / 2.0), (-c / 2.0, l / 2.0)]
-    for (x0, y0), (x1, y1) in zip(cantos, cantos[1:] + cantos[:1]):
+    for nome, ((x0, y0), (x1, y1)) in zip(("-y", "+x", "+y", "-x"), zip(cantos, cantos[1:] + cantos[:1])):
+        if nome not in lados:
+            continue
         trechos = [((x0, y0), (x1, y1))]
-        if abertura and abertura[0] == "-y" and abs(y0 + l / 2.0) < 1e-6 and abs(y1 + l / 2.0) < 1e-6:
+        if abertura and abertura[0] == nome:
             w = abertura[1] / 2.0
-            trechos = [((x0, y0), (-w, y0)), ((w, y0), (x1, y1))]
+            mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+            ux, uy = (x1 - x0), (y1 - y0)
+            n_ = math.hypot(ux, uy)
+            ux, uy = ux / n_, uy / n_
+            trechos = [((x0, y0), (mx - ux * w, my - uy * w)), ((mx + ux * w, my + uy * w), (x1, y1))]
         for (a0, b0), (a1, b1) in trechos:
             comp = math.hypot(a1 - a0, b1 - b0)
             for zz, rr in ((h, 20), (h / 2.0, 16)):
@@ -1441,13 +1550,65 @@ def guarda_corpo_retangular(c, l, z, cor="amarelo", h=1100, abertura=None):
     return res
 
 
-def _flange_tubo(r, comp, base, eixo, cor="metal"):
-    """Tubo saindo da parede com flange na ponta e os parafusos."""
-    bx, by, bz = base
-    ex, ey, ez = eixo
-    res = [(cilindro(r, comp, base=base, eixo=eixo), cor),
-           (cilindro(r * 1.9, r * 0.35, base=(bx + ex * comp, by + ey * comp, bz + ez * comp), eixo=eixo), cor)]
+def _flange_local(r, t, parafusos=False):
+    """Flange de tubo de raio r no plano z = 0..t: anel com o furo do tubo e os furos dos parafusos (com as
+    porcas, se `parafusos`). Peças em volta do eixo Z, para orientar depois."""
+    n = 4 if r < 50 else (8 if r < 130 else 12)
+    rf, rp, rh = r * 1.9, r * 1.45, max(5.0, r * 0.13)
+    anel = cilindro(rf, t).cut(cilindro(r * 0.86, t + 2, base=(0, 0, -1)))
+    for (x, y) in furos_em_circulo(n, rp, math.pi / n):
+        anel = anel.cut(cilindro(rh, t + 2, base=(x, y, -1)))
+    res = [anel]
+    if parafusos:
+        for (x, y) in furos_em_circulo(n, rp, math.pi / n):
+            res.append(sextavado(rh * 3.2, rh * 1.6, base=(x, y, t)))
     return res
+
+
+def _orientar_local(partes, base, eixo, lado=None):
+    """Leva peças desenhadas em volta do eixo Z (local X = `lado`) para `base`, com Z em `eixo`."""
+    z = _V(*eixo)
+    z.normalize()
+    x = _V(*(lado or (1, 0, 0)))
+    if abs(x.dot(z)) > 0.99:
+        x = _V(0, 0, 1) if abs(z.z) < 0.9 else _V(1, 0, 0)
+    x = x - z * x.dot(z)
+    x.normalize()
+    y = z.cross(x)
+    rot = FreeCAD.Rotation(x, y, z, "ZXY")
+    pl = FreeCAD.Placement(_V(*base), rot)
+    res = []
+    for sh, cor in partes:
+        sh = sh.copy()
+        sh.Placement = pl.multiply(sh.Placement)
+        res.append((sh, cor))
+    return res
+
+
+def _flange_tubo(r, comp, base, eixo, cor="metal"):
+    """Tubo (vazado) saindo da parede, com flange furado na ponta — boca livre para ligar a tubulação."""
+    t = r * 0.35
+    loc = [(tubo(r, r * 0.86, comp), cor)] + [(f, cor) for f in _flange_local(r, t)]
+    loc[-1] = (loc[-1][0].translated(_V(0, 0, comp)), cor)
+    return _orientar_local(loc, base, eixo)
+
+
+def _valvula_em_linha(r, base, eixo, lado=(0, 0, 1), cor="verde"):
+    """Válvula gaveta flangeada no meio da linha (entra em `base`, sai a 5 r no sentido `eixo`), com castelo,
+    haste e volante para o lado `lado`. Devolve (peças, ponto de saída)."""
+    t = r * 0.35
+    Lv = r * 5.0
+    loc = [(f, "metal") for f in _flange_local(r, t, parafusos=True)]
+    loc += [(f.translated(_V(0, 0, Lv - t)), "metal") for f in _flange_local(r, t, parafusos=False)]
+    loc.append((cilindro(r * 1.45, Lv - 2 * t, base=(0, 0, t)), cor))
+    loc.append((cilindro(r * 0.75, r * 2.2, base=(0, 0, Lv / 2.0), eixo=(1, 0, 0)), cor))
+    loc.append((cilindro(r * 0.95, r * 0.25, base=(r * 2.2, 0, Lv / 2.0), eixo=(1, 0, 0)), cor))
+    loc.append((cilindro(r * 0.17, r * 1.4, base=(r * 2.45, 0, Lv / 2.0), eixo=(1, 0, 0)), "metal"))
+    loc.append((volante(r * 1.3, max(4.0, r * 0.11), (r * 3.6, 0, Lv / 2.0), (1, 0, 0)), "vermelho"))
+    bx, by, bz = base
+    e = _V(*eixo)
+    e.normalize()
+    return _orientar_local(loc, base, eixo, lado), (bx + e.x * Lv, by + e.y * Lv, bz + e.z * Lv)
 
 
 def _respiro(r, base, h):
@@ -1494,7 +1655,8 @@ def caixa_dagua(tam):
         zz = h * f
         rz = rb + (R - rb) * zz / h
         ex, ey = math.cos(a), math.sin(a)
-        partes.append((cilindro(rr, 130, base=(rz * ex, rz * ey, zz), eixo=(ex, ey, 0)), "branco"))
+        partes.append((tubo(rr, rr * 0.78, 130, base=((rz - 20) * ex, (rz - 20) * ey, zz), eixo=(ex, ey, 0)),
+                       "branco"))
         partes.append((sextavado(rr * 3.2, 25, base=((rz + 10) * ex, (rz + 10) * ey, zz), eixo=(ex, ey, 0)),
                        "branco"))
     return partes, {"Volume": tam, "Ø do topo × altura": "%.0f × %.0f mm" % (2 * R + 90, h + 0.15 * R),
@@ -1509,7 +1671,7 @@ def tanque_horizontal(tam):
     v = float(tam.split()[0]) * 1e9
     D = (4 * v / (3.4 * math.pi)) ** (1 / 3.0)          # corpo com L/D ≈ 3 (os tampos completam o volume)
     r, L = D / 2.0, 3.0 * D
-    zc = r + max(350.0, D * 0.18)
+    zc = r + max(450.0, D * 0.2)
     partes = [(cilindro(r, L, base=(-L / 2.0, 0, zc), eixo=(1, 0, 0)), "branco"),
               (tampo(r, r * 0.5, (L / 2.0, 0, zc), (1, 0, 0)), "branco"),
               (tampo(r, r * 0.5, (-L / 2.0, 0, zc), (-1, 0, 0)), "branco")]
@@ -1536,10 +1698,11 @@ def tanque_horizontal(tam):
     partes.append((cilindro(75, 40, base=(0.05 * L, 0, zc + r + 240)), "vermelho"))
     # saída por baixo com válvula
     xo = 0.4 * L
-    partes.append((cilindro(45, 260, base=(xo, 0, zc - r + 30), eixo=(0, 0, -1)), "metal"))
-    partes.append((cilindro(90, 30, base=(xo, 0, zc - r - 230)), "metal"))
-    partes.append((caixa(170, 120, 150, x=xo, z=zc - r - 380), "verde"))
-    partes.append((volante(70, 8, (xo, 0, zc - r - 250), (0, -1, 0)).translated(_V(0, -150, -60)), "vermelho"))
+    z_out = zc - r - 200
+    partes += _tubulacao(40, [(xo - 150, 0, zc - r + 40), (xo - 150, 0, z_out), (xo + 150, 0, z_out)])
+    pv, saida = _valvula_em_linha(40, (xo + 150, 0, z_out), (1, 0, 0), lado=(0, 0, 1))
+    partes += pv
+    partes += _flange_tubo(40, 80, saida, (1, 0, 0))
     # régua de nível na lateral
     partes.append((caixa(60, 25, D * 0.8, x=-0.42 * L, y=-r - 12, z=zc - D * 0.4), "escuro"))
     for k in range(9):
@@ -1575,21 +1738,23 @@ def tanque_coluna(tam):
         partes.append((sextavado(46, 30, base=(cx, cy, zb + 350)), "metal"))
     # escada com gaiola até o teto, guarda-corpo no teto e alçapão
     partes += _mover(escada_marinheiro(zb + 300, zt + 1100), dy=-r, ang=0)
-    partes += guarda_corpo_circular(r - 120, zt + D * 0.02)
+    zg = zt + (r + 50 - (r - 120)) / (r + 50 - 120.0) * D * 0.12 - 15
+    partes += guarda_corpo_circular(r - 120, zg, abertura=(270, 700))
+    partes.append((caixa(800, 360, 50, y=-(r - 5), z=zg - 50), "escuro"))          # patamar da chegada
     partes.append((caixa(700, 700, 120, x=0, y=-r * 0.55, z=zt + D * 0.04), "branco"))
     partes += _respiro(90, (0, 0, zt + D * 0.12), 450)
     # entrada e saída flangeadas com válvula, ladrão descendo pela lateral, régua de nível
     for ang, zz in ((90, zb + 600), (130, zb + 600)):
         a = math.radians(ang)
         ex, ey = math.cos(a), math.sin(a)
-        partes += _flange_tubo(90, 500, (r * ex, r * ey, zz), (ex, ey, 0))
-        partes.append((volante(110, 10, ((r + 300) * ex, (r + 300) * ey, zz + 260), (0, 0, 1)), "vermelho"))
-        partes.append((cilindro(16, 260, base=((r + 300) * ex, (r + 300) * ey, zz)), "metal"))
+        partes.append((cilindro(90, 260, base=((r - 20) * ex, (r - 20) * ey, zz), eixo=(ex, ey, 0)), "metal"))
+        pv, saida = _valvula_em_linha(90, ((r + 240) * ex, (r + 240) * ey, zz), (ex, ey, 0))
+        partes += pv
+        partes += _flange_tubo(90, 250, saida, (ex, ey, 0))
     a = math.radians(220)
     ex, ey = math.cos(a), math.sin(a)
-    partes.append((_barra(60, ((r + 150) * ex, (r + 150) * ey, zt - 400), ((r + 150) * ex, (r + 150) * ey, zb + 400)),
-                   "metal"))
-    partes.append((_barra(60, (r * ex, r * ey, zt - 400), ((r + 150) * ex, (r + 150) * ey, zt - 400)), "metal"))
+    partes += _tubulacao(60, [((r - 20) * ex, (r - 20) * ey, zt - 400), ((r + 250) * ex, (r + 250) * ey, zt - 400),
+                              ((r + 250) * ex, (r + 250) * ey, zb + 400)], fim_aberto=True)
     a = math.radians(300)
     for k in range(int(H / 1000)):
         partes.append((caixa(120, 10, 12, x=(r + 8) * math.cos(a), y=(r + 8) * math.sin(a),
@@ -1655,10 +1820,14 @@ def tanque_taca(tam):
     partes += guarda_corpo_circular(r + larg - 40, z2)
     # escada do corpo, da passarela ao teto, e guarda-corpo no teto
     partes += _mover(escada_marinheiro(z2, z3 + 1100), dy=-r, ang=0)
-    partes += guarda_corpo_circular(r - 150, z3 + 0.015 * D)
+    zg = z3 + (r + 40 - (r - 150)) / (r + 40 - 150.0) * 0.15 * D - 15
+    partes += guarda_corpo_circular(r - 150, zg, abertura=(270, 700))
+    partes.append((caixa(800, 390, 50, y=-(r - 20), z=zg - 50), "escuro"))         # patamar da chegada
     partes.append((caixa(650, 650, 110, y=-r * 0.6, z=z3 + 0.04 * D), "branco"))
     # tubo de descida pelo fuste, para-raios e luz de balizamento
-    partes.append((_barra(110, (rc + 130, 0, zf + 200), (rc + 130, 0, z1 + 150)), "metal"))
+    partes.append((_barra(110, (rc + 130, 0, zf - 50), (rc + 130, 0, z1 + 150)), "metal"))
+    for zz in range(int(zf + 1500), int(z1 - 500), 3000):                  # abraçadeiras no fuste
+        partes.append((caixa(130, 260, 60, x=rc + 65, z=zz), "escuro"))
     partes.append((cilindro(30, 1800, base=(0, 0, z3 + 0.15 * D)), "metal"))
     partes.append((esfera(110, c=(0, 0, z3 + 0.15 * D + 1850)), "vermelho"))
     return partes, {"Volume": tam, "Ø da taça": "%.0f mm" % D, "Altura total": "%.1f m" % ((z3 + 0.15 * D) / 1000.0),
@@ -1706,14 +1875,20 @@ def tanque_torre(tam):
     partes.append((caixa(600, 600, 100, y=-r * 0.55, z=zc + Hc + 0.04 * D), "branco"))
     partes += _respiro(70, (r * 0.35, 0, zc + Hc + 0.06 * D), 350)
     # escadas: do chão à plataforma (fora da torre) e da plataforma ao teto (no corpo)
-    partes += _mover(escada_marinheiro(300, Ht + 160 + 1100, afast=180), dy=-(a2 + 30))
+    partes += _mover(escada_marinheiro(300, Ht + 160 + 1100, afast=180, fixacoes=[], gaiola_ate=Ht + 160), dy=-(a2 + 30))
     for zz in niveis[1:-1]:
-        partes.append((_barra(18, (0, -(a2 + 210), zz), pe_em(0, -1, zz)), "escuro"))
+        b = pe_em(0, -1, zz)
+        for s in (-1, 1):
+            partes.append((_barra(18, (s * 210, -(a2 + 210), zz), (s * 210, b[1], zz)), "escuro"))
+    for s in (-1, 1):                                    # pé da escada e chegada na plataforma
+        partes.append((caixa(120, 120, 20, x=s * 210, y=-(a2 + 210), z=280), "escuro"))
+        partes.append((_barra(18, (s * 210, -(a2 + 210), Ht + 80), (s * 210, -a2 + 10, Ht + 80)), "escuro"))
     partes += _mover(escada_marinheiro(zc, zc + Hc + 1100, gaiola=Hc > 3000), dy=r, ang=180)
     # tubo de descida pelo pé
     x0, y0, x1, y1 = pes[3]
-    partes.append((_barra(60, (x1 * 0.9, y1 * 0.9, Ht), (x0 * 0.95, y0 * 0.95, 300)), "metal"))
-    partes.append((_barra(60, (x1 * 0.9, y1 * 0.9, Ht), (r * 0.5, r * 0.5, zc)), "metal"))
+    partes += _tubulacao(60, [(r * 0.5, r * 0.5, zc + 50), (r * 0.5, r * 0.5, Ht - 350),
+                              (x1 * 0.85, y1 * 0.85, Ht - 350), (x0 * 0.92, y0 * 0.92, 400),
+                              (x0 * 0.92 + 600, y0 * 0.92, 400)], fim_aberto=True)
     return partes, {"Volume": tam, "Ø × altura do reservatório": "%.0f × %.0f mm" % (D, Hc),
                     "Altura da plataforma": "%.0f mm" % Ht, "Medidas": NOTA_REPRESENTATIVA}
 
@@ -1732,7 +1907,9 @@ def galao(tam):
         partes.append((toro(r, r * 0.03, c=(0, 0, h * f)), "agua"))
     partes.append((cilindro(r * 0.3, h * 0.07, base=(0, 0, h * 0.93)), "azul_agua"))
     partes.append((cilindro(r * 0.33, h * 0.02, base=(0, 0, h * 0.93)), "azul_agua"))
-    alca = toro(r * 0.28, r * 0.05, c=(0, r * 0.38, h * 0.8), eixo=(1, 0, 0))
+    # alça moldada: arco preso no gargalo e no ombro
+    alca = toro(r * 0.2, r * 0.055, c=(0, r * 0.42, h * 0.84), eixo=(1, 0, 0)).cut(
+        revolver([(0, h * 0.6), (r * 0.9, h * 0.72), (r * 0.32, h * 0.88), (r * 0.27, h * 0.94), (0, h * 0.94)]))
     partes.append((alca, "agua"))
     return partes, {"Volume": tam, "Ø × altura": "%.0f × %.0f mm" % (2 * r, h), "Medidas": NOTA_REPRESENTATIVA}
 
@@ -1788,24 +1965,25 @@ def ibc(tam):
     # gaiola: quatro anéis horizontais e verticais em cada face
     cx, cy = C / 2.0 - 15, L / 2.0 - 15
     for k in range(4):
-        z = zp + 40 + k * (A - zp - 60) / 3.0
+        z = zp + 25 + k * (A - zp - 45) / 3.0
         for (x0, y0), (x1, y1) in (((-cx, -cy), (cx, -cy)), ((cx, -cy), (cx, cy)), ((cx, cy), (-cx, cy)),
                                    ((-cx, cy), (-cx, -cy))):
             partes.append((_barra(10, (x0, y0, z), (x1, y1, z)), "metal"))
     for i in range(7):
         x = -cx + i * 2 * cx / 6.0
         for y in (-cy, cy):
-            partes.append((_barra(10, (x, y, zp + 40), (x, y, A - 20)), "metal"))
+            partes.append((_barra(10, (x, y, zp), (x, y, A - 20)), "metal"))
     for i in range(6):
         y = -cy + i * 2 * cy / 5.0
         for x in (-cx, cx):
-            partes.append((_barra(10, (x, y, zp + 40), (x, y, A - 20)), "metal"))
+            partes.append((_barra(10, (x, y, zp), (x, y, A - 20)), "metal"))
     partes.append((cilindro(80, 40, base=(0, 0, A - 60)), "polietileno"))
     partes.append((cilindro(90, 30, base=(0, 0, A - 25)), "escuro"))
     # válvula de saída DN50 na frente, embaixo
     partes.append((cilindro(40, 120, base=(0, -L / 2 + 30, zp + 70), eixo=(0, -1, 0)), "escuro"))
     partes.append((caixa(110, 90, 110, y=-L / 2 - 130, z=zp + 15), "escuro"))
     partes.append((caixa(30, 25, 160, x=0, y=-L / 2 - 130, z=zp + 125), "laranja"))
+    partes.append((tubo(34, 26, 70, base=(0, -L / 2 - 170, zp + 70), eixo=(0, -1, 0)), "escuro"))
     partes.append((caixa(250, 4, 160, x=-300, y=-L / 2 + 22, z=A - 340), "branco"))     # placa de identificação
     return partes, {"Volume": tam, "C × L × A": "%.0f × %.0f × %.0f mm" % (C, L, A), "Medidas": NOTA_REPRESENTATIVA}
 
@@ -1849,7 +2027,7 @@ def torre_retangular(tam):
         partes.append((_barra(8, (0, 0, zt + hc + 20), (rf * math.cos(a), rf * math.sin(a), zt + hc + 20)), "metal"))
     partes.append((caixa(2 * rf, 160, 180, z=zt + hc - 520), "escuro"))           # ponte do motor
     partes.append((cilindro(rf * 0.15, min(rf * 0.35, 300), base=(0, 0, zt + hc - 340)), "maquina"))
-    partes.append((cilindro(rf * 0.1, 140, base=(0, 0, zt + hc - 520), eixo=(0, 0, -1)), "escuro"))
+    partes.append((cilindro(rf * 0.05, hc - 520 - 200, base=(0, 0, zt + 210)), "metal"))     # eixo até a hélice
     for i in range(6):
         pa = caixa(rf * 0.85, rf * 0.16, 18, x=rf * 0.5, z=zt + 120)
         pa.rotate(_V(0, 0, zt + 120), _V(1, 0, 0), 12)
@@ -1859,14 +2037,18 @@ def torre_retangular(tam):
     # água quente: tubo subindo pela lateral até o barrilete no topo; água fria sai da bacia
     rt = max(60.0, 0.012 * C)
     x_t = C / 2 + 260
-    partes.append((_barra(rt, (x_t, L * 0.25, 300), (x_t, L * 0.25, H - 250)), "metal"))
-    partes.append((_barra(rt, (x_t, L * 0.25, H - 250), (C / 2 - 50, L * 0.25, H - 250)), "metal"))
+    partes += _tubulacao(rt, [(x_t, L * 0.25, 300), (x_t, L * 0.25, H - 250), (C / 2 - 50, L * 0.25, H - 250)],
+                         inicio_aberto=True)
     partes += _flange_tubo(rt, 1, (x_t, L * 0.25, 300), (0, 0, -1))
     partes += _flange_tubo(rt * 1.2, 300, (C / 2 + 125, -L * 0.25, hb * 0.45), (1, 0, 0))
-    partes.append((cilindro(22, 220, base=(-C / 2 - 125, L * 0.3, hb * 0.7), eixo=(-1, 0, 0)), "metal"))   # reposição
-    # escada com gaiola até o topo e guarda-corpo em volta
-    partes += _mover(escada_marinheiro(0, zt + 1100), dx=-C / 2 - 125, ang=-90)
-    partes += guarda_corpo_retangular(C + 20, L + 20, zt)
+    partes.append((tubo(22, 17, 220, base=(-C / 2 - 115, L * 0.3, hb * 0.7), eixo=(-1, 0, 0)), "metal"))  # reposição
+    # escada com gaiola presa no casco (afastada da bacia), chegando ao deque pela abertura do guarda-corpo
+    afast = 125 + 230
+    fix = [hb + 400 + k * (H - hb - 800) / max(1, int((H - hb) / 2500)) for k in range(int((H - hb) / 2500) + 1)]
+    partes += _mover(escada_marinheiro(0, zt + 1100, afast=afast, fixacoes=fix, gaiola_ate=zt), dx=-C / 2, ang=-90)
+    x0, x1 = -C / 2 - afast + 30, -C / 2 - 30                       # patamar entre a escada e o deque
+    partes.append((caixa(x1 - x0, 800, 60, x=(x0 + x1) / 2.0, z=zt - 60), "escuro"))
+    partes += guarda_corpo_retangular(C + 20, L + 20, zt, abertura=("-x", 700))
     return partes, {"Capacidade": "%s (toneladas de refrigeração)" % tam,
                     "C × L × A": "%.0f × %.0f × %.0f mm" % (C + 250, L + 250, zt + hc),
                     "Ø do ventilador": "%.0f mm" % (2 * rf), "Medidas": NOTA_REPRESENTATIVA}
@@ -1912,10 +2094,12 @@ def torre_circular(tam):
     for i in range(8):
         a = math.pi * i / 4
         partes.append((_barra(7, (0, 0, zg), (rf * math.cos(a), rf * math.sin(a), zg)), "metal"))
-    partes.append((caixa(2 * rf, 120, 120, z=zg + 10), "escuro"))
-    partes.append((caixa(120, 2 * rf, 120, z=zg + 10), "escuro"))
-    partes.append((cilindro(rf * 0.16, rf * 0.4, base=(0, 0, zg + 130)), "maquina"))
-    partes.append((cilindro(rf * 0.18, 30, base=(0, 0, zg + 130 + rf * 0.4)), "maquina"))
+    partes.append((caixa(2 * rf + 60, 120, 120, z=zg), "escuro"))           # vigas do motor apoiadas na borda
+    partes.append((caixa(120, 2 * rf + 60, 120, z=zg + 120), "escuro"))
+    partes.append((cilindro(rf * 0.1, 50, base=(0, 0, ztopo + 30)), "escuro"))   # cubo da hélice
+    partes.append((cilindro(rf * 0.04, zg - ztopo - 50, base=(0, 0, ztopo + 50)), "metal"))
+    partes.append((cilindro(rf * 0.16, rf * 0.4, base=(0, 0, zg + 240)), "maquina"))
+    partes.append((cilindro(rf * 0.18, 30, base=(0, 0, zg + 240 + rf * 0.4)), "maquina"))
     for i in range(4):
         pa = caixa(rf * 0.8, rf * 0.18, 15, x=rf * 0.48, z=ztopo + 60)
         pa.rotate(_V(0, 0, ztopo + 60), _V(1, 0, 0), 14)
@@ -1924,13 +2108,23 @@ def torre_circular(tam):
     # tubo de água quente subindo pela lateral até o centro (aspersor) e saída de água fria na bacia
     rt = max(40.0, 0.02 * D)
     xt = r * 1.12 + 250
-    partes.append((_barra(rt, (xt, 0, 250), (xt, 0, zd + 0.05 * D)), "metal"))
-    partes.append((_barra(rt, (xt, 0, zd + 0.05 * D), (r * 0.8, 0, zd + 0.05 * D)), "metal"))
+    partes += _tubulacao(rt, [(xt, 0, 250), (xt, 0, zd + 0.05 * D), (r * 0.8, 0, zd + 0.05 * D)], inicio_aberto=True)
     partes += _flange_tubo(rt, 1, (xt, 0, 250), (0, 0, -1))
     partes += _flange_tubo(rt * 1.2, 280, (0, -r * 1.1, hb * 0.4), (0, -1, 0))
-    # escada até o topo
-    partes += _mover(escada_marinheiro(0, ztopo + 900, gaiola=H > 3000, afast=r * 1.12 - r + 250), dx=-r,
-                     ang=-90)
+    # escada presa no corpo (afastada da bacia) até a plataforma do topo, ao lado da chaminé do ventilador
+    afast = r * 0.12 + 230
+    zplat = ztopo
+    fix = [zc + 300 + k * (zd - zc - 600) / max(1, int((zd - zc) / 2500)) for k in range(int((zd - zc) / 2500) + 1)]
+    partes += _mover(escada_marinheiro(0, zplat + 1100, gaiola=zplat > 3000, afast=afast, fixacoes=fix,
+                                       gaiola_ate=zplat), dx=-r, ang=-90)
+    x_ext, x_int = -(r + afast) + 30, -(rf + 30)              # a plataforma vai da escada até a chaminé
+    comp = x_int - x_ext
+    partes.append((caixa(comp, 800, 50, x=(x_ext + x_int) / 2.0, z=zplat - 50), "escuro"))
+    for s in (-1, 1):                                    # mãos-francesas até o corpo
+        partes.append((_barra(25, (x_ext + 60, s * 320, zplat - 50), (-r + 20, s * 320, zd - 150)), "escuro"))
+    gc = _mover(guarda_corpo_retangular(comp, 800, zplat, lados=("-y", "-x", "+y"), abertura=("-x", 650)),
+                dx=(x_ext + x_int) / 2.0)
+    partes += gc
     return partes, {"Capacidade": "%s (toneladas de refrigeração)" % tam,
                     "Ø × altura": "%.0f × %.0f mm" % (2 * r * 1.12, zg), "Ø do ventilador": "%.0f mm" % (2 * rf),
                     "Medidas": NOTA_REPRESENTATIVA}

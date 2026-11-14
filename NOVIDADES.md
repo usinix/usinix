@@ -15,6 +15,22 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.17.1 — 14/11/2026
+
+![Torre de resfriamento circular com a escada chegando à plataforma do topo](.github/images/novidades/1.17.1.webp)
+
+### Componentes (correções conferidas em todos os modelos novos)
+
+- **Escadas:** presas no casco (antes ficavam soltas, com os afastadores no ar) e afastadas da bacia; chegam a
+  uma plataforma ou patamar com passagem no guarda-corpo (torres de resfriamento, reservatório tipo coluna,
+  taça e torre metálica); a gaiola termina na chegada e os montantes da gaiola são tubos.
+- **Tubos e flanges:** curvas de verdade nas mudanças de direção (antes os trechos se encontravam quebrados);
+  flanges com o furo central e os furos dos parafusos; bocas livres vazadas; válvulas gaveta flangeadas no meio
+  da linha (reservatório tipo coluna e tanque horizontal, cuja saída agora é lateral e não encosta no chão).
+- **Peças soltas:** hélice e motor das torres ligados pelo eixo, vigas do motor apoiadas na borda da chaminé,
+  guarda-corpo do teto da coluna e da taça apoiado no teto, gaiola do IBC até o palete e alça do galão presa
+  no gargalo. Todos os modelos novos passam por uma verificação automática de peças soltas.
+
 ## 1.17.0 — 14/11/2026
 
 ![Reservatórios, recipientes e torre de resfriamento ao lado de uma pessoa de 1,70 m](.github/images/novidades/1.17.0.webp)
