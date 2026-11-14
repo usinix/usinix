@@ -18978,6 +18978,66 @@ class T141ReservatoriosETorres(unittest.TestCase):
         finally:
             fechar(doc)
 
+class T142PreviaDosComponentes(unittest.TestCase):
+    """1.18.0: "quero que no modal dos componentes mostre o desenho do componente, para que eu visualize antes de
+    inserir" — prévia 3D renderizada fora da tela, que gira com o mouse e acompanha modelo e tamanho."""
+
+    def setUp(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+
+    def tearDown(self):
+        import PrumoComponentes as C
+        j = C._JANELA.get("j")
+        if j is not None:
+            j.close()
+            C._JANELA["j"] = None
+
+    @staticmethod
+    def _desenhado(img):
+        fundo = img.pixelColor(2, 2)
+        n = tot = 0
+        for x in range(0, img.width(), 6):
+            for y in range(0, img.height(), 6):
+                c = img.pixelColor(x, y)
+                tot += 1
+                if abs(c.red() - fundo.red()) + abs(c.green() - fundo.green()) + abs(c.blue() - fundo.blue()) > 40:
+                    n += 1
+        return n / float(tot)
+
+    def test_imagem_e_cache(self):
+        import PrumoComponentes as C
+        img = C.imagem_do_componente("tambor", "200 L", 240, 220)
+        self.assertIsNotNone(img)
+        self.assertEqual((img.width(), img.height()), (240, 220))
+        self.assertGreater(self._desenhado(img), 0.08, "o tambor aparece na prévia")
+        a = C.gerar("tambor", "200 L")[0]
+        b = C.gerar("tambor", "200 L")[0]
+        self.assertIsNot(a, b, "o cache devolve cópias")
+        self.assertAlmostEqual(a.Volume, b.Volume, places=6)
+
+    def test_janela_mostra_e_gira(self):
+        import PrumoComponentes as C
+        T62 = T62PainelDeComando
+        j = C.abrir("recipientes")
+        T62._esp(self, 2.5)
+        pv = j.previa
+        self.assertFalse(pv.pixmap().isNull(), "prévia desenhada ao abrir")
+        self.assertGreater(self._desenhado(pv.pixmap().toImage()), 0.03)
+        j.modelos.setCurrentRow(3)                    # IBC
+        T62._esp(self, 2.0)
+        self.assertEqual((pv.modelo, pv.tamanho), ("ibc", "1000 L"))
+        c = pv.rect().center()
+        L = QtCore.Qt.LeftButton
+        for tipo, p, bts in ((QtCore.QEvent.MouseButtonPress, c, L), (QtCore.QEvent.MouseMove, c + QtCore.QPoint(60, 0), L),
+                             (QtCore.QEvent.MouseButtonRelease, c + QtCore.QPoint(60, 0), QtCore.Qt.NoButton)):
+            QtWidgets.QApplication.sendEvent(pv, QtGui.QMouseEvent(tipo, QtCore.QPointF(p), QtCore.QPointF(pv.mapToGlobal(p)),
+                                                                   L, bts, QtCore.Qt.NoModifier))
+            T62._esp(self, 0.2)
+        self.assertAlmostEqual(pv.az, -35.0 - 30.0, places=6, msg="arrastar gira")
+        pv.mouseDoubleClickEvent(None)
+        self.assertEqual((pv.az, pv.el, pv.zoom), (-35.0, 62.0, 1.0))
+
 
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
@@ -19022,4 +19082,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
            T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
            T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha,
-           T141ReservatoriosETorres]
+           T141ReservatoriosETorres, T142PreviaDosComponentes]

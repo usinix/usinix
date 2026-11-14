@@ -15,6 +15,18 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.18.0 — 14/11/2026
+
+![Janela de componentes com a prévia da torre de resfriamento](.github/images/novidades/1.18.0.webp)
+
+### Componentes
+
+- **Prévia do componente na janela:** ao escolher o modelo e o tamanho, aparece o desenho em 3D, com as cores e
+  os acabamentos, antes de inserir. Arraste para girar, use a roda do mouse para aproximar e o duplo clique para
+  voltar à vista inicial.
+- A janela monta o componente uma vez só para a prévia, as medidas e a inserção (mais rápida ao trocar de
+  tamanho e ao inserir).
+
 ## 1.17.1 — 14/11/2026
 
 ![Torre de resfriamento circular com a escada chegando à plataforma do topo](.github/images/novidades/1.17.1.webp)

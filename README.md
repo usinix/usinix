@@ -35,12 +35,12 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.17.1** (14/11/2026)
+**Versão atual: 1.18.0** (14/11/2026)
 
-- **Reservatórios e torres de resfriamento na aba Componentes:** caixa d'água, reservatório tipo taça, tipo
-  coluna e sobre torre metálica, tanque horizontal, galões, bombonas, tambores, IBC e torres de resfriamento
-  retangular e circular, em escala real. Na 1.17.1: escadas presas e com chegada, tubos com curvas, flanges
-  furados e válvulas em linha.
+- **Prévia dos componentes:** a janela de componentes mostra o desenho em 3D (gira com o mouse) antes de inserir.
+
+Na 1.17.0 e 1.17.1: reservatórios de água, galões, tambores, IBC e torres de resfriamento nos componentes, com
+escadas, tubos, flanges e válvulas conferidos.
 
 Na 1.16.0: Padrão de estrutura (repete a estrutura inteira, contada nas listas) e símbolo de solda arrastável,
 sem cadeado.

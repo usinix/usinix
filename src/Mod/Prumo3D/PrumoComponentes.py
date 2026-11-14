@@ -2218,8 +2218,24 @@ UNIDADE_TAMANHO = {"compressor_pistao": "L", "compressor_parafuso": "kW", "calde
 MODELOS = {m[0]: (cat, m) for cat, _n, ms in CATALOGO for m in ms}
 
 
+_CACHE_GERAR = {}
+
+
 def gerar(modelo, tamanho):
-    """(forma, cores por face, informações) do modelo no tamanho."""
+    """(forma, cores por face, informações) do modelo no tamanho (os últimos ficam guardados: a janela mostra a
+    prévia e as medidas e depois insere, sem montar três vezes)."""
+    chave = (modelo, tamanho)
+    if chave in _CACHE_GERAR:
+        comp, cores, info = _CACHE_GERAR[chave]
+        return comp.copy(), list(cores), dict(info)
+    comp, cores, info = _gerar(modelo, tamanho)
+    if len(_CACHE_GERAR) >= 8:
+        _CACHE_GERAR.pop(next(iter(_CACHE_GERAR)))
+    _CACHE_GERAR[chave] = (comp, cores, info)
+    return comp.copy(), list(cores), dict(info)
+
+
+def _gerar(modelo, tamanho):
     import Part
     _cat, (_id, _nome, tamanhos, fn) = MODELOS[modelo]
     if tamanho not in tamanhos:
@@ -2389,6 +2405,174 @@ if FreeCAD.GuiUp:
     import FreeCADGui
     from PySide import QtCore, QtGui, QtWidgets
 
+    _CENAS = {}
+
+    def cena_do_componente(modelo, tamanho):
+        """Cena Coin do componente (triângulos agrupados por cor, com o material de cada acabamento)."""
+        from pivy import coin
+        chave = (modelo, tamanho)
+        if chave in _CENAS:
+            return _CENAS[chave]
+        f, _cores, _info = gerar(modelo, tamanho)
+        nomes = acabamentos(modelo, tamanho)
+        raiz = coin.SoSeparator()
+        dicas = coin.SoShapeHints()
+        dicas.vertexOrdering = coin.SoShapeHints.UNKNOWN_ORDERING      # luz nos dois lados das faces
+        dicas.shapeType = coin.SoShapeHints.UNKNOWN_SHAPE_TYPE
+        dicas.creaseAngle = 0.6
+        raiz.addChild(dicas)
+        tol = max(f.BoundBox.DiagonalLength / 500.0, 0.3)
+        grupos = {}
+        for face, nome in zip(f.Faces, nomes):
+            try:
+                pts, tris = face.tessellate(tol)
+            except Exception:
+                continue
+            g = grupos.setdefault(nome, ([], []))
+            b = len(g[0])
+            g[0].extend((p.x, p.y, p.z) for p in pts)
+            for t in tris:
+                g[1].extend((t[0] + b, t[1] + b, t[2] + b, -1))
+        for nome, (pts, idx) in grupos.items():
+            if not idx:
+                continue
+            sep = coin.SoSeparator()
+            m = coin.SoMaterial()
+            c = CORES.get(nome, CORES["cinza"])
+            m.diffuseColor.setValue(*c)
+            m.ambientColor.setValue(*(x * 0.35 for x in c))
+            brilho, refl = ACABAMENTO.get(nome, (0.25, (0.35, 0.35, 0.35)))
+            m.shininess.setValue(brilho)
+            m.specularColor.setValue(*refl)
+            if nome in TRANSPARENCIA:
+                m.transparency.setValue(TRANSPARENCIA[nome])
+            co = coin.SoCoordinate3()
+            co.point.setValues(0, len(pts), pts)
+            fs = coin.SoIndexedFaceSet()
+            fs.coordIndex.setValues(0, len(idx), idx)
+            sep.addChild(m)
+            sep.addChild(co)
+            sep.addChild(fs)
+            raiz.addChild(sep)
+        if len(_CENAS) > 12:
+            _CENAS.pop(next(iter(_CENAS)))
+        _CENAS[chave] = raiz
+        return raiz
+
+    def imagem_do_componente(modelo, tamanho, largura=360, altura=320, azimute=-35.0, elevacao=62.0, zoom=1.0):
+        """Desenho do componente (QImage) visto em perspectiva isométrica, renderizado fora da tela."""
+        import os
+        import tempfile
+        from pivy import coin
+        cena = cena_do_componente(modelo, tamanho)
+        raiz = coin.SoSeparator()
+        cam = coin.SoOrthographicCamera()
+        rot = FreeCAD.Rotation(_V(0, 0, 1), azimute).multiply(FreeCAD.Rotation(_V(1, 0, 0), elevacao))
+        q = rot.Q
+        cam.orientation.setValue(coin.SbRotation(q[0], q[1], q[2], q[3]))
+        raiz.addChild(cam)
+        for d, k in (((0.35, -0.45, -1.0), 0.85), ((-0.6, 0.3, -0.5), 0.35)):    # luz principal e de enchimento
+            luz = coin.SoDirectionalLight()
+            v = rot.multVec(_V(*d))
+            luz.direction.setValue(v.x, v.y, v.z)
+            luz.intensity.setValue(k)
+            raiz.addChild(luz)
+        raiz.addChild(cena)
+        vp = coin.SbViewportRegion(int(largura), int(altura))
+        cam.viewAll(cena, vp, 1.08)
+        if zoom and zoom != 1.0:
+            cam.height.setValue(cam.height.getValue() / zoom)
+        r = FreeCADGui.SoQtOffscreenRenderer(int(largura), int(altura))
+        r.setBackgroundColor(0.96, 0.97, 0.98)
+        try:
+            r.setNumPasses(4)
+        except Exception:
+            pass
+        if not r.render(raiz):
+            return None
+        fd, tmp = tempfile.mkstemp(suffix=".png", prefix="usinix_previa_")
+        os.close(fd)
+        try:
+            r.writeToImage(tmp)
+            img = QtGui.QImage(tmp)
+            return img.copy() if not img.isNull() else None
+        finally:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+    class PreviaComponente(QtWidgets.QLabel):
+        """Prévia do componente: arraste para girar, roda do mouse para aproximar, duplo clique volta."""
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setObjectName("PrumoComponentesPrevia")
+            self.setMinimumSize(340, 300)
+            self.setAlignment(QtCore.Qt.AlignCenter)
+            self.setStyleSheet("background:#F5F7FA; border:1px solid #D5DCE4; border-radius:6px;")
+            self.setToolTip("Arraste para girar · roda do mouse para aproximar · duplo clique volta à vista inicial")
+            self.modelo = self.tamanho = None
+            self.az, self.el, self.zoom = -35.0, 62.0, 1.0
+            self._arr = None
+            self._t = QtCore.QTimer(self)
+            self._t.setSingleShot(True)
+            self._t.timeout.connect(self._desenhar)
+
+        def mostrar(self, modelo, tamanho):
+            if (modelo, tamanho) != (self.modelo, self.tamanho):
+                self.az, self.el, self.zoom = -35.0, 62.0, 1.0
+            self.modelo, self.tamanho = modelo, tamanho
+            if (modelo, tamanho) not in _CENAS:
+                self.setPixmap(QtGui.QPixmap())
+                self.setText("Montando a prévia…")
+            self._t.start(60)
+
+        def _desenhar(self):
+            if not self.modelo:
+                self.clear()
+                return
+            try:
+                img = imagem_do_componente(self.modelo, self.tamanho, max(200, self.width() - 4),
+                                           max(180, self.height() - 4), self.az, self.el, self.zoom)
+            except Exception as exc:
+                img = None
+                FreeCAD.Console.PrintLog("Usinix: prévia do componente: %s\n" % exc)
+            if img is None:
+                self.setText("Prévia indisponível")
+            else:
+                self.setPixmap(QtGui.QPixmap.fromImage(img))
+
+        def mousePressEvent(self, ev):
+            self._arr = (ev.position().toPoint() if hasattr(ev, "position") else ev.pos(), self.az, self.el)
+
+        def mouseMoveEvent(self, ev):
+            if self._arr is None:
+                return
+            p = ev.position().toPoint() if hasattr(ev, "position") else ev.pos()
+            d = p - self._arr[0]
+            self.az = self._arr[1] - d.x() * 0.5
+            self.el = max(5.0, min(175.0, self._arr[2] - d.y() * 0.4))
+            if not self._t.isActive():
+                self._t.start(15)
+
+        def mouseReleaseEvent(self, ev):
+            self._arr = None
+
+        def mouseDoubleClickEvent(self, ev):
+            self.az, self.el, self.zoom = -35.0, 62.0, 1.0
+            self._t.start(10)
+
+        def wheelEvent(self, ev):
+            passo = ev.angleDelta().y() / 120.0
+            self.zoom = max(0.5, min(6.0, self.zoom * (1.15 ** passo)))
+            self._t.start(15)
+
+        def resizeEvent(self, ev):
+            super().resizeEvent(ev)
+            if self.modelo:
+                self._t.start(80)
+
     class JanelaComponentes(QtWidgets.QDialog):
         def __init__(self, categoria=None, parent=None):
             super().__init__(parent or FreeCADGui.getMainWindow())
@@ -2397,7 +2581,7 @@ if FreeCAD.GuiUp:
             self.setObjectName("PrumoUI")
             self.setStyleSheet(UI.qss())
             self.setWindowTitle("Componentes")
-            self.resize(760, 480)
+            self.resize(1080, 560)
             lay = QtWidgets.QHBoxLayout(self)
             self.cats = QtWidgets.QListWidget()
             self.cats.setObjectName("PrumoComponentesCategorias")
@@ -2441,6 +2625,14 @@ if FreeCAD.GuiUp:
             bts.addWidget(self.bt_inserir)
             meio.addLayout(bts)
             lay.addLayout(meio, 1)
+            direita = QtWidgets.QVBoxLayout()
+            self.previa = PreviaComponente()
+            direita.addWidget(self.previa, 1)
+            dica = QtWidgets.QLabel("Arraste para girar · roda do mouse aproxima · duplo clique volta")
+            dica.setObjectName("PrumoSub")
+            dica.setAlignment(QtCore.Qt.AlignCenter)
+            direita.addWidget(dica)
+            lay.addLayout(direita, 1)
             self.cats.currentRowChanged.connect(self._categoria)
             self.modelos.currentRowChanged.connect(self._modelo)
             self.modelos.itemDoubleClicked.connect(lambda _i: self.inserir())
@@ -2479,9 +2671,10 @@ if FreeCAD.GuiUp:
                 self.info.setText("")
                 return
             try:
-                _p, info = MODELOS[mid][1][3](tam)
+                _f, _c, info = gerar(mid, tam)
                 self.info.setText("<b>%s</b><br>%s" % (MODELOS[mid][1][1], "<br>".join(
                     "%s: %s" % (k, v) for k, v in info.items())))
+                self.previa.mostrar(mid, tam)
             except Exception as exc:
                 self.info.setText("Não foi possível montar: %s" % exc)
 
