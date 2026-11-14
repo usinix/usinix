@@ -307,6 +307,11 @@ TABS = [
         ("Máquinas", [
             ("Prumo_Componentes_motores", L, "Motores"), ("Prumo_Componentes_compressores", L, "Compressores"),
             ("Prumo_Componentes_caldeiras", L, "Caldeiras"), ("Prumo_Componentes_secadores", L, "Secadores"),
+            ("Prumo_Componentes_icamento", L, "Içamento"),
+        ]),
+        ("Água e utilidades", [
+            ("Prumo_Componentes_agua", L, "Reservatórios"), ("Prumo_Componentes_recipientes", L, "Galões e\ntambores"),
+            ("Prumo_Componentes_resfriamento", L, "Torres de\nresfriamento"),
         ]),
         ("Tubulação e ar", [
             ("Prumo_Componentes_valvulas", L, "Válvulas"), ("Prumo_Componentes_ar", L, "Ar\ncomprimido"),
@@ -315,10 +320,11 @@ TABS = [
             ("Prumo_Fixador", L, "Parafuso,\nporca, arruela"), ("Prumo_Componentes_transmissao", L, "Rolamentos"),
         ]),
         ("Segurança e pessoas", [
-            ("Prumo_Componentes_altura", L, "Trabalho\nem altura"), ("Prumo_Componentes_pessoas", L, "Pessoas"),
+            ("Prumo_Componentes_altura", L, "Trabalho\nem altura"),
+            ("Prumo_Componentes_incendio", L, "Combate a\nincêndio"), ("Prumo_Componentes_pessoas", L, "Pessoas"),
         ]),
         ("Outros", [
-            ("Prumo_Componentes_outros", L, "Bombas,\ntalhas e mais"), ("Prumo_Componentes", S, "Todos os componentes"),
+            ("Prumo_Componentes_outros", L, "Bombas,\nquadros e mais"), ("Prumo_Componentes", S, "Todos os componentes"),
         ]),
     ]},
     {"id": "vasos", "label": "Vasos", "wb": None, "panels": [

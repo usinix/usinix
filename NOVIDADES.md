@@ -15,6 +15,23 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.17.0 — 14/11/2026
+
+![Reservatórios, recipientes e torre de resfriamento ao lado de uma pessoa de 1,70 m](.github/images/novidades/1.17.0.webp)
+
+### Componentes
+
+- **Reservatórios de água:** caixa d'água de polietileno (310 a 10 000 L), reservatório elevado tipo taça
+  (15 a 200 m³, com fuste, passarela, escada e balizamento), reservatório metálico tipo coluna (20 a 300 m³),
+  reservatório elevado sobre torre metálica de quatro pés (5 a 30 m³) e tanque horizontal sobre berços
+  (5 a 60 m³).
+- **Galões, tambores e IBC:** galão de água de 10 e 20 L (translúcido), bombona plástica de 50 a 200 L, tambor
+  metálico de 100 e 200 L e contêiner IBC de 1 000 L na gaiola, sobre palete.
+- **Torres de resfriamento:** retangular (50 a 400 TR) e circular (10 a 150 TR), com bacia, venezianas,
+  ventilador com tela e motor, tubulação de água, escada e guarda-corpo.
+- Na aba Componentes entraram os botões Reservatórios, Galões e tambores, Torres de resfriamento, Içamento e
+  Combate a incêndio. As medidas são representativas, para leiaute: confira o catálogo do fabricante.
+
 ## 1.16.0 — 13/11/2026
 
 ![Pórtico repetido com o Padrão de estrutura](.github/images/novidades/1.16.0.webp)

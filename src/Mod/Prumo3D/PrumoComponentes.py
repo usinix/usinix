@@ -22,12 +22,17 @@ CORES = {
     "branco": (0.93, 0.94, 0.95), "cinza": (0.55, 0.58, 0.62), "pele": (0.87, 0.70, 0.56),
     "roupa": (0.17, 0.30, 0.50), "calca": (0.20, 0.22, 0.28), "madeira": (0.72, 0.55, 0.34),
     "laranja": (0.93, 0.47, 0.12), "transparente": (0.80, 0.88, 0.95), "aco": (0.45, 0.47, 0.50),
-    "borracha": (0.08, 0.08, 0.09),
+    "borracha": (0.08, 0.08, 0.09), "azul_agua": (0.16, 0.42, 0.72), "agua": (0.62, 0.80, 0.95),
+    "polietileno": (0.92, 0.93, 0.90), "concreto": (0.70, 0.70, 0.67), "prfv": (0.84, 0.85, 0.81),
 }
 # acabamento por cor: (brilho 0-1, cor do reflexo) — metal reflete, tinta brilha pouco, borracha quase nada
 ACABAMENTO = {"metal": (0.55, (0.9, 0.9, 0.9)), "aco": (0.45, (0.7, 0.7, 0.7)), "transparente": (0.8, (1, 1, 1)),
               "borracha": (0.05, (0.1, 0.1, 0.1)), "madeira": (0.08, (0.2, 0.2, 0.2)), "pele": (0.15, (0.3, 0.3, 0.3)),
-              "roupa": (0.05, (0.1, 0.1, 0.1)), "calca": (0.05, (0.1, 0.1, 0.1))}
+              "roupa": (0.05, (0.1, 0.1, 0.1)), "calca": (0.05, (0.1, 0.1, 0.1)), "agua": (0.8, (1, 1, 1)),
+              "polietileno": (0.3, (0.6, 0.6, 0.6)), "concreto": (0.03, (0.1, 0.1, 0.1)),
+              "prfv": (0.2, (0.4, 0.4, 0.4))}
+# transparência por cor (vidro, galão de água, frasco do IBC)
+TRANSPARENCIA = {"transparente": 0.55, "agua": 0.45, "polietileno": 0.2}
 
 
 # ------------------------------------------------------------------ peças básicas
@@ -1332,6 +1337,605 @@ def talha_manual(cap):
     return partes, {"Capacidade": cap, "Tipo": "Talha manual de corrente", "Medidas": "representativas"}
 
 
+
+# ------------------------------------------------------------------ reservatórios, recipientes e torres
+# Medidas representativas (proporções típicas de mercado), para leiaute: confira o catálogo do fabricante.
+NOTA_REPRESENTATIVA = "representativas — confira o catálogo do fabricante"
+
+
+def _barra(r, p0, p1):
+    """Cilindro (tubo cheio) de p0 a p1."""
+    a, b = _V(*p0), _V(*p1)
+    d = b - a
+    return cilindro(r, d.Length, base=p0, eixo=(d.x, d.y, d.z))
+
+
+def _mover(partes, dx=0.0, dy=0.0, dz=0.0, ang=0.0):
+    """Gira as peças em volta do eixo Z (graus) e depois desloca (deslocamento no sistema global)."""
+    res = []
+    for sh, cor in partes:
+        s = sh.copy()
+        if ang:
+            s.rotate(_V(0, 0, 0), _V(0, 0, 1), ang)
+        s.translate(_V(dx, dy, dz))
+        res.append((s, cor))
+    return res
+
+
+def escada_marinheiro(z0, z1, gaiola=True, larg=420, afast=200, cor="amarelo"):
+    """Escada marinheiro com gaiola. Parede no plano y = 0; a escada fica em y = −afast, subindo de z0 a z1.
+    Degraus a cada 300 mm; gaiola a partir de 2,3 m da base (aros a cada 1 m e 5 montantes)."""
+    import Part
+    res = []
+    y = -afast
+    for s in (-1, 1):
+        res.append((_barra(22, (s * larg / 2.0, y, z0), (s * larg / 2.0, y, z1)), cor))
+    z = z0 + 300
+    while z < z1 - 50:
+        res.append((_barra(13, (-larg / 2.0, y, z), (larg / 2.0, y, z)), cor))
+        z += 300
+    # afastadores presos na parede a cada ~2,5 m
+    n = max(2, int((z1 - z0) / 2500) + 1)
+    for i in range(n):
+        zz = z0 + 150 + i * (z1 - z0 - 300) / max(1, n - 1)
+        for s in (-1, 1):
+            res.append((caixa(40, afast, 8, x=s * larg / 2.0, y=-afast / 2.0, z=zz), "escuro"))
+    if gaiola and z1 - z0 > 3000:
+        R = 360.0
+        yc = y - R + 160
+        aros = []
+        za = z0 + 2300
+        while za <= z1 + 1:
+            aros.append(za)
+            za += 1000
+        if aros and z1 - aros[-1] > 300:
+            aros.append(z1)
+        corte = Part.makeBox(4 * R, 3 * R - 160, 200, _V(-2 * R, -2 * R, -100))   # C aberto para a parede
+        for za in aros:
+            aro = toro(R, 12).common(corte).translated(_V(0, yc, za))
+            res.append((aro, cor))
+            for s in (-1, 1):
+                xe = s * math.sqrt(max(R * R - (R - 160.0) ** 2, 0))
+                res.append((_barra(12, (xe, y, za), (s * larg / 2.0, y, za)), cor))
+        if len(aros) > 1:
+            for k in range(5):
+                a = math.radians(-160 + k * 35)
+                px, py = R * math.cos(a), yc + R * math.sin(a)
+                res.append((caixa(50, 8, aros[-1] - aros[0], x=px, y=py, z=aros[0]), cor))
+    return res
+
+
+def guarda_corpo_circular(R, z, cor="amarelo", h=1100):
+    """Guarda-corpo em volta de um círculo de raio R: montantes, travessão superior, intermediário e rodapé."""
+    res = [(toro(R, 20, c=(0, 0, z + h)), cor), (toro(R, 16, c=(0, 0, z + h / 2.0)), cor),
+           (tubo(R + 3, R - 3, 150, base=(0, 0, z)), cor)]
+    n = max(6, int(2 * math.pi * R / 1500.0) + 1)
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        res.append((cilindro(20, h, base=(R * math.cos(a), R * math.sin(a), z)), cor))
+    return res
+
+
+def guarda_corpo_retangular(c, l, z, cor="amarelo", h=1100, abertura=None):
+    """Guarda-corpo num retângulo c × l centrado; `abertura` = (lado, largura) deixa a passagem da escada
+    (lado "-y")."""
+    res = []
+    cantos = [(-c / 2.0, -l / 2.0), (c / 2.0, -l / 2.0), (c / 2.0, l / 2.0), (-c / 2.0, l / 2.0)]
+    for (x0, y0), (x1, y1) in zip(cantos, cantos[1:] + cantos[:1]):
+        trechos = [((x0, y0), (x1, y1))]
+        if abertura and abertura[0] == "-y" and abs(y0 + l / 2.0) < 1e-6 and abs(y1 + l / 2.0) < 1e-6:
+            w = abertura[1] / 2.0
+            trechos = [((x0, y0), (-w, y0)), ((w, y0), (x1, y1))]
+        for (a0, b0), (a1, b1) in trechos:
+            comp = math.hypot(a1 - a0, b1 - b0)
+            for zz, rr in ((h, 20), (h / 2.0, 16)):
+                res.append((_barra(rr, (a0, b0, z + zz), (a1, b1, z + zz)), cor))
+            n = max(1, int(comp / 1500.0))
+            for k in range(n + 1):
+                t = k / float(n)
+                res.append((cilindro(20, h, base=(a0 + (a1 - a0) * t, b0 + (b1 - b0) * t, z)), cor))
+            ux, uy = (a1 - a0) / comp, (b1 - b0) / comp
+            rod = caixa(comp, 6, 150, centro=False)
+            rod.rotate(_V(0, 0, 0), _V(0, 0, 1), math.degrees(math.atan2(uy, ux)))
+            res.append((rod.translated(_V(a0, b0, z)), cor))
+    return res
+
+
+def _flange_tubo(r, comp, base, eixo, cor="metal"):
+    """Tubo saindo da parede com flange na ponta e os parafusos."""
+    bx, by, bz = base
+    ex, ey, ez = eixo
+    res = [(cilindro(r, comp, base=base, eixo=eixo), cor),
+           (cilindro(r * 1.9, r * 0.35, base=(bx + ex * comp, by + ey * comp, bz + ez * comp), eixo=eixo), cor)]
+    return res
+
+
+def _respiro(r, base, h):
+    """Respiro tipo pescoço de ganso (sobe, faz a curva e desce), com tela."""
+    import Part
+    x, y, z = base
+    R = r * 2.5
+    curva = toro(R, r).common(Part.makeBox(4 * R, 2 * R, 4 * R, _V(-2 * R, 0, -2 * R)))
+    curva.rotate(_V(0, 0, 0), _V(1, 0, 0), 90)
+    return [(cilindro(r, h, base=base), "metal"), (curva.translated(_V(x + R, y, z + h)), "metal"),
+            (cilindro(r, R, base=(x + 2 * R, y, z + h), eixo=(0, 0, -1)), "metal"),
+            (cilindro(r * 1.2, r * 0.5, base=(x + 2 * R, y, z + h - R - r * 0.5)), "escuro")]
+
+
+CAIXA_DAGUA_L = ["310 L", "500 L", "1000 L", "1500 L", "2000 L", "5000 L", "10000 L"]
+
+
+def caixa_dagua(tam):
+    """Caixa d'água de polietileno (tronco de cone, tampa rosqueada por travas)."""
+    v = float(tam.split()[0]) * 1e6
+    R = (v / 3.2015) ** (1 / 3.0)            # h = 1,28 R; fundo com 78 % do raio do topo
+    h, rb = 1.28 * R, 0.78 * R
+    corpo = revolver([(0, 0), (rb - 25, 0), (rb, 25), (R, h - 30), (R + 30, h - 20), (R + 30, h), (0, h)])
+    partes = [(corpo, "azul_agua")]
+    for f in (0.22, 0.45, 0.68):
+        zz = h * f
+        partes.append((toro(rb + (R - rb) * zz / h, 9, c=(0, 0, zz)), "azul_agua"))
+    tampa = revolver([(0, h), (R + 45, h), (R + 45, h + 45), (R * 0.9, h + 0.09 * R), (R * 0.22, h + 0.15 * R),
+                      (0, h + 0.15 * R)])
+    partes.append((tampa, "azul_agua"))
+    for i in range(8):                          # nervuras da tampa
+        a = 360.0 * i / 8
+        nerv = caixa(R * 0.62, 30, 0.05 * R, x=R * 0.56, y=0, z=h + 0.07 * R)
+        nerv.rotate(_V(0, 0, 0), _V(0, 0, 1), a)
+        partes.append((nerv, "azul_agua"))
+    for i in range(6):                          # travas
+        a = 2 * math.pi * (i + 0.5) / 6
+        partes.append((caixa(70, 70, 60, x=(R + 50) * math.cos(a), y=(R + 50) * math.sin(a), z=h - 15),
+                       "azul_agua"))
+    partes.append((cilindro(R * 0.1, 40, base=(0, 0, h + 0.15 * R)), "azul_agua"))
+    # entrada (boia), extravasor e saída, com adaptador de flange
+    for ang, f, rr in ((0, 0.86, 18), (150, 0.78, 25), (210, 0.06, 25)):
+        a = math.radians(ang)
+        zz = h * f
+        rz = rb + (R - rb) * zz / h
+        ex, ey = math.cos(a), math.sin(a)
+        partes.append((cilindro(rr, 130, base=(rz * ex, rz * ey, zz), eixo=(ex, ey, 0)), "branco"))
+        partes.append((sextavado(rr * 3.2, 25, base=((rz + 10) * ex, (rz + 10) * ey, zz), eixo=(ex, ey, 0)),
+                       "branco"))
+    return partes, {"Volume": tam, "Ø do topo × altura": "%.0f × %.0f mm" % (2 * R + 90, h + 0.15 * R),
+                    "Medidas": NOTA_REPRESENTATIVA}
+
+
+TANQUE_H_M3 = ["5 m³", "10 m³", "15 m³", "30 m³", "60 m³"]
+
+
+def tanque_horizontal(tam):
+    """Tanque horizontal aéreo sobre berços (água, diesel), com boca de visita, respiro, régua e saídas."""
+    v = float(tam.split()[0]) * 1e9
+    D = (4 * v / (3.4 * math.pi)) ** (1 / 3.0)          # corpo com L/D ≈ 3 (os tampos completam o volume)
+    r, L = D / 2.0, 3.0 * D
+    zc = r + max(350.0, D * 0.18)
+    partes = [(cilindro(r, L, base=(-L / 2.0, 0, zc), eixo=(1, 0, 0)), "branco"),
+              (tampo(r, r * 0.5, (L / 2.0, 0, zc), (1, 0, 0)), "branco"),
+              (tampo(r, r * 0.5, (-L / 2.0, 0, zc), (-1, 0, 0)), "branco")]
+    for x in (-L / 2.0 + 20, -L / 6.0, L / 6.0, L / 2.0 - 20):          # soldas das chapas
+        partes.append((toro(r, 5, c=(x, 0, zc), eixo=(1, 0, 0)), "branco"))
+    for xs in (-0.3 * L, 0.3 * L):                                         # berços
+        berco = caixa(220, D * 0.82, zc - r * 0.35, x=xs).cut(cilindro(r + 12, L, base=(-L / 2.0, 0, zc),
+                                                                        eixo=(1, 0, 0)))
+        partes.append((berco, "escuro"))
+        partes.append((caixa(380, D * 0.92, 22, x=xs), "escuro"))
+        chapa = tubo(r + 12, r, 420, base=(xs - 210, 0, zc), eixo=(1, 0, 0)).common(
+            caixa(440, D * 1.2, r * 0.9, x=xs, z=zc - r - 15))
+        partes.append((chapa, "escuro"))
+        for s in (-1, 1):
+            partes.append((sextavado(36, 22, base=(xs + 110, s * D * 0.38, 22)), "metal"))
+    # boca de visita com tampa aparafusada
+    xb = -0.18 * L
+    partes.append((cilindro(280, 200, base=(xb, 0, zc + r - 40)), "branco"))
+    partes.append((cilindro(330, 26, base=(xb, 0, zc + r + 160)), "branco"))
+    for (xx, yy) in furos_em_circulo(16, 305):
+        partes.append((sextavado(30, 18, base=(xb + xx, yy, zc + r + 186)), "metal"))
+    partes += _respiro(45, (0.25 * L, 0, zc + r - 20), 420)
+    partes.append((cilindro(55, 260, base=(0.05 * L, 0, zc + r - 20)), "metal"))       # bocal de enchimento
+    partes.append((cilindro(75, 40, base=(0.05 * L, 0, zc + r + 240)), "vermelho"))
+    # saída por baixo com válvula
+    xo = 0.4 * L
+    partes.append((cilindro(45, 260, base=(xo, 0, zc - r + 30), eixo=(0, 0, -1)), "metal"))
+    partes.append((cilindro(90, 30, base=(xo, 0, zc - r - 230)), "metal"))
+    partes.append((caixa(170, 120, 150, x=xo, z=zc - r - 380), "verde"))
+    partes.append((volante(70, 8, (xo, 0, zc - r - 250), (0, -1, 0)).translated(_V(0, -150, -60)), "vermelho"))
+    # régua de nível na lateral
+    partes.append((caixa(60, 25, D * 0.8, x=-0.42 * L, y=-r - 12, z=zc - D * 0.4), "escuro"))
+    for k in range(9):
+        partes.append((caixa(90, 5, 8, x=-0.42 * L, y=-r - 27, z=zc - D * 0.4 + k * D * 0.1), "amarelo"))
+    return partes, {"Volume": tam, "Ø × comprimento do corpo": "%.0f × %.0f mm" % (D, L),
+                    "Medidas": NOTA_REPRESENTATIVA}
+
+
+TANQUE_COLUNA_M3 = ["20 m³", "50 m³", "100 m³", "200 m³", "300 m³"]
+
+
+def tanque_coluna(tam):
+    """Reservatório metálico tipo coluna (apoiado no chão, mais alto que largo)."""
+    v = float(tam.split()[0]) * 1e9
+    D = (4 * v / (3 * math.pi)) ** (1 / 3.0)            # H/D = 3
+    r, H = D / 2.0, 3.0 * D
+    zb = 300.0
+    zt = zb + H
+    partes = [(cilindro(r + 400, zb), "concreto"), (cilindro(r, H, base=(0, 0, zb)), "branco"),
+              (tubo(r + 6, r, 900, base=(0, 0, zt - 1500)), "azul_agua")]
+    z = zb + 2440
+    while z < zt - 300:
+        partes.append((toro(r, 5, c=(0, 0, z)), "cinza"))
+        z += 2440
+    partes.append((cone(r + 50, 120, D * 0.12, base=(0, 0, zt)), "branco"))
+    partes.append((toro(r + 30, 30, c=(0, 0, zt)), "branco"))
+    for i in range(12):                                 # cadeiras de ancoragem
+        a = 2 * math.pi * i / 12
+        cx, cy = (r + 90) * math.cos(a), (r + 90) * math.sin(a)
+        cad = caixa(180, 160, 350, x=cx, y=cy, z=zb)
+        cad.rotate(_V(cx, cy, 0), _V(0, 0, 1), math.degrees(a))
+        partes.append((cad, "branco"))
+        partes.append((sextavado(46, 30, base=(cx, cy, zb + 350)), "metal"))
+    # escada com gaiola até o teto, guarda-corpo no teto e alçapão
+    partes += _mover(escada_marinheiro(zb + 300, zt + 1100), dy=-r, ang=0)
+    partes += guarda_corpo_circular(r - 120, zt + D * 0.02)
+    partes.append((caixa(700, 700, 120, x=0, y=-r * 0.55, z=zt + D * 0.04), "branco"))
+    partes += _respiro(90, (0, 0, zt + D * 0.12), 450)
+    # entrada e saída flangeadas com válvula, ladrão descendo pela lateral, régua de nível
+    for ang, zz in ((90, zb + 600), (130, zb + 600)):
+        a = math.radians(ang)
+        ex, ey = math.cos(a), math.sin(a)
+        partes += _flange_tubo(90, 500, (r * ex, r * ey, zz), (ex, ey, 0))
+        partes.append((volante(110, 10, ((r + 300) * ex, (r + 300) * ey, zz + 260), (0, 0, 1)), "vermelho"))
+        partes.append((cilindro(16, 260, base=((r + 300) * ex, (r + 300) * ey, zz)), "metal"))
+    a = math.radians(220)
+    ex, ey = math.cos(a), math.sin(a)
+    partes.append((_barra(60, ((r + 150) * ex, (r + 150) * ey, zt - 400), ((r + 150) * ex, (r + 150) * ey, zb + 400)),
+                   "metal"))
+    partes.append((_barra(60, (r * ex, r * ey, zt - 400), ((r + 150) * ex, (r + 150) * ey, zt - 400)), "metal"))
+    a = math.radians(300)
+    for k in range(int(H / 1000)):
+        partes.append((caixa(120, 10, 12, x=(r + 8) * math.cos(a), y=(r + 8) * math.sin(a),
+                             z=zb + 500 + k * 1000), "escuro"))
+    partes.append((caixa(30, 30, H - 600, x=(r + 30) * math.cos(a), y=(r + 30) * math.sin(a), z=zb + 300),
+                   "escuro"))
+    return partes, {"Volume": tam, "Ø × altura do corpo": "%.0f × %.0f mm" % (D, H), "Medidas": NOTA_REPRESENTATIVA}
+
+
+TACA_M3 = {"15 m³": 10000, "30 m³": 12000, "50 m³": 15000, "100 m³": 15000, "200 m³": 18000}   # altura do fuste
+
+
+def _medidas_taca(v, rc):
+    """Diâmetro da taça: corpo cilíndrico de 0,5 D sobre fundo cônico até o fuste."""
+    def vol(D):
+        r = D / 2.0
+        hb = (r - rc) * 0.9
+        return math.pi * r * r * 0.5 * D + math.pi * hb / 3.0 * (r * r + r * rc + rc * rc)
+    lo, hi = 2 * rc + 100, 30000.0
+    for _ in range(60):
+        mid = (lo + hi) / 2.0
+        lo, hi = (mid, hi) if vol(mid) < v else (lo, mid)
+    return (lo + hi) / 2.0
+
+
+def tanque_taca(tam):
+    """Reservatório elevado tipo taça: fuste (coluna) com a taça em cima — fundo cônico, corpo e teto."""
+    v = float(tam.split()[0]) * 1e9
+    Hf = TACA_M3[tam]
+    rc = 650.0 if v <= 30e9 else 900.0
+    D = _medidas_taca(v, rc)
+    r = D / 2.0
+    hb = (r - rc) * 0.9
+    zf = 500.0                                  # bloco de fundação
+    z1 = zf + Hf                                # começo do fundo cônico
+    z2 = z1 + hb
+    z3 = z2 + 0.5 * D
+    partes = [(caixa(rc * 2 + 1600, rc * 2 + 1600, zf), "concreto"),
+              (tubo(rc + 180, rc - 10, 35, base=(0, 0, zf)), "escuro"),
+              (cilindro(rc, Hf, base=(0, 0, zf)), "branco")]
+    for (xx, yy) in furos_em_circulo(12, rc + 110):
+        partes.append((sextavado(50, 35, base=(xx, yy, zf + 35)), "metal"))
+    partes.append((caixa(750, 40, 1950, y=-rc + 10, z=zf + 120), "escuro"))           # porta do fuste
+    partes.append((caixa(60, 30, 20, x=250, y=-rc - 15, z=zf + 1100), "metal"))
+    zz = zf + 3500
+    while zz < z1 - 1500:                                                           # janelinhas da escada interna
+        partes.append((caixa(300, 30, 450, y=-rc + 5, z=zz), "escuro"))
+        zz += 3500
+    partes.append((revolver([(0, z1), (rc, z1), (r, z2), (0, z2)]), "branco"))
+    partes.append((cilindro(r, 0.5 * D, base=(0, 0, z2)), "branco"))
+    partes.append((tubo(r + 6, r, 0.5 * D * 0.35, base=(0, 0, z3 - 0.5 * D * 0.45)), "azul_agua"))
+    partes.append((cone(r + 40, 150, 0.15 * D, base=(0, 0, z3)), "branco"))
+    partes.append((toro(r + 25, 25, c=(0, 0, z3)), "branco"))
+    # passarela em volta do corpo, com mãos-francesas e guarda-corpo
+    larg = 900.0
+    partes.append((tubo(r + larg, r, 45, base=(0, 0, z2 - 45)), "escuro"))
+    for i in range(12):
+        a = 2 * math.pi * i / 12
+        ex, ey = math.cos(a), math.sin(a)
+        rz = rc + (r - rc) * 0.55
+        partes.append((_barra(35, ((r + larg - 80) * ex, (r + larg - 80) * ey, z2 - 45),
+                                (rz * ex, rz * ey, z1 + hb * 0.55)), "escuro"))
+    partes += guarda_corpo_circular(r + larg - 40, z2)
+    # escada do corpo, da passarela ao teto, e guarda-corpo no teto
+    partes += _mover(escada_marinheiro(z2, z3 + 1100), dy=-r, ang=0)
+    partes += guarda_corpo_circular(r - 150, z3 + 0.015 * D)
+    partes.append((caixa(650, 650, 110, y=-r * 0.6, z=z3 + 0.04 * D), "branco"))
+    # tubo de descida pelo fuste, para-raios e luz de balizamento
+    partes.append((_barra(110, (rc + 130, 0, zf + 200), (rc + 130, 0, z1 + 150)), "metal"))
+    partes.append((cilindro(30, 1800, base=(0, 0, z3 + 0.15 * D)), "metal"))
+    partes.append((esfera(110, c=(0, 0, z3 + 0.15 * D + 1850)), "vermelho"))
+    return partes, {"Volume": tam, "Ø da taça": "%.0f mm" % D, "Altura total": "%.1f m" % ((z3 + 0.15 * D) / 1000.0),
+                    "Altura do fuste": "%.0f mm" % Hf, "Medidas": NOTA_REPRESENTATIVA}
+
+
+TORRE_M3 = {"5 m³": 6000, "10 m³": 8000, "20 m³": 10000, "30 m³": 12000}    # altura da plataforma
+
+
+def tanque_torre(tam):
+    """Reservatório elevado sobre torre metálica de quatro pés, com plataforma, escada e guarda-corpo."""
+    v = float(tam.split()[0]) * 1e9
+    Ht = TORRE_M3[tam]
+    D = (4 * v / (0.85 * math.pi)) ** (1 / 3.0)        # corpo com H = 0,85 D
+    r, Hc = D / 2.0, 0.85 * D
+    a2 = r + 800.0                                     # meia largura da plataforma
+    b1 = a2 - 300.0                                    # pés no topo
+    b0 = b1 + Ht * 0.06                                # e no chão (abertos)
+    partes = []
+    pes = [(sx * b0, sy * b0, sx * b1, sy * b1) for sx in (-1, 1) for sy in (-1, 1)]
+    for x0, y0, x1, y1 in pes:
+        partes.append((_barra(84, (x0, y0, 300), (x1, y1, Ht)), "metal"))
+        partes.append((caixa(900, 900, 300, x=x0, y=y0), "concreto"))
+        partes.append((caixa(400, 400, 25, x=x0, y=y0, z=300), "metal"))
+    # contraventamento: anéis horizontais e X em cada face, por painel de ~3 m
+    niveis = [300 + (Ht - 300) * k / max(1, int(Ht / 3000)) for k in range(int(Ht / 3000) + 1)]
+    def pe_em(sx, sy, z):
+        t = (z - 300) / (Ht - 300)
+        b = b0 + (b1 - b0) * t
+        return (sx * b, sy * b, z)
+    faces = [((-1, -1), (1, -1)), ((1, -1), (1, 1)), ((1, 1), (-1, 1)), ((-1, 1), (-1, -1))]
+    for za, zb_ in zip(niveis, niveis[1:]):
+        for (s0, s1) in faces:
+            partes.append((_barra(38, pe_em(*s0, zb_), pe_em(*s1, zb_)), "metal"))
+            partes.append((_barra(22, pe_em(*s0, za), pe_em(*s1, zb_)), "metal"))
+            partes.append((_barra(22, pe_em(*s1, za), pe_em(*s0, zb_)), "metal"))
+    # plataforma, guarda-corpo (aberto na escada) e o reservatório
+    partes.append((caixa(2 * a2, 2 * a2, 160, z=Ht), "escuro"))
+    partes += guarda_corpo_retangular(2 * a2 - 60, 2 * a2 - 60, Ht + 160, abertura=("-y", 700))
+    zc = Ht + 160
+    partes.append((cilindro(r, Hc, base=(0, 0, zc)), "branco"))
+    partes.append((tubo(r + 6, r, Hc * 0.25, base=(0, 0, zc + Hc * 0.6)), "azul_agua"))
+    partes.append((cone(r + 40, 120, 0.12 * D, base=(0, 0, zc + Hc)), "branco"))
+    partes.append((toro(r + 20, 22, c=(0, 0, zc + Hc)), "branco"))
+    partes.append((caixa(600, 600, 100, y=-r * 0.55, z=zc + Hc + 0.04 * D), "branco"))
+    partes += _respiro(70, (r * 0.35, 0, zc + Hc + 0.06 * D), 350)
+    # escadas: do chão à plataforma (fora da torre) e da plataforma ao teto (no corpo)
+    partes += _mover(escada_marinheiro(300, Ht + 160 + 1100, afast=180), dy=-(a2 + 30))
+    for zz in niveis[1:-1]:
+        partes.append((_barra(18, (0, -(a2 + 210), zz), pe_em(0, -1, zz)), "escuro"))
+    partes += _mover(escada_marinheiro(zc, zc + Hc + 1100, gaiola=Hc > 3000), dy=r, ang=180)
+    # tubo de descida pelo pé
+    x0, y0, x1, y1 = pes[3]
+    partes.append((_barra(60, (x1 * 0.9, y1 * 0.9, Ht), (x0 * 0.95, y0 * 0.95, 300)), "metal"))
+    partes.append((_barra(60, (x1 * 0.9, y1 * 0.9, Ht), (r * 0.5, r * 0.5, zc)), "metal"))
+    return partes, {"Volume": tam, "Ø × altura do reservatório": "%.0f × %.0f mm" % (D, Hc),
+                    "Altura da plataforma": "%.0f mm" % Ht, "Medidas": NOTA_REPRESENTATIVA}
+
+
+GALAO_L = {"10 L": (230, 390), "20 L": (275, 490)}
+
+
+def galao(tam):
+    """Galão (garrafão) de água mineral, com alça e tampa."""
+    r, h = GALAO_L[tam]
+    r /= 2.0
+    corpo = revolver([(0, 0), (r * 0.92, 0), (r, r * 0.12), (r, h * 0.62), (r * 0.9, h * 0.72),
+                      (r * 0.32, h * 0.88), (r * 0.27, h * 0.94), (0, h * 0.94)])
+    partes = [(corpo, "agua")]
+    for f in (0.18, 0.32, 0.46):
+        partes.append((toro(r, r * 0.03, c=(0, 0, h * f)), "agua"))
+    partes.append((cilindro(r * 0.3, h * 0.07, base=(0, 0, h * 0.93)), "azul_agua"))
+    partes.append((cilindro(r * 0.33, h * 0.02, base=(0, 0, h * 0.93)), "azul_agua"))
+    alca = toro(r * 0.28, r * 0.05, c=(0, r * 0.38, h * 0.8), eixo=(1, 0, 0))
+    partes.append((alca, "agua"))
+    return partes, {"Volume": tam, "Ø × altura": "%.0f × %.0f mm" % (2 * r, h), "Medidas": NOTA_REPRESENTATIVA}
+
+
+BOMBONA_L = {"50 L": (390, 590), "100 L": (470, 750), "200 L": (585, 935)}
+
+
+def bombona(tam):
+    """Bombona plástica de tampa fechada (dois bocais), com os anéis de rolamento."""
+    d, h = BOMBONA_L[tam]
+    r = d / 2.0
+    corpo = revolver([(0, 0), (r * 0.9, 0), (r, h * 0.05), (r, h * 0.95), (r * 0.9, h), (0, h)])
+    partes = [(corpo, "azul_agua")]
+    for f in (0.33, 0.67):
+        partes.append((toro(r, h * 0.012, c=(0, 0, h * f)), "azul_agua"))
+    partes.append((toro(r * 0.92, h * 0.015, c=(0, 0, h)), "azul_agua"))
+    for x, rr in ((r * 0.55, r * 0.17), (-r * 0.55, r * 0.11)):
+        partes.append((cilindro(rr, h * 0.035, base=(x, 0, h - 2)), "escuro"))
+    return partes, {"Volume": tam, "Ø × altura": "%.0f × %.0f mm" % (d, h), "Medidas": NOTA_REPRESENTATIVA}
+
+
+TAMBOR_L = {"100 L": (465, 640), "200 L": (585, 880)}
+
+
+def tambor(tam):
+    """Tambor metálico (bocais de 2" e ¾" na tampa), com os frisos de rolamento e as bordas."""
+    d, h = TAMBOR_L[tam]
+    r = d / 2.0
+    partes = [(cilindro(r, h - 20, base=(0, 0, 10)), "maquina"),
+              (cilindro(r - 15, 10, base=(0, 0, h - 10)), "maquina"),
+              (cilindro(r - 15, 10, base=(0, 0, 0)), "maquina")]
+    for zz in (10, h - 10):
+        partes.append((toro(r - 4, 9, c=(0, 0, zz)), "maquina"))
+    for f in (0.34, 0.66):
+        partes.append((toro(r, 9, c=(0, 0, h * f)), "maquina"))
+    for x, rr in ((r * 0.62, 32), (-r * 0.62, 18)):
+        partes.append((cilindro(rr, 14, base=(x, 0, h - 12)), "metal"))
+        partes.append((sextavado(rr * 1.4, 8, base=(x, 0, h + 2)), "metal"))
+    partes.append((tubo(r + 1, r - 1, h * 0.28, base=(0, 0, h * 0.38)), "branco"))     # rótulo
+    return partes, {"Volume": tam, "Ø × altura": "%.0f × %.0f mm" % (d, h), "Medidas": NOTA_REPRESENTATIVA}
+
+
+def ibc(tam):
+    """Contêiner IBC: frasco de polietileno na gaiola de tubo galvanizado, sobre palete, com válvula."""
+    C, L, A = 1200.0, 1000.0, 1160.0
+    zp = 150.0
+    partes = [(caixa(C, L, 30, z=zp - 30), "escuro")]
+    for x in (-C / 2 + 80, 0, C / 2 - 80):
+        for y in (-L / 2 + 80, 0, L / 2 - 80):
+            partes.append((caixa(140, 140, zp - 30, x=x, y=y), "escuro"))
+    frasco = caixa_r(C - 60, L - 50, A - zp - 60, 70, z=zp)
+    partes.append((frasco, "polietileno"))
+    # gaiola: quatro anéis horizontais e verticais em cada face
+    cx, cy = C / 2.0 - 15, L / 2.0 - 15
+    for k in range(4):
+        z = zp + 40 + k * (A - zp - 60) / 3.0
+        for (x0, y0), (x1, y1) in (((-cx, -cy), (cx, -cy)), ((cx, -cy), (cx, cy)), ((cx, cy), (-cx, cy)),
+                                   ((-cx, cy), (-cx, -cy))):
+            partes.append((_barra(10, (x0, y0, z), (x1, y1, z)), "metal"))
+    for i in range(7):
+        x = -cx + i * 2 * cx / 6.0
+        for y in (-cy, cy):
+            partes.append((_barra(10, (x, y, zp + 40), (x, y, A - 20)), "metal"))
+    for i in range(6):
+        y = -cy + i * 2 * cy / 5.0
+        for x in (-cx, cx):
+            partes.append((_barra(10, (x, y, zp + 40), (x, y, A - 20)), "metal"))
+    partes.append((cilindro(80, 40, base=(0, 0, A - 60)), "polietileno"))
+    partes.append((cilindro(90, 30, base=(0, 0, A - 25)), "escuro"))
+    # válvula de saída DN50 na frente, embaixo
+    partes.append((cilindro(40, 120, base=(0, -L / 2 + 30, zp + 70), eixo=(0, -1, 0)), "escuro"))
+    partes.append((caixa(110, 90, 110, y=-L / 2 - 130, z=zp + 15), "escuro"))
+    partes.append((caixa(30, 25, 160, x=0, y=-L / 2 - 130, z=zp + 125), "laranja"))
+    partes.append((caixa(250, 4, 160, x=-300, y=-L / 2 + 22, z=A - 340), "branco"))     # placa de identificação
+    return partes, {"Volume": tam, "C × L × A": "%.0f × %.0f × %.0f mm" % (C, L, A), "Medidas": NOTA_REPRESENTATIVA}
+
+
+TORRE_RET_TR = ["50 TR", "100 TR", "200 TR", "400 TR"]
+
+
+def torre_retangular(tam):
+    """Torre de resfriamento retangular (PRFV, tiragem induzida): bacia, casco nervurado, venezianas, chaminé
+    do ventilador com tela, motor, entrada de água quente, escada e guarda-corpo no topo."""
+    tr = float(tam.split()[0])
+    area = 0.08e6 * tr                         # ~0,08 m² de planta por TR (representativo)
+    C = math.sqrt(area * 1.1)
+    L = area / C
+    H = 2600 + 100 * math.sqrt(tr)
+    rf = 0.32 * min(C, L)
+    hb = 450.0
+    partes = [(caixa(C + 250, L + 250, hb), "prfv"), (caixa(C, L, H - hb, z=hb), "prfv"),
+              (caixa(C + 60, L + 60, 90, z=H), "prfv")]
+    for x in [-C / 2 + k * C / max(2, int(C / 650)) for k in range(int(C / 650) + 1)]:
+        for s in (-1, 1):
+            partes.append((caixa(45, 30, H - hb - 60, x=x, y=s * (L / 2 + 15), z=hb + 30), "prfv"))
+    for y in [-L / 2 + k * L / max(2, int(L / 650)) for k in range(int(L / 650) + 1)]:
+        for s in (-1, 1):
+            partes.append((caixa(30, 45, H - hb - 60, x=s * (C / 2 + 15), y=y, z=hb + 30), "prfv"))
+    # venezianas de entrada de ar nos dois lados maiores
+    alt_v = 0.42 * (H - hb)
+    n = int(alt_v / 90)
+    for lado in (-1, 1):
+        partes += _veneziana(C - 120, 2000.0, n, 0, lado * (L / 2 + 40), hb + 120, lado)
+        partes.append((caixa(C - 60, 20, alt_v + 60, y=lado * (L / 2 + 5), z=hb + 90), "escuro"))
+    # chaminé do ventilador, tela, motor e hélice
+    zt = H + 90
+    hc = 0.45 * rf + 500
+    partes.append((tubo(rf + 25, rf, hc, base=(0, 0, zt)), "prfv"))
+    partes.append((toro(rf + 25, 40, c=(0, 0, zt + hc)), "prfv"))
+    for k in (0.35, 0.65, 0.95):
+        partes.append((toro(rf * k, 6, c=(0, 0, zt + hc + 20)), "metal"))
+    for i in range(8):
+        a = math.pi * i / 4
+        partes.append((_barra(8, (0, 0, zt + hc + 20), (rf * math.cos(a), rf * math.sin(a), zt + hc + 20)), "metal"))
+    partes.append((caixa(2 * rf, 160, 180, z=zt + hc - 520), "escuro"))           # ponte do motor
+    partes.append((cilindro(rf * 0.15, min(rf * 0.35, 300), base=(0, 0, zt + hc - 340)), "maquina"))
+    partes.append((cilindro(rf * 0.1, 140, base=(0, 0, zt + hc - 520), eixo=(0, 0, -1)), "escuro"))
+    for i in range(6):
+        pa = caixa(rf * 0.85, rf * 0.16, 18, x=rf * 0.5, z=zt + 120)
+        pa.rotate(_V(0, 0, zt + 120), _V(1, 0, 0), 12)
+        pa.rotate(_V(0, 0, 0), _V(0, 0, 1), 60 * i)
+        partes.append((pa, "escuro"))
+    partes.append((cilindro(rf * 0.12, 160, base=(0, 0, zt + 60)), "escuro"))
+    # água quente: tubo subindo pela lateral até o barrilete no topo; água fria sai da bacia
+    rt = max(60.0, 0.012 * C)
+    x_t = C / 2 + 260
+    partes.append((_barra(rt, (x_t, L * 0.25, 300), (x_t, L * 0.25, H - 250)), "metal"))
+    partes.append((_barra(rt, (x_t, L * 0.25, H - 250), (C / 2 - 50, L * 0.25, H - 250)), "metal"))
+    partes += _flange_tubo(rt, 1, (x_t, L * 0.25, 300), (0, 0, -1))
+    partes += _flange_tubo(rt * 1.2, 300, (C / 2 + 125, -L * 0.25, hb * 0.45), (1, 0, 0))
+    partes.append((cilindro(22, 220, base=(-C / 2 - 125, L * 0.3, hb * 0.7), eixo=(-1, 0, 0)), "metal"))   # reposição
+    # escada com gaiola até o topo e guarda-corpo em volta
+    partes += _mover(escada_marinheiro(0, zt + 1100), dx=-C / 2 - 125, ang=-90)
+    partes += guarda_corpo_retangular(C + 20, L + 20, zt)
+    return partes, {"Capacidade": "%s (toneladas de refrigeração)" % tam,
+                    "C × L × A": "%.0f × %.0f × %.0f mm" % (C + 250, L + 250, zt + hc),
+                    "Ø do ventilador": "%.0f mm" % (2 * rf), "Medidas": NOTA_REPRESENTATIVA}
+
+
+TORRE_CIRC_TR = ["10 TR", "30 TR", "60 TR", "100 TR", "150 TR"]
+
+
+def torre_circular(tam):
+    """Torre de resfriamento circular (PRFV, contracorrente): bacia, anel de venezianas, corpo nervurado,
+    cúpula, ventilador com tela e motor, tubo de água quente e escada."""
+    tr = float(tam.split()[0])
+    D = 1300.0 * (tr / 10.0) ** 0.45
+    H = 900.0 + 0.75 * D
+    r = D / 2.0
+    hb = 0.12 * H
+    hv = 0.22 * H
+    rf = 0.4 * D
+    partes = [(revolver([(0, 0), (r * 1.08, 0), (r * 1.12, hb), (0, hb)]), "prfv"),
+              (toro(r * 1.12, 20, c=(0, 0, hb)), "prfv")]
+    # anel de entrada de ar: aletas horizontais e montantes
+    n = int(hv / 70)
+    for k in range(n):
+        partes.append((tubo(r + 20, r - 5, 28, base=(0, 0, hb + 30 + k * 70)), "escuro"))
+    for i in range(16):
+        a = 2 * math.pi * i / 16
+        partes.append((caixa(50, 50, hv, x=r * math.cos(a), y=r * math.sin(a), z=hb), "prfv"))
+    zc = hb + hv
+    hcorpo = H - zc - 0.18 * D
+    partes.append((cilindro(r, hcorpo, base=(0, 0, zc)), "prfv"))
+    for i in range(20):
+        a = 360.0 * i / 20
+        nerv = caixa(30, 40, hcorpo, x=r + 10, z=zc)
+        nerv.rotate(_V(0, 0, 0), _V(0, 0, 1), a)
+        partes.append((nerv, "prfv"))
+    zd = zc + hcorpo
+    partes.append((cone(r, rf + 30, 0.18 * D, base=(0, 0, zd)), "prfv"))
+    ztopo = zd + 0.18 * D
+    partes.append((tubo(rf + 30, rf, 0.12 * D, base=(0, 0, ztopo)), "prfv"))
+    zg = ztopo + 0.12 * D
+    for k in (0.3, 0.6, 0.95):
+        partes.append((toro(rf * k, 5, c=(0, 0, zg)), "metal"))
+    for i in range(8):
+        a = math.pi * i / 4
+        partes.append((_barra(7, (0, 0, zg), (rf * math.cos(a), rf * math.sin(a), zg)), "metal"))
+    partes.append((caixa(2 * rf, 120, 120, z=zg + 10), "escuro"))
+    partes.append((caixa(120, 2 * rf, 120, z=zg + 10), "escuro"))
+    partes.append((cilindro(rf * 0.16, rf * 0.4, base=(0, 0, zg + 130)), "maquina"))
+    partes.append((cilindro(rf * 0.18, 30, base=(0, 0, zg + 130 + rf * 0.4)), "maquina"))
+    for i in range(4):
+        pa = caixa(rf * 0.8, rf * 0.18, 15, x=rf * 0.48, z=ztopo + 60)
+        pa.rotate(_V(0, 0, ztopo + 60), _V(1, 0, 0), 14)
+        pa.rotate(_V(0, 0, 0), _V(0, 0, 1), 90 * i + 45)
+        partes.append((pa, "escuro"))
+    # tubo de água quente subindo pela lateral até o centro (aspersor) e saída de água fria na bacia
+    rt = max(40.0, 0.02 * D)
+    xt = r * 1.12 + 250
+    partes.append((_barra(rt, (xt, 0, 250), (xt, 0, zd + 0.05 * D)), "metal"))
+    partes.append((_barra(rt, (xt, 0, zd + 0.05 * D), (r * 0.8, 0, zd + 0.05 * D)), "metal"))
+    partes += _flange_tubo(rt, 1, (xt, 0, 250), (0, 0, -1))
+    partes += _flange_tubo(rt * 1.2, 280, (0, -r * 1.1, hb * 0.4), (0, -1, 0))
+    # escada até o topo
+    partes += _mover(escada_marinheiro(0, ztopo + 900, gaiola=H > 3000, afast=r * 1.12 - r + 250), dx=-r,
+                     ang=-90)
+    return partes, {"Capacidade": "%s (toneladas de refrigeração)" % tam,
+                    "Ø × altura": "%.0f × %.0f mm" % (2 * r * 1.12, zg), "Ø do ventilador": "%.0f mm" % (2 * rf),
+                    "Medidas": NOTA_REPRESENTATIVA}
+
+
 # ------------------------------------------------------------------ catálogo
 # categoria -> [(id do modelo, nome, tamanhos, função(tamanho) -> (partes, informações))]
 CATALOGO = [
@@ -1372,6 +1976,23 @@ CATALOGO = [
     ("altura", "Trabalho em altura", [
         ("trole", "Trole para viga I (ancoragem móvel)", list(TROLE), trole),
     ]),
+    ("agua", "Reservatórios de água", [
+        ("caixa_dagua", "Caixa d'água de polietileno", CAIXA_DAGUA_L, caixa_dagua),
+        ("tanque_taca", "Reservatório elevado tipo taça", list(TACA_M3), tanque_taca),
+        ("tanque_coluna", "Reservatório metálico tipo coluna", TANQUE_COLUNA_M3, tanque_coluna),
+        ("tanque_torre", "Reservatório elevado sobre torre metálica", list(TORRE_M3), tanque_torre),
+        ("tanque_horizontal", "Tanque horizontal sobre berços", TANQUE_H_M3, tanque_horizontal),
+    ]),
+    ("recipientes", "Galões, tambores e IBC", [
+        ("galao", "Galão de água (garrafão)", list(GALAO_L), galao),
+        ("bombona", "Bombona plástica", list(BOMBONA_L), bombona),
+        ("tambor", "Tambor metálico", list(TAMBOR_L), tambor),
+        ("ibc", "Contêiner IBC (frasco na gaiola, sobre palete)", ["1000 L"], ibc),
+    ]),
+    ("resfriamento", "Torres de resfriamento", [
+        ("torre_retangular", "Torre de resfriamento retangular", TORRE_RET_TR, torre_retangular),
+        ("torre_circular", "Torre de resfriamento circular", TORRE_CIRC_TR, torre_circular),
+    ]),
     ("ar", "Ar comprimido", [
         ("frl", "Conjunto filtro, regulador e lubrificador (FRL)", list(ROSCAS), frl),
         ("purgador", "Purgador eletrônico de condensado", ["padrão"], purgador),
@@ -1399,7 +2020,7 @@ UNIDADE_TAMANHO = {"compressor_pistao": "L", "compressor_parafuso": "kW", "calde
                    "secador_refrigeracao": "m³/min", "secador_adsorcao": "m³/min", "reservatorio": "L",
                    "valvula_esfera": "DN", "valvula_gaveta": "DN", "valvula_globo": "DN", "valvula_retencao": "DN",
                    "valvula_borboleta": "DN", "bomba": "DN", "ventilador": "mm", "motor_iec": "carcaça",
-                   "rolamento_esferas": "série"}
+                   "rolamento_esferas": "série", "torre_retangular": "TR", "torre_circular": "TR"}
 MODELOS = {m[0]: (cat, m) for cat, _n, ms in CATALOGO for m in ms}
 
 
@@ -1524,8 +2145,8 @@ def aplicar_cores(obj):
                 brilho, refl = ACABAMENTO.get(nome, (0.25, (0.35, 0.35, 0.35)))
                 m.Shininess = brilho
                 m.SpecularColor = refl
-                if nome == "transparente":
-                    m.Transparency = 0.55
+                if nome in TRANSPARENCIA:
+                    m.Transparency = TRANSPARENCIA[nome]
                 mats.append(m)
             obj.ViewObject.ShapeAppearance = mats
     except Exception:
@@ -1547,7 +2168,8 @@ def inserir(doc, modelo, tamanho, posicao=None):
 
 
 # ------------------------------------------------------------------ janela e comandos
-ICONE_CATEGORIA = {"incendio": "comp_extintor.svg", "icamento": "comp_talha.svg", "motores": "comp_motor.svg", "compressores": "comp_compressor.svg",
+ICONE_CATEGORIA = {"agua": "comp_agua.svg", "recipientes": "comp_tambor.svg", "resfriamento": "comp_torre.svg",
+                   "incendio": "comp_extintor.svg", "icamento": "comp_talha.svg", "motores": "comp_motor.svg", "compressores": "comp_compressor.svg",
                    "valvulas": "comp_valvula.svg", "caldeiras": "comp_caldeira.svg", "altura": "comp_trole.svg",
                    "ar": "comp_ar.svg", "secadores": "comp_secador.svg", "pessoas": "comp_pessoa.svg",
                    "transmissao": "comp_rolamento.svg", "outros": "comp_outros.svg"}

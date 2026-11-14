@@ -35,12 +35,14 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.16.0** (13/11/2026)
+**Versão atual: 1.17.0** (14/11/2026)
 
-- **Padrão de estrutura:** repete a estrutura soldada inteira em linha ou em volta de um eixo (vários pórticos,
-  mesas iguais), com "distância entre eles" ou "distância total"; as listas de materiais e de corte contam as
-  cópias.
-- **Símbolo de solda arrastável:** sem cadeado; arraste o símbolo e a ponta da seta fica na aresta.
+- **Reservatórios e torres de resfriamento na aba Componentes:** caixa d'água, reservatório tipo taça, tipo
+  coluna e sobre torre metálica, tanque horizontal, galões, bombonas, tambores, IBC e torres de resfriamento
+  retangular e circular, em escala real.
+
+Na 1.16.0: Padrão de estrutura (repete a estrutura inteira, contada nas listas) e símbolo de solda arrastável,
+sem cadeado.
 
 Na 1.15.2: vários enrijecedores de uma vez, com quantidade e espaçamento como no padrão linear.
 
@@ -184,7 +186,7 @@ Cada área tem a sua aba na faixa de ferramentas: não há menu de bancadas para
 | Vasos | Formulário ASME VIII-1, teste de pressão, desenho cotado, memorial NR-13 |
 | Desenho | Folhas ABNT com legenda brasileira e lista de materiais |
 | Materiais | Aços e ligas usados no Brasil, com norma e fonte em cada um |
-| Componentes | Motores, compressores, válvulas, caldeira, içamento, combate a incêndio, pessoas e mais, em escala real |
+| Componentes | Motores, compressores, válvulas, caldeira, reservatórios, torres de resfriamento, içamento, combate a incêndio, pessoas e mais, em escala real |
 | IA | Conectar IA: o Claude Desktop e outros assistentes MCP comandam o Usinix |
 | Base | FreeCAD 1.1: OpenCASCADE, Coin3D, Qt e Python, com tudo o que o FreeCAD oferece |
 
@@ -317,7 +319,8 @@ Todos os recursos
   13857:2021, com relatório e item na lista de materiais.
 
 * **Componentes** Biblioteca em escala real para leiautes: motores IEC, compressores, secadores, válvulas,
-  caldeira, talhas e trole, extintores, hidrantes e abrigos, rolamentos, quadros, paletes e pessoas.
+  caldeira, talhas e trole, extintores, hidrantes e abrigos, caixas d'água e reservatórios (taça, coluna,
+  torre), tambores e IBC, torres de resfriamento, rolamentos, quadros, paletes e pessoas.
 
 * **Do modelo para a fábrica** Folhas das barras e da chapa planificada, balões, cotas gerais com a furação,
   DXF de todas as chapas e lista de materiais e de corte em Excel.

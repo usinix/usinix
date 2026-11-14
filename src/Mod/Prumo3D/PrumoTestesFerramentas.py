@@ -18912,6 +18912,52 @@ class T140SoldaArrastavelNaFolha(unittest.TestCase):
         self.doc.recompute()
         self.assertTrue(all((a - b).Length < 1e-9 for a, b in zip(l.WayPoints, pts0)), "Desfazer volta")
 
+class T141ReservatoriosETorres(unittest.TestCase):
+    """1.17.0: "acrescente reservatórios nos componentes. Caixas d'água (coluna e de taça), galões, aquelas torres
+    de refrigeração, etc" — categorias Reservatórios de água; Galões, tambores e IBC; Torres de resfriamento."""
+
+    def test_categorias_e_escala(self):
+        import PrumoComponentes as C
+        cats = {c[0]: [m[0] for m in c[2]] for c in C.CATALOGO}
+        self.assertEqual(cats["agua"], ["caixa_dagua", "tanque_taca", "tanque_coluna", "tanque_torre",
+                                        "tanque_horizontal"])
+        self.assertEqual(cats["recipientes"], ["galao", "bombona", "tambor", "ibc"])
+        self.assertEqual(cats["resfriamento"], ["torre_retangular", "torre_circular"])
+        for cid in ("agua", "recipientes", "resfriamento"):
+            self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(C.__file__), "Resources", "icons",
+                                                        C.ICONE_CATEGORIA[cid])), cid)
+        bb = C.gerar("caixa_dagua", "1000 L")[0].BoundBox
+        self.assertTrue(1300 < bb.XLength < 1700 and 850 < bb.ZLength < 1150, "caixa de 1000 L: %s" % bb)
+        taca = C.gerar("tanque_taca", "30 m³")[0].BoundBox
+        self.assertGreater(taca.ZLength, 12000, "taça no alto do fuste")
+        col = C.gerar("tanque_coluna", "100 m³")[0].BoundBox
+        self.assertGreater(col.ZLength, 2.5 * min(col.XLength, col.YLength), "coluna: mais alta que larga")
+        ibc = C.gerar("ibc", "1000 L")[0].BoundBox
+        self.assertAlmostEqual(ibc.XLength, 1200, delta=5)
+        self.assertTrue(ibc.YLength >= 1000)
+        self.assertAlmostEqual(C.gerar("tambor", "200 L")[0].BoundBox.ZLength, 890, delta=15)
+        for mid in ("tanque_coluna", "tanque_taca", "torre_retangular", "torre_circular"):
+            tams = C.MODELOS[mid][1][2]
+            h0 = C.gerar(mid, tams[0])[0].BoundBox.ZLength
+            h1 = C.gerar(mid, tams[-1])[0].BoundBox.ZLength
+            self.assertGreater(h1, h0, "%s: maior tamanho, maior altura" % mid)
+
+    def test_galao_transparente(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoComponentes as C
+        doc = novo_doc("PrumoTesteReserv")
+        try:
+            o = C.inserir(doc, "galao", "20 L")
+            doc.recompute()
+            C.aplicar_cores(o)
+            mats = o.ViewObject.ShapeAppearance
+            self.assertEqual(len(mats), len(o.Shape.Faces))
+            self.assertGreater(max(m.Transparency for m in mats), 0.3, "garrafão translúcido")
+            self.assertLess(min(m.Transparency for m in mats), 0.05, "tampa opaca")
+        finally:
+            fechar(doc)
+
 
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
@@ -18955,4 +19001,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T131DadosDasPranchas, T132EnrijecedorPlaca,
            T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
            T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
-           T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha]
+           T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha,
+           T141ReservatoriosETorres]
