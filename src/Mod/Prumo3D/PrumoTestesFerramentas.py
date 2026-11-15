@@ -19458,6 +19458,17 @@ class T145PacotesExternos(unittest.TestCase):
             ids = [t["id"] for t in R.TABS]
             self.assertEqual(ids[ids.index("vasos") + 1], "teste")
             self.assertEqual(X.substituir_item("Prumo_Escada", "Prumo_Escada|Std_ViewFitAll"), 1)
+            if FreeCAD.GuiUp:
+                # comando de pacote, com outro prefixo, sem barra nem menu: o botão na faixa tem ação
+                class _Cmd:
+                    def GetResources(self):
+                        return {"MenuText": "Comando do pacote"}
+
+                    def Activated(self):
+                        pass
+                if "PacoteTeste_Cmd" not in FreeCADGui.listCommands():
+                    FreeCADGui.addCommand("PacoteTeste_Cmd", _Cmd())
+                self.assertTrue(R._acoes_de(["PacoteTeste_Cmd"]), "a aba do pacote saía vazia")
             cmds = [it[0] for t in R.TABS for _p, its in t["panels"] for it in its]
             self.assertIn("Prumo_Escada|Std_ViewFitAll", cmds)
         finally:

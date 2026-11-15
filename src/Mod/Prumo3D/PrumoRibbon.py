@@ -607,7 +607,9 @@ def _cmd_actions(name):
         acts = [a for a in (cmd.getAction() or []) if a is not None]
     except Exception:
         acts = []
-    if not acts and (name.startswith("Prumo_") or name.startswith("FEM_")):
+    if not acts:
+        # comandos Python sem barra nem menu (os do Usinix e os de pacotes externos, ex.: Usinix Pro) só têm ação
+        # depois de a bancada usá-los: sem ação o botão some da faixa
         acts = [_own_action(name, cmd)]
     for a in acts:
         # grupos do Python (Inserir componente, Juntar/dividir...) não dizem o nome do comando na ação
