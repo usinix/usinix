@@ -18640,13 +18640,14 @@ class T145PacotesExternos(unittest.TestCase):
             self.assertIn(("Pacote do teste", "2.1.0"), X.ativas())
             X.registrar("Pacote quebrado", "1.0", iniciar=lambda: 1 / 0)
             self.assertFalse(X.ativo("Pacote quebrado"))
-            X.adicionar_painel("vasos", ("Painel do teste", [("Std_ViewFitAll", R.L, "Teste")]), depois="Vaso de pressão")
-            vasos = [t for t in R.TABS if t["id"] == "vasos"][0]
-            self.assertEqual(vasos["panels"][1][0], "Painel do teste")
-            X.adicionar_aba({"id": "teste", "label": "Teste", "wb": None, "panels": []}, depois="vasos")
+            X.adicionar_painel("estruturas", ("Painel do teste", [("Std_ViewFitAll", R.L, "Teste")]),
+                               depois="Estrutura soldada")
+            est = [t for t in R.TABS if t["id"] == "estruturas"][0]
+            self.assertEqual(est["panels"][1][0], "Painel do teste")
+            X.adicionar_aba({"id": "teste", "label": "Teste", "wb": None, "panels": []}, depois="estruturas")
             ids = [t["id"] for t in R.TABS]
-            self.assertEqual(ids[ids.index("vasos") + 1], "teste")
-            self.assertEqual(X.substituir_item("Prumo_Escada", "Prumo_Escada|Std_ViewFitAll"), 1)
+            self.assertEqual(ids[ids.index("estruturas") + 1], "teste")
+            self.assertEqual(X.substituir_item("Prumo_Piso", "Prumo_Piso|Std_ViewFitAll"), 1)
             if FreeCAD.GuiUp:
                 # comando de pacote, com outro prefixo, sem barra nem menu: o botão na faixa tem ação
                 class _Cmd:
@@ -18659,7 +18660,7 @@ class T145PacotesExternos(unittest.TestCase):
                     FreeCADGui.addCommand("PacoteTeste_Cmd", _Cmd())
                 self.assertTrue(R._acoes_de(["PacoteTeste_Cmd"]), "a aba do pacote saía vazia")
             cmds = [it[0] for t in R.TABS for _p, its in t["panels"] for it in its]
-            self.assertIn("Prumo_Escada|Std_ViewFitAll", cmds)
+            self.assertIn("Prumo_Piso|Std_ViewFitAll", cmds)
         finally:
             R.TABS[:] = antes_tabs
             X.EXTENSOES[:] = antes_ext
