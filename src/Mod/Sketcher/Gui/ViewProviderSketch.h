@@ -53,6 +53,8 @@
 class TopoDS_Shape;
 class TopoDS_Face;
 class SoSeparator;
+class SoMaterial;
+class SoNotList;
 class SbLine;
 class SbVec2f;
 class SbVec3f;
@@ -113,6 +115,16 @@ public:
 
     SoSFColor color;
     SoSFFloat transparency;
+
+protected:
+    ~SoSketchFaces() override;
+    // Usinix: color/transparency go to the material here, without connectFrom. The SF->MF
+    // connection created a field converter engine, and a notification through it crashed
+    // (use after free) when leaving a sketch that changed while hidden (T63, 1.19.1).
+    void notify(SoNotList* list) override;
+
+private:
+    SoMaterial* material;
 };
 
 /** @brief The Sketch ViewProvider

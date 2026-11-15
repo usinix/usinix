@@ -35,7 +35,9 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.19.0** (15/11/2026)
+**Versão atual: 1.19.1** (15/11/2026): corrige a queda que às vezes acontecia ao sair de um esboço editado.
+
+Na 1.19.0:
 
 - **Clicou, abriu:** as ferramentas que pediam seleção antes agora abrem um painel que pede a seleção (como a
   Extrusão), e as juntas abrem a montagem sozinhas.

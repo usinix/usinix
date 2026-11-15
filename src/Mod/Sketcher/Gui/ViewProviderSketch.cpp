@@ -28,7 +28,9 @@
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
 #include <Inventor/details/SoPointDetail.h>
 #include <Inventor/events/SoKeyboardEvent.h>
+#include <Inventor/misc/SoNotification.h>
 #include <Inventor/nodes/SoCamera.h>
+#include <Inventor/nodes/SoMaterial.h>
 #include <Inventor/nodes/SoShapeHints.h>
 
 #include <QApplication>
@@ -502,15 +504,18 @@ QString ViewProviderSketch::ToolManager::getToolWidgetText() const
 
 SO_NODE_SOURCE(SoSketchFaces);
 
-SoSketchFaces::SoSketchFaces(){
+SoSketchFaces::SoSketchFaces()
+    : material(new SoMaterial)
+{
     SO_NODE_CONSTRUCTOR(SoSketchFaces);
 
     SO_NODE_ADD_FIELD(color, (SbColor(1.0f, 1.0f, 1.0f)));
     SO_NODE_ADD_FIELD(transparency, (0.8));
-    //
-    auto* material = new SoMaterial;
-    material->diffuseColor.connectFrom(&color);
-    material->transparency.connectFrom(&transparency);
+
+    // Usinix: no connectFrom (see notify); the node keeps its own reference to the material
+    material->ref();
+    material->diffuseColor.setValue(color.getValue());
+    material->transparency.setValue(transparency.getValue());
 
     // Enable two-sided lighting so faces are visible from both sides
     auto* shapeHints = new SoShapeHints;
@@ -527,6 +532,23 @@ SoSketchFaces::SoSketchFaces(){
 void SoSketchFaces::initClass()
 {
     SO_NODE_INIT_CLASS(SoSketchFaces, SoFCShape, "FCShape");
+}
+
+SoSketchFaces::~SoSketchFaces()
+{
+    material->unref();
+}
+
+void SoSketchFaces::notify(SoNotList* list)
+{
+    SoField* field = list ? list->getLastField() : nullptr;
+    if (field == &color) {
+        material->diffuseColor.setValue(color.getValue());
+    }
+    else if (field == &transparency) {
+        material->transparency.setValue(transparency.getValue());
+    }
+    inherited::notify(list);
 }
 
 /*************************** ViewProviderSketch **************************/

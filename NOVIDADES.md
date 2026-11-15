@@ -15,6 +15,16 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.19.1 — 15/11/2026
+
+![Esboço fechado depois de editado: sair do esboço não derruba mais o programa](.github/images/novidades/1.19.1.webp)
+
+### Correção
+
+- **Sair do esboço podia fechar o programa:** quando o esboço mudava durante a edição e você saía dele (Esc,
+  Fechar ou Cancelar), o Usinix às vezes caía. A queda vinha de dentro do FreeCAD, na ligação entre a cor das faces
+  do esboço e o material delas; essa ligação foi refeita no código do programa (C++).
+
 ## 1.19.0 — 15/11/2026
 
 ![Junta inteligente: o clique abre o painel que mostra o que já foi escolhido](.github/images/novidades/1.19.0.webp)

@@ -19225,6 +19225,65 @@ class T143FerramentaAbreAoClicar(unittest.TestCase):
         self.assertEqual(S.comando_pelo_texto(txt[0]), "Part_JoinConnect", txt)
 
 
+class T144FacesDoEsbocoSemMotor(unittest.TestCase):
+    """1.19.1 (queda do T63): as faces do esboço levavam cor e transparência ao material por connectFrom de campo
+    simples para campo múltiplo, o que cria um motor conversor no Coin; ao sair de um esboço que mudou enquanto
+    estava oculto, a notificação passava por esse motor e lia memória já liberada. Agora o próprio nó repassa."""
+
+    _esp = T62PainelDeComando._esp
+
+    def _faces(self, sk):
+        from pivy import coin
+        sa = coin.SoSearchAction()
+        sa.setType(coin.SoType.fromName("SoSketchFaces"))
+        sa.setInterest(coin.SoSearchAction.ALL)
+        sa.apply(sk.ViewObject.RootNode)
+        self.assertGreaterEqual(sa.getPaths().getLength(), 1, "o esboço não tem o nó das faces")
+        no = sa.getPaths()[0].getTail()
+        mats = [coin.cast(no.getChild(i), "SoMaterial") for i in range(no.getNumChildren())
+                if no.getChild(i).isOfType(coin.SoMaterial.getClassTypeId())]
+        self.assertTrue(mats, "o nó das faces perdeu o material")
+        return no, mats[0]
+
+    def test_material_das_faces_sem_conexao_e_acompanha_a_aparencia(self):
+        import Part
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        doc = novo_doc("PrumoFacesEsboco")
+        try:
+            body = doc.addObject("PartDesign::Body", "Body")
+            sk = body.newObject("Sketcher::SketchObject", "Sketch")
+            V = FreeCAD.Vector
+            pts = [V(0, 0, 0), V(40, 0, 0), V(40, 30, 0), V(0, 30, 0)]
+            for i in range(4):
+                sk.addGeometry(Part.LineSegment(pts[i], pts[(i + 1) % 4]))
+            doc.recompute()
+            _no, mat = self._faces(sk)
+            self.assertFalse(mat.transparency.isConnected(), "transparência ligada por motor conversor")
+            self.assertFalse(mat.diffuseColor.isConnected(), "cor ligada por motor conversor")
+            sk.ViewObject.Transparency = 50
+            self.assertAlmostEqual(mat.transparency[0], 0.5, places=3)
+            # o caminho da queda: o esboço muda enquanto está oculto (em edição) e volta a aparecer ao sair
+            for i in range(12):
+                FreeCADGui.ActiveDocument.setEdit(sk.Name)
+                self._esp(0.3)
+                sk.addGeometry(Part.LineSegment(V(5 + i, 5, 0), V(10 + i, 20, 0)), True)
+                doc.recompute()
+                self._esp(0.1)
+                FreeCADGui.ActiveDocument.resetEdit()
+                self._esp(0.3)
+                sk.ViewObject.Transparency = 20 + i
+            _no, mat = self._faces(sk)
+            self.assertAlmostEqual(mat.transparency[0], 0.31, places=3)
+        finally:
+            try:
+                if FreeCADGui.ActiveDocument and FreeCADGui.ActiveDocument.getInEdit() is not None:
+                    FreeCADGui.ActiveDocument.resetEdit()
+            except Exception:
+                pass
+            fechar(doc)
+
+
 class T142PreviaDosComponentes(unittest.TestCase):
     """1.18.0: "quero que no modal dos componentes mostre o desenho do componente, para que eu visualize antes de
     inserir" — prévia 3D renderizada fora da tela, que gira com o mouse e acompanha modelo e tamanho."""
@@ -19330,4 +19389,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
            T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha,
            T141ReservatoriosETorres, T142PreviaDosComponentes,
-           T143FerramentaAbreAoClicar]
+           T143FerramentaAbreAoClicar, T144FacesDoEsbocoSemMotor]
