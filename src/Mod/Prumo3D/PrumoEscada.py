@@ -22,6 +22,9 @@ figura), itens 7 (travessão superior de 1,10 m a 1,20 m, intermediário a 0,70 
 espelho: largura útil 0,60 m, profundidade 0,15 m, altura até 0,25 m, 600 ≤ g + 2h ≤ 660 mm, patamar a cada
 3,00 m, projeção r ≥ 0) e 12 (com espelho: profundidade 0,20 m, altura de 0,20 m a 0,25 m). Lance único com
 menos de 1,50 m de altura: largura útil mínima de 0,50 m (11.1 e 12.1).
+
+Outros tipos de escada (1.19.2): pacotes externos (Usinix Pro) registram tipos com registrar_tipo(); o objeto
+guarda o tipo em TipoEscada e a escada, os degraus, a lista, o relatório e o painel passam a vez ao tipo.
 """
 
 import math
@@ -43,8 +46,44 @@ PARAMETROS = ("Posicao", "Desnivel", "Angulo", "LarguraUtil", "NumeroEspelhos", 
               "Sobreposicao", "PerfilBanzo", "ElevacaoBanzo", "LadosGuarda", "PerfilGuarda", "AlturaGuarda",
               "AlturaIntermediario", "EspacamentoMontantes", "Rodape", "AlturaRodape", "Material", "Patamares",
               "AlturaMaxLance", "ComprimentoPatamar", "FixacaoBanzos", "EspessuraChapa", "DiametroFuroChapa",
-              "Apoio", "PerfilPes", "VaoMaxPes", "ChapaPes")
+              "Apoio", "PerfilPes", "VaoMaxPes", "ChapaPes", "TipoEscada")
 DENS = 7850.0
+
+# ============================================================================ tipos de escada (registro)
+INDUSTRIAL = "Industrial (degraus e vigas)"
+_TIPOS = {}            # nome → objeto do tipo (ver registrar_tipo)
+
+
+def registrar_tipo(tipo):
+    """Registra um tipo de escada de um pacote externo. O objeto `tipo` tem:
+
+    nome, icone (caminho do .svg), padroes (dict de valores de partida ao criar e no painel: "LarguraUtil",
+    "AlturaMaxLance"...), parametros (nomes das propriedades que refazem a escada) e os métodos
+    propriedades(obj, add, enum), medidas(esc), executar(esc, mt) → (verificação [(ok, texto)], notas [texto]),
+    forma(esc, mt) → (sólido, itens), reconstruir(esc, mt), resumo(esc, mt), relatorio(esc, mt) e, no painel,
+    montar_painel(painel) → [seções], trocar_painel(painel), kw_painel(painel), carregar_painel(painel, obj),
+    pendencia_painel(painel)."""
+    _TIPOS[tipo.nome] = tipo
+
+
+def tipos():
+    """Nomes dos tipos disponíveis: a industrial e os registrados."""
+    return [INDUSTRIAL] + [n for n in _TIPOS]
+
+
+def tipo_nome(esc):
+    return getattr(esc, "TipoEscada", INDUSTRIAL) or INDUSTRIAL
+
+
+def tipo_de(esc):
+    """Objeto do tipo registrado da escada, ou None (industrial ou tipo de um pacote que não está instalado)."""
+    return _TIPOS.get(tipo_nome(esc))
+
+
+def tipo_ausente(esc):
+    """O nome do tipo quando a escada é de um tipo cujo pacote não está instalado (senão None)."""
+    t = tipo_nome(esc)
+    return t if t != INDUSTRIAL and t not in _TIPOS else None
 
 
 def _n(v, casas=0):
@@ -471,6 +510,18 @@ class Escada:
                 setattr(obj, nome, padrao)
         add("App::PropertyBool", "EscadaUsinix", "Escada", "Marca do objeto", True)
         obj.setEditorMode("EscadaUsinix", 2)
+        if "TipoEscada" not in obj.PropertiesList:
+            obj.addProperty("App::PropertyEnumeration", "TipoEscada", "Escada", "Tipo de escada")
+            obj.TipoEscada = tipos()
+            obj.TipoEscada = INDUSTRIAL
+        else:
+            atual = obj.TipoEscada
+            lista = tipos() + ([atual] if atual not in tipos() else [])
+            if list(obj.getEnumerationsOfProperty("TipoEscada")) != lista:
+                obj.TipoEscada = lista
+                obj.TipoEscada = atual
+        for t in _TIPOS.values():
+            t.propriedades(obj, add, enum)
         add("App::PropertyPlacement", "Posicao", "Escada", "Onde fica o pé da escada (sobe em +X local)")
         add("App::PropertyLength", "Desnivel", "Escada", "Altura do piso de baixo ao piso de cima", 2400.0)
         add("App::PropertyAngle", "Angulo", "Escada", "Inclinação da escada", 45.0)
@@ -530,7 +581,9 @@ class Escada:
 
     def onChanged(self, obj, prop):
         """Mudou um parâmetro no painel Propriedades: refaz as partes (fora do recálculo)."""
-        if prop not in PARAMETROS or not FreeCAD.GuiUp or "Banzos" not in obj.PropertiesList:
+        if prop not in PARAMETROS and not any(prop in getattr(t, "parametros", ()) for t in _TIPOS.values()):
+            return
+        if not FreeCAD.GuiUp or "Banzos" not in obj.PropertiesList:
             return
         if _chave(obj) in _OCUPADAS:
             return           # a própria escada está se refazendo (ou sendo criada)
@@ -555,6 +608,18 @@ class Escada:
         QtCore.QTimer.singleShot(0, refazer)
 
     def execute(self, obj):
+        falta = tipo_ausente(obj)
+        if falta:
+            obj.Conforme = False
+            obj.Verificacao = ["✗ Escada do tipo \"%s\": precisa do pacote que traz esse tipo (Usinix Pro)" % falta]
+            return
+        t = tipo_de(obj)
+        if t is not None:
+            mt = t.medidas(obj)
+            v, notas = t.executar(obj, mt)
+            obj.Conforme = all(ok for ok, _t in v)
+            obj.Verificacao = [("✓ " if ok else "✗ ") + x for ok, x in v] + ["ℹ " + x for x in notas]
+            return
         m = Medidas(obj)
         obj.AlturaEspelho = m.h
         obj.ProfundidadeLivre = m.g
@@ -567,26 +632,47 @@ class Escada:
         obj.Verificacao = [("✓ " if ok else "✗ ") + t for ok, t in v]
 
 
+def link_oculto(obj, nome, grupo, doc):
+    """Troca um App::PropertyLink antigo por App::PropertyLinkHidden (arquivos de versões anteriores)."""
+    try:
+        if obj.getTypeIdOfProperty(nome) != "App::PropertyLink":
+            return
+        alvo = getattr(obj, nome)
+        obj.removeProperty(nome)
+        obj.addProperty("App::PropertyLinkHidden", nome, grupo, doc)
+        setattr(obj, nome, alvo)
+    except Exception as exc:
+        FreeCAD.Console.PrintWarning("Usinix: %s: %s\n" % (obj.Name, exc))
+
+
 class Degraus:
     """Degraus e rodapés da escada (uma peça só no modelo; na lista, um item por tipo com a quantidade)."""
 
     def __init__(self, obj):
         obj.Proxy = self
+        # link oculto: a escada (grupo) já depende dos degraus; um link comum de volta fecharia um ciclo
+        # ("The graph must be a DAG") e deixava os degraus sempre por recalcular
         if "Escada" not in obj.PropertiesList:
-            obj.addProperty("App::PropertyLink", "Escada", "Degraus", "Escada a que pertence")
+            obj.addProperty("App::PropertyLinkHidden", "Escada", "Degraus", "Escada a que pertence")
         if "Itens" not in obj.PropertiesList:
             obj.addProperty("App::PropertyStringList", "Itens", "Degraus", "Itens para a lista de materiais")
             obj.setEditorMode("Itens", 1)
 
     def onDocumentRestored(self, obj):
         obj.Proxy = self
+        link_oculto(obj, "Escada", "Degraus", "Escada a que pertence")
 
     def execute(self, obj):
         esc = obj.Escada
         if esc is None:
             return
-        m = Medidas(esc)
-        sh, itens = forma_degraus(esc, m)
+        if tipo_ausente(esc):
+            return
+        t = tipo_de(esc)
+        if t is not None:
+            sh, itens = t.forma(esc, t.medidas(esc))
+        else:
+            sh, itens = forma_degraus(esc, Medidas(esc))
         obj.Shape = sh
         obj.Placement = esc.Posicao
         import json
@@ -632,8 +718,76 @@ def reconstruir(esc):
         _OCUPADAS.discard(k)
 
 
+def _parte_estrutura(esc, esq_prop, est_prop, linhas, perfil, rotulo_esq, rotulo, giro=0.0):
+    """Cria ou atualiza uma estrutura da escada a partir das linhas (locais); linhas vazias apagam a parte."""
+    import PrumoEstrutura as E
+    doc = esc.Document
+    pl = esc.Posicao
+    esq, est = getattr(esc, esq_prop), getattr(esc, est_prop)
+    if not linhas:
+        if est is not None:
+            _apagar_estrutura(est)
+            setattr(esc, est_prop, None)
+        if esq is not None:
+            doc.removeObject(esq.Name)
+            setattr(esc, esq_prop, None)
+        return None
+    if esq is None:
+        esq = doc.addObject("Part::Feature", "Esqueleto")
+        esq.Label = rotulo_esq
+        setattr(esc, esq_prop, esq)
+        esc.addObject(esq)
+    velho = esq.Shape
+    esq.Shape = _arame(linhas, pl)
+    if est is not None and len(velho.Edges) != len(esq.Shape.Edges):
+        _apagar_estrutura(est)
+        est = None
+    if est is None:
+        est = E.criar(doc, esq, perfil, rotacao=giro, transacao=False, material=esc.Material)
+        setattr(esc, est_prop, est)
+        esc.addObject(est)
+    else:
+        est.Perfil = perfil
+        est.Rotacao = giro
+        est.Material = esc.Material
+        E.sincronizar_barras(est)
+    est.Label = rotulo
+    if est.Pontas:
+        est.Pontas = []
+    if FreeCAD.GuiUp:
+        try:
+            esq.ViewObject.Visibility = False
+        except Exception:
+            pass
+    return est
+
+
+def pecas_desenhadas(esc, rotulo):
+    """Garante o objeto Degraus (peças desenhadas pela escada) e o marca para refazer; usado pelos tipos."""
+    doc = esc.Document
+    if esc.PecasDegraus is None:
+        dg = doc.addObject("Part::FeaturePython", "Degraus")
+        Degraus(dg)
+        dg.Escada = esc
+        if FreeCAD.GuiUp:
+            VistaDegraus(dg.ViewObject)
+        esc.PecasDegraus = dg
+        esc.addObject(dg)
+    esc.PecasDegraus.Label = rotulo
+    esc.PecasDegraus.touch()
+    return esc.PecasDegraus
+
+
 def _reconstruir(esc):
     import PrumoEstrutura as E
+    if tipo_ausente(esc):
+        return esc
+    t = tipo_de(esc)
+    if t is not None:
+        t.reconstruir(esc, t.medidas(esc))
+        esc.touch()
+        esc.Document.recompute()
+        return esc
     doc = esc.Document
     m = Medidas(esc)
     pl = esc.Posicao
@@ -664,6 +818,7 @@ def _reconstruir(esc):
         esc.Banzos.Rotacao = giro
         esc.Banzos.Material = esc.Material
         E.sincronizar_barras(esc.Banzos)
+    esc.Banzos.Label = "Banzos"
     esc.Banzos.Pontas = []
     for lado in range(2):
         E.definir_ponta(esc.Banzos, lado * por_lado, 0, E.PONTA_HORIZONTAL)
@@ -679,6 +834,7 @@ def _reconstruir(esc):
             VistaDegraus(dg.ViewObject)
         esc.PecasDegraus = dg
         esc.addObject(dg)
+    esc.PecasDegraus.Label = "Degraus e rodapés"
     esc.PecasDegraus.touch()
     # guarda-corpo
     linhas, _xs = linhas_guarda(esc, m)
@@ -695,12 +851,12 @@ def _reconstruir(esc):
             esc.GuardaCorpo = None
         if esc.GuardaCorpo is None:
             est = E.criar(doc, esc.EsqGuarda, esc.PerfilGuarda, transacao=False, material=esc.Material)
-            est.Label = "Guarda-corpo"
             esc.GuardaCorpo = est
             esc.addObject(est)
         else:
             esc.GuardaCorpo.Perfil = esc.PerfilGuarda
             E.sincronizar_barras(esc.GuardaCorpo)
+        esc.GuardaCorpo.Label = "Guarda-corpo"
         # pé do montante cortado no plano do topo da viga (reto, metade do tubo entrava na viga inclinada)
         nm = len(_xs)
         por_lado_g = nm + 2 * (nm - 1)
@@ -788,6 +944,31 @@ def _apagar_estrutura(est):
     doc.removeObject(est.Name)
 
 
+def apagar_partes(esc):
+    """Apaga estruturas, esqueletos e degraus da escada (não a escada)."""
+    doc = esc.Document
+    for est in (esc.Banzos, esc.GuardaCorpo, esc.Pes):
+        if est is not None and doc.getObject(est.Name) is not None:
+            try:
+                _apagar_estrutura(est)
+            except Exception:
+                pass
+    for c in (esc.PecasDegraus, esc.EsqBanzos, esc.EsqGuarda, esc.EsqPes):
+        if c is not None and doc.getObject(c.Name) is not None:
+            try:
+                doc.removeObject(c.Name)
+            except Exception:
+                pass
+
+
+def apagar(esc):
+    """Apaga a escada inteira (usado por objetos que criam escadas filhas, como o tanque)."""
+    doc = esc.Document
+    apagar_partes(esc)
+    if doc.getObject(esc.Name) is not None:
+        doc.removeObject(esc.Name)
+
+
 def criar(doc=None, **kw):
     doc = doc or FreeCAD.ActiveDocument
     esc = doc.addObject("App::DocumentObjectGroupPython", "Escada")
@@ -795,6 +976,10 @@ def criar(doc=None, **kw):
     _OCUPADAS.add(k)
     try:
         Escada(esc)
+        t = _TIPOS.get(kw.get("TipoEscada"))
+        if t is not None:                                # valores de partida do tipo
+            for prop, v in getattr(t, "padroes", {}).items():
+                kw.setdefault(prop, v)
         for nome, v in kw.items():
             setattr(esc, nome, v)
         esc.Label = "Escada"
@@ -823,6 +1008,9 @@ def escada_de(o):
 
 
 def relatorio(esc):
+    t = tipo_de(esc)
+    if t is not None:
+        return t.relatorio(esc, t.medidas(esc))
     L = ["%s — %s" % (esc.Label, "confere com a NR-12" if esc.Conforme else "NÃO CONFERE com a NR-12"),
          "Desnível %s mm, ângulo %s°, vão %s mm, largura útil %s mm" % (
              _n(esc.Desnivel.Value), _n(esc.Angulo.Value, 1), _n(esc.Vao), _n(esc.LarguraUtil.Value)),
@@ -843,6 +1031,13 @@ except ImportError:
     P = None
 
 
+def icone_do_tipo(esc):
+    t = tipo_de(esc) if esc is not None else None
+    if t is not None and getattr(t, "icone", None):
+        return t.icone
+    return os.path.join(AQUI, "Resources", "icons", "escada.svg")
+
+
 class VistaEscada:
     def __init__(self, vobj):
         vobj.Proxy = self
@@ -851,7 +1046,7 @@ class VistaEscada:
         self.vobj = vobj
 
     def getIcon(self):
-        return os.path.join(AQUI, "Resources", "icons", "escada.svg")
+        return icone_do_tipo(getattr(self, "vobj", None) and self.vobj.Object)
 
     def claimChildren(self):
         o = self.vobj.Object
@@ -864,20 +1059,7 @@ class VistaEscada:
         return False
 
     def onDelete(self, vobj, subelements):
-        o = vobj.Object
-        doc = o.Document
-        for est in (o.Banzos, o.GuardaCorpo):
-            if est is not None:
-                try:
-                    _apagar_estrutura(est)
-                except Exception:
-                    pass
-        for c in (o.PecasDegraus, o.EsqBanzos, o.EsqGuarda):
-            if c is not None:
-                try:
-                    doc.removeObject(c.Name)
-                except Exception:
-                    pass
+        apagar_partes(vobj.Object)
         return True
 
     def dumps(self):
@@ -916,6 +1098,14 @@ class VistaDegraus:
 
 
 if P is not None:
+    def lista_perfis(familias, padrao):
+        """Lista editável com os perfis das famílias do catálogo (para as seções dos tipos de escada)."""
+        import PrumoPerfis
+        nomes_ = [it["nome"] for fam in familias for it in (PrumoPerfis.familia(fam) or {}).get("itens", [])]
+        w = P.lista(nomes_ or [padrao], padrao)
+        w.setEditable(True)
+        return w
+
     class PainelEscada(P.PainelTarefa):
         titulo = "Escada"
         ajuda = ("Escada industrial com as duas vigas, os degraus e o guarda-corpo num objeto só. Informe o desnível "
@@ -925,6 +1115,10 @@ if P is not None:
         def montar(self):
             import PrumoPerfis
             f = self.form
+            s0 = f.secao("Tipo de escada", "tipo")
+            self.tipo_escada = P.lista(tipos(), INDUSTRIAL)
+            s0.linha("tipo", self.tipo_escada, "Tipos de escada disponíveis neste Usinix.", "Tipo")
+            s0.setVisible(len(tipos()) > 1)
             s1 = f.secao("Escada", "tipo")
             self.desnivel = P.numero(2400.0, 200.0, 20000.0)
             s1.linha("altura", self.desnivel, "Do piso de baixo ao piso de cima.", "Desnível")
@@ -932,6 +1126,9 @@ if P is not None:
             s1.linha("angulo", self.angulo, "Inclinação (20° a 45° com espelho; até 75° sem espelho).", "Ângulo")
             self.largura = P.numero(800.0, 400.0, 3000.0)
             s1.linha("largura", self.largura, "Largura livre entre as vigas (mínimo 600 mm).", "Largura útil")
+            self._secoes_tipo = {}
+            for nome, t in _TIPOS.items():
+                self._secoes_tipo[nome] = list(t.montar_painel(self) or [])
             s2 = f.secao("Degraus", "furo")
             self.tipo = P.lista(list(TIPOS_DEGRAU), TIPOS_DEGRAU[0])
             s2.linha("tipo", self.tipo, "Grade ou chapa xadrez.", "Degrau")
@@ -955,11 +1152,12 @@ if P is not None:
             self.perfil = P.lista(nomes or [PERFIL_BANZO], PERFIL_BANZO)
             self.perfil.setEditable(True)
             s3.linha("perfil", self.perfil, "Perfil das duas vigas.", "Perfil")
+            s3f = f.secao("Fixação", "furo")
             self.fixacao = P.lista(list(FIXACOES), FIXACOES[0])
-            s3.linha("furo", self.fixacao, "Chapa deitada no pé de cada viga (chumbador) e chapa em pé no topo, "
-                     "contra a face do piso de cima.", "Fixação")
+            s3f.linha("furo", self.fixacao, "Chapa deitada no pé de cada viga (chumbador) e chapa em pé no topo, "
+                      "contra a face do piso de cima.", "Fixação")
             self.esp_chapa = P.numero(12.5, 3.0, 50.0)
-            s3.linha("espessura", self.esp_chapa, "Espessura das chapas de fixação.", "Chapa")
+            s3f.linha("espessura", self.esp_chapa, "Espessura das chapas de fixação.", "Chapa")
             s3b = f.secao("Apoio", "estrutura")
             self.apoio = P.lista(list(APOIOS), APOIOS[0])
             s3b.linha("tipo", self.apoio, "Apoiada só no piso e no topo, ou com pés de apoio sob as vigas (um par "
@@ -1002,9 +1200,73 @@ if P is not None:
             self.resultado.setWordWrap(True)
             self.resultado.setTextFormat(QtCore.Qt.RichText)
             s5.widget(self.resultado)
+            self._secoes = {"industrial": (s3, s3b), "fixacao": (s3f,), "degraus": (s2,), "guarda": (s4,)}
+            self._ultimo_tipo = INDUSTRIAL
+            self.tipo_escada.currentTextChanged.connect(self._trocar_tipo)
+            self._trocar_tipo(self.tipo_escada.currentText())
+
+        @staticmethod
+        def _linha_visivel(widget, visivel):
+            """Mostra/esconde a linha inteira (ícone, rótulo e campo) em que o campo está."""
+            sec = widget.parentWidget()
+            while sec is not None and not isinstance(sec, P.Secao):
+                sec = sec.parentWidget()
+            if sec is None:
+                widget.setVisible(visivel)
+                return
+            g = sec.grade
+            for i in range(g.count()):
+                it = g.itemAt(i)
+                lay = it.layout()
+                ws = [lay.itemAt(j).widget() for j in range(lay.count())] if lay is not None else [it.widget()]
+                if widget in ws:
+                    r, _c, _rs, _cs = g.getItemPosition(i)
+                    for k in range(g.count()):
+                        rk = g.getItemPosition(k)[0]
+                        if rk != r:
+                            continue
+                        ik = g.itemAt(k)
+                        if ik.widget() is not None:
+                            ik.widget().setVisible(visivel)
+                        elif ik.layout() is not None:
+                            for j in range(ik.layout().count()):
+                                w = ik.layout().itemAt(j).widget()
+                                if w is not None:
+                                    w.setVisible(visivel)
+                    return
+
+        def _trocar_tipo(self, nome):
+            """Volta o painel ao jeito da industrial e deixa o tipo escolhido mostrar as seções dele e esconder o que
+            não usa (painel.secoes_publicas, painel.linha_visivel)."""
+            for secs in self._secoes.values():
+                for sc in secs:
+                    sc.setVisible(True)
+            for w in (self.angulo, self.largura):
+                self._linha_visivel(w, True)
+            self.hmax.setMaximum(3000.0)
+            for secs in self._secoes_tipo.values():
+                for sc in secs:
+                    sc.setVisible(False)
+            t = _TIPOS.get(nome)
+            if t is not None:
+                for sc in self._secoes_tipo.get(nome, []):
+                    sc.setVisible(True)
+                t.trocar_painel(self)
+            # valores de partida de cada tipo (só troca o que ainda está no padrão do tipo anterior)
+            def padrao(n, prop, base):
+                tp = _TIPOS.get(n)
+                return float(getattr(tp, "padroes", {}).get(prop, base)) if tp is not None else base
+            antes = self._ultimo_tipo
+            for w, prop, base in ((self.largura, "LarguraUtil", 800.0), (self.hmax, "AlturaMaxLance", 3000.0)):
+                if abs(w.value() - padrao(antes, prop, base)) < 1e-6:
+                    w.setValue(padrao(nome, prop, base))
+            self._ultimo_tipo = nome
 
         def pendencia(self):
             import PrumoPerfis
+            t = _TIPOS.get(self.tipo_escada.currentText())
+            if t is not None:
+                return t.pendencia_painel(self)
             if PrumoPerfis.perfil(self.perfil.currentText()) is None:
                 return "Perfil desconhecido: %s" % self.perfil.currentText()
             if self.apoio.currentText() == APOIOS[1] and PrumoPerfis.perfil(self.perfil_pes.currentText()) is None:
@@ -1015,7 +1277,7 @@ if P is not None:
             return "OK grava a escada." if self.editando is not None else "OK cria a escada."
 
         def _kw(self):
-            return {"Desnivel": self.desnivel.value(), "Angulo": self.angulo.value(),
+            kw = {"Desnivel": self.desnivel.value(), "Angulo": self.angulo.value(),
                     "LarguraUtil": self.largura.value(), "TipoDegrau": self.tipo.currentText(),
                     "NumeroEspelhos": int(self.n.value()), "EspessuraDegrau": self.esp.value(),
                     "PerfilBanzo": self.perfil.currentText(), "LadosGuarda": self.lados.currentText(),
@@ -1025,10 +1287,24 @@ if P is not None:
                     "EspessuraChapa": self.esp_chapa.value(), "Apoio": self.apoio.currentText(),
                     "PerfilPes": self.perfil_pes.currentText(), "VaoMaxPes": self.vao_pes.value(),
                     "ChapaPes": self.chapa_pes.isChecked(),
+                    "TipoEscada": self.tipo_escada.currentText(),
                     "Posicao": FreeCAD.Placement(FreeCAD.Vector(self.px.value(), self.py.value(), self.pz.value()),
                                                  FreeCAD.Rotation(FreeCAD.Vector(0, 0, 1), self.giro.value()))}
+            for t in _TIPOS.values():
+                kw.update(t.kw_painel(self) or {})
+            return kw
 
         def carregar(self, obj):
+            nome = tipo_nome(obj)
+            self._ultimo_tipo = nome                # não troca valores ao carregar
+            self.tipo_escada.blockSignals(True)
+            if self.tipo_escada.findText(nome) < 0:
+                self.tipo_escada.addItem(nome)
+            self.tipo_escada.setCurrentText(nome)
+            self.tipo_escada.blockSignals(False)
+            self._trocar_tipo(nome)
+            for t in _TIPOS.values():
+                t.carregar_painel(self, obj)
             self.desnivel.setValue(obj.Desnivel.Value)
             self.angulo.setValue(obj.Angulo.Value)
             self.largura.setValue(obj.LarguraUtil.Value)
@@ -1091,12 +1367,17 @@ if P is not None:
                 self.resultado.setText("—")
                 return
             cor = "#2E8B57" if esc.Conforme else "#C0392B"
+            t = tipo_de(esc)
+            if t is not None:
+                resumo = t.resumo(esc, t.medidas(esc))
+            else:
+                resumo = "%s%d degraus · h = %s mm · g = %s mm · vão %s mm" % (
+                    "%d lances · " % esc.Lances if getattr(esc, "Lances", 1) > 1 else "",
+                    esc.Degraus, _n(esc.AlturaEspelho, 1), _n(esc.ProfundidadeLivre, 1), _n(esc.Vao))
             L = ["<b style='color:%s'>%s</b>" % (cor, "Confere com a NR-12" if esc.Conforme else "Não confere"),
-                 "%s%d degraus · h = %s mm · g = %s mm · vão %s mm" % (
-                     "%d lances · " % esc.Lances if getattr(esc, "Lances", 1) > 1 else "",
-                     esc.Degraus, _n(esc.AlturaEspelho, 1), _n(esc.ProfundidadeLivre, 1), _n(esc.Vao))]
+                 resumo]
             for v in esc.Verificacao:
-                c = "#2E8B57" if v.startswith("✓") else "#C0392B"
+                c = "#2E8B57" if v.startswith("✓") else ("#5B6B7C" if v.startswith("ℹ") else "#C0392B")
                 L.append("<span style='color:%s'>%s</span>" % (c, v))
             self.resultado.setText("<br>".join(L))
 
@@ -1112,6 +1393,24 @@ if P is not None:
 
         def Activated(self):
             PainelEscada().mostrar()
+
+    class CmdEscadaTipo:
+        """Atalho da faixa: abre o painel da escada já no tipo escolhido."""
+
+        def __init__(self, tipo, icone, texto, dica):
+            self.tipo, self.icone, self.texto, self.dica = tipo, icone, texto, dica
+
+        def GetResources(self):
+            import PrumoUtil
+            return {"Pixmap": PrumoUtil.icone(self.icone), "MenuText": self.texto, "ToolTip": self.dica}
+
+        def IsActive(self):
+            return FreeCAD.ActiveDocument is not None
+
+        def Activated(self):
+            p = PainelEscada()
+            p.tipo_escada.setCurrentText(self.tipo)
+            p.mostrar()
 
 
 def registrar_comandos():

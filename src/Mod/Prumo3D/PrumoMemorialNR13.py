@@ -181,7 +181,15 @@ def montar(v, data=None):
     .assin { margin-top: 26pt; }
     .peq { font-size: 8pt; color: #5A6B7D; }
     """
+    import PrumoMarca
+    mc = PrumoMarca.atual()
     H = ["<html><head><meta charset='utf-8'><style>%s</style></head><body>" % css]
+    if PrumoMarca.propria() and mc.get("logo"):
+        # cabeçalho com a logo da empresa (perfil de marca de um pacote externo, ex.: Usinix Pro)
+        H.append("<table width='100%%' cellspacing='0' cellpadding='0'><tr>"
+                 "<td style='border:none' valign='middle'><img src='%s' height='46'></td>"
+                 "<td style='border:none' align='right' valign='middle' class='peq'>%s</td></tr></table><br>" % (
+                     _e(mc["logo"]), "<br>".join(_e(x) for x in mc["rodape_linhas"])))
     H.append("<h1>Memorial de cálculo — vaso de pressão</h1>")
     H.append("<div class='sub'>%s · %s · emitido em %s</div>" % (
         _e(v.MemTag or v.Label), _e(v.MemCliente), data.strftime("%d/%m/%Y")))
@@ -287,8 +295,10 @@ def montar(v, data=None):
              "<td width='45%%' style='border:none' valign='bottom'>%s, %s</td>"
              "<td width='55%%' style='border:none' align='center'>______________________________<br>"
              "<b>%s</b><br>%s<br>ART nº %s</td></tr></table>" % (
-                 _e(v.MemCidade or "________________"), data.strftime("%d/%m/%Y"), _e(v.MemResponsavel),
-                 _e(("CREA " + v.MemRegistro) if v.MemRegistro else "CREA ________"), _e(v.MemART or "________")))
+                 _e(v.MemCidade or mc["cidade"] or "________________"), data.strftime("%d/%m/%Y"),
+                 _e(v.MemResponsavel or mc["responsavel"]),
+                 _e(("CREA " + (v.MemRegistro or mc["registro"])) if (v.MemRegistro or mc["registro"])
+                    else "CREA ________"), _e(v.MemART or "________")))
     H.append("<p class='peq'>Gerado pelo Usinix %s a partir do modelo %s.</p>" % (_versao(), _e(v.Label)))
     H.append("</body></html>")
     return "".join(H), todos

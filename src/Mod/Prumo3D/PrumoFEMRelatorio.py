@@ -299,18 +299,29 @@ def _fonte(px, peso=QtGui.QFont.Normal):
     return f
 
 
+def faixa_capa(p, W, k):
+    """Faixa colorida da capa com a logo (perfil de marca: PrumoMarca)."""
+    import PrumoMarca
+    mc = PrumoMarca.atual()
+    p.fillRect(QtCore.QRectF(0, 0, W, 95 * k), QtGui.QColor(mc["cor"]))
+    p.fillRect(QtCore.QRectF(0, 95 * k, W, 3 * k), QtGui.QColor(mc["cor_destaque"]))
+    if mc["logo_tem_nome"]:
+        PrumoMarca.desenhar_logo(p, QtCore.QRectF(MARGEM_MM * k, 20 * k, 80 * k, 26 * k), mc["logo_capa"])
+    else:
+        PrumoMarca.desenhar_logo(p, QtCore.QRectF(MARGEM_MM * k, 22 * k, 26 * k, 26 * k), mc["logo_capa"])
+        p.setPen(QtGui.QColor("#FFFFFF"))
+        p.setFont(_fonte(5.0 * k, QtGui.QFont.DemiBold))
+        p.drawText(QtCore.QRectF((MARGEM_MM + 32) * k, 24 * k, W, 10 * k), mc["nome"])
+        p.setFont(_fonte(3.6 * k))
+        p.drawText(QtCore.QRectF((MARGEM_MM + 32) * k, 33 * k, W, 10 * k), mc["descricao"])
+    p.setPen(QtGui.QColor("#FFFFFF"))
+    return mc
+
+
 def _capa(p, W, H, k, est):
     """k = pixels do dispositivo por mm."""
     tit = est.get("PrumoRelTitulo", "") or "Análise estrutural por elementos finitos"
-    p.fillRect(QtCore.QRectF(0, 0, W, 95 * k), QtGui.QColor(NAVY))
-    p.fillRect(QtCore.QRectF(0, 95 * k, W, 3 * k), QtGui.QColor(YEL))
-    if os.path.isfile(LOGO):
-        p.drawImage(QtCore.QRectF(MARGEM_MM * k, 22 * k, 26 * k, 26 * k), QtGui.QImage(LOGO))
-    p.setPen(QtGui.QColor("#FFFFFF"))
-    p.setFont(_fonte(5.0 * k, QtGui.QFont.DemiBold))
-    p.drawText(QtCore.QRectF((MARGEM_MM + 32) * k, 24 * k, W, 10 * k), "USINIX")
-    p.setFont(_fonte(3.6 * k))
-    p.drawText(QtCore.QRectF((MARGEM_MM + 32) * k, 33 * k, W, 10 * k), "CAD 3D da metal-mecânica · software livre")
+    mc = faixa_capa(p, W, k)
     p.setFont(_fonte(8.5 * k, QtGui.QFont.Bold))
     p.drawText(QtCore.QRectF(MARGEM_MM * k, 55 * k, W - 2 * MARGEM_MM * k, 30 * k),
                QtCore.Qt.TextWordWrap, tit)
@@ -322,8 +333,8 @@ def _capa(p, W, H, k, est):
               ("Equipamento / projeto", est.get("PrumoRelProjeto", "") or "—"),
               ("Tipo de análise", "Estática linear" if est.tipo == "static" else "Frequências naturais"),
               ("Data", time.strftime("%d/%m/%Y")),
-              ("Responsável técnico", est.get("PrumoRelResp", "") or "—"),
-              ("CREA", est.get("PrumoRelCrea", "") or "—"),
+              ("Responsável técnico", est.get("PrumoRelResp", "") or mc["responsavel"] or "—"),
+              ("CREA", est.get("PrumoRelCrea", "") or mc["registro"] or "—"),
               ("ART nº", est.get("PrumoRelArt", "") or "—")]
     y = 130 * k
     for rot, val in linhas:
@@ -346,17 +357,29 @@ def _cabecalho(p, W, k, est):
     p.drawText(QtCore.QRectF(MARGEM_MM * k, 8 * k, W - 60 * k, 6 * k), QtCore.Qt.AlignVCenter, tit)
     p.setPen(QtGui.QColor(INK2))
     p.setFont(_fonte(3.0 * k))
-    p.drawText(QtCore.QRectF(W - (MARGEM_MM + 60) * k, 8 * k, 60 * k, 6 * k),
-               QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, "USINIX")
-    p.fillRect(QtCore.QRectF(MARGEM_MM * k, 15 * k, W - 2 * MARGEM_MM * k, 0.5 * k), QtGui.QColor(NAVY))
+    cabecalho_direita(p, W, k)
+
+
+def cabecalho_direita(p, W, k):
+    """Canto direito do cabeçalho (logo da marca ou o texto) e a régua."""
+    import PrumoMarca
+    mc = PrumoMarca.atual()
+    caixa = QtCore.QRectF(W - (MARGEM_MM + 60) * k, 7 * k, 60 * k, 7 * k)
+    if not (PrumoMarca.propria() and PrumoMarca.desenhar_logo(p, caixa, mc["logo"], "direita")):
+        p.drawText(caixa, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, mc["cabecalho"])
+    p.fillRect(QtCore.QRectF(MARGEM_MM * k, 15 * k, W - 2 * MARGEM_MM * k, 0.5 * k), QtGui.QColor(mc["cor"]))
 
 
 def _rodape(p, W, H, k, pagina, total):
-    p.fillRect(QtCore.QRectF(MARGEM_MM * k, H - 13 * k, W - 2 * MARGEM_MM * k, 0.6 * k), QtGui.QColor(YEL))
+    import PrumoMarca
+    mc = PrumoMarca.atual()
+    p.fillRect(QtCore.QRectF(MARGEM_MM * k, H - 13 * k, W - 2 * MARGEM_MM * k, 0.6 * k),
+               QtGui.QColor(mc["cor_destaque"]))
     p.setPen(QtGui.QColor(INK2))
     p.setFont(_fonte(2.9 * k))
-    p.drawText(QtCore.QRectF(MARGEM_MM * k, H - 11.5 * k, 120 * k, 6 * k), QtCore.Qt.AlignVCenter,
-               "Gerado no Usinix")
+    texto = " · ".join([mc["rodape"]] + list(mc["rodape_linhas"]))
+    p.drawText(QtCore.QRectF(MARGEM_MM * k, H - 11.5 * k, W - (2 * MARGEM_MM + 40) * k, 6 * k),
+               QtCore.Qt.AlignVCenter | QtCore.Qt.TextWordWrap, texto)
     if pagina:
         p.drawText(QtCore.QRectF(W - (MARGEM_MM + 50) * k, H - 11.5 * k, 50 * k, 6 * k),
                    QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, "Página %d de %d" % (pagina, total))
@@ -387,6 +410,9 @@ def gerar(est, caminho):
     w.setResolution(DPI)
     w.setTitle("Relatório de simulação — " + (est.peca.Label if est.peca else ""))
     w.setCreator("Usinix")
+    import PrumoMarca
+    if PrumoMarca.propria():
+        w.setCreator("Usinix · " + PrumoMarca.atual()["rodape"])
     k = DPI / 25.4                       # pixels do dispositivo por mm
     W, H = w.width(), w.height()
     escala = DPI / 96.0                  # px do documento → dispositivo

@@ -19359,6 +19359,206 @@ class T142PreviaDosComponentes(unittest.TestCase):
         self.assertEqual((pv.az, pv.el, pv.zoom), (-35.0, 62.0, 1.0))
 
 
+class _TipoEscadaTeste:
+    """Tipo de escada mínimo para o teste do registro (T145)."""
+    nome = "Teste (só no teste)"
+    icone = None
+    padroes = {"LarguraUtil": 555.0}
+    parametros = ("LadoTeste",)
+
+    def propriedades(self, obj, add, enum):
+        add("App::PropertyLength", "LadoTeste", "Teste", "Lado do cubo", 300.0)
+
+    def medidas(self, esc):
+        return float(esc.LadoTeste.Value)
+
+    def executar(self, esc, mt):
+        esc.Degraus, esc.Vao, esc.Lances = 1, mt, 1
+        return [(mt <= 500.0, "Lado %d até 500" % mt)], ["nota do teste"]
+
+    def forma(self, esc, mt):
+        import Part
+        return Part.makeBox(mt, mt, mt), [("Cubo", 1, 1.0, "%d" % mt)]
+
+    def reconstruir(self, esc, mt):
+        import PrumoEscada as PE
+        PE.pecas_desenhadas(esc, "Cubo do teste")
+
+    def resumo(self, esc, mt):
+        return "cubo de %d" % mt
+
+    def relatorio(self, esc, mt):
+        return "Relatório do cubo de %d" % mt
+
+    def montar_painel(self, painel):
+        import PrumoPainel as P
+        sec = painel.form.secao("Cubo", "tipo")
+        painel.lado_teste = P.numero(300.0, 10.0, 2000.0)
+        sec.linha("largura", painel.lado_teste, "", "Lado")
+        return [sec]
+
+    def trocar_painel(self, painel):
+        for sc in painel._secoes["industrial"]:
+            sc.setVisible(False)
+
+    def kw_painel(self, painel):
+        return {"LadoTeste": painel.lado_teste.value()}
+
+    def carregar_painel(self, painel, obj):
+        painel.lado_teste.setValue(obj.LadoTeste.Value)
+
+    def pendencia_painel(self, painel):
+        return None
+
+
+class T145PacotesExternos(unittest.TestCase):
+    """1.19.2: ponto de encaixe para pacotes externos (Usinix Pro): registro, faixa, tipos de escada e marca dos
+    relatórios e das folhas."""
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoTestePacotes")
+
+    def tearDown(self):
+        import PrumoEscada as PE
+        import PrumoMarca
+        PE._TIPOS.pop(_TipoEscadaTeste.nome, None)
+        PrumoMarca.definir(None)
+        if FreeCAD.GuiUp:
+            try:
+                if FreeCADGui.Control.activeDialog():
+                    FreeCADGui.Control.closeDialog()
+            except Exception:
+                pass
+        fechar(self.doc)
+
+    def test_registro_e_faixa(self):
+        import copy
+        import PrumoExtensoes as X
+        import PrumoRibbon as R
+        antes_tabs, antes_ext = copy.deepcopy(R.TABS), list(X.EXTENSOES)
+        try:
+            chamou = []
+            self.assertIsNone(X.registrar("Pacote velho", "1.0", iniciar=lambda: chamou.append("v"), minimo="99.0"))
+            self.assertEqual(chamou, [])
+            reg = X.registrar("Pacote do teste", "2.1.0", iniciar=lambda: chamou.append("ok"), minimo="1.0")
+            self.assertTrue(reg["ativo"], "o Usinix já iniciou: roda na hora")
+            self.assertEqual(chamou, ["ok"])
+            self.assertIn(("Pacote do teste", "2.1.0"), X.ativas())
+            X.registrar("Pacote quebrado", "1.0", iniciar=lambda: 1 / 0)
+            self.assertFalse(X.ativo("Pacote quebrado"))
+            X.adicionar_painel("vasos", ("Painel do teste", [("Std_ViewFitAll", R.L, "Teste")]), depois="Vaso de pressão")
+            vasos = [t for t in R.TABS if t["id"] == "vasos"][0]
+            self.assertEqual(vasos["panels"][1][0], "Painel do teste")
+            X.adicionar_aba({"id": "teste", "label": "Teste", "wb": None, "panels": []}, depois="vasos")
+            ids = [t["id"] for t in R.TABS]
+            self.assertEqual(ids[ids.index("vasos") + 1], "teste")
+            self.assertEqual(X.substituir_item("Prumo_Escada", "Prumo_Escada|Std_ViewFitAll"), 1)
+            cmds = [it[0] for t in R.TABS for _p, its in t["panels"] for it in its]
+            self.assertIn("Prumo_Escada|Std_ViewFitAll", cmds)
+        finally:
+            R.TABS[:] = antes_tabs
+            X.EXTENSOES[:] = antes_ext
+
+    def test_tipo_de_escada_registrado(self):
+        import PrumoEscada as PE
+        PE.registrar_tipo(_TipoEscadaTeste())
+        self.assertIn(_TipoEscadaTeste.nome, PE.tipos())
+        e = PE.criar(self.doc, TipoEscada=_TipoEscadaTeste.nome)
+        self.assertEqual(e.LarguraUtil.Value, 555.0, "valores de partida do tipo")
+        self.assertTrue(e.Conforme, "\n".join(e.Verificacao))
+        self.assertIn("ℹ nota do teste", e.Verificacao)
+        self.assertAlmostEqual(e.PecasDegraus.Shape.Volume, 300.0 ** 3, delta=1.0)
+        self.assertEqual(e.PecasDegraus.Label, "Cubo do teste")
+        self.assertIsNone(e.Banzos, "a escada do tipo não monta as vigas da industrial")
+        self.assertEqual(PE.relatorio(e), "Relatório do cubo de 300")
+        e.LadoTeste = 600.0
+        PE.reconstruir(e)
+        self.assertFalse(e.Conforme)
+        # sem o pacote que traz o tipo: a escada avisa e não vira industrial
+        PE._TIPOS.pop(_TipoEscadaTeste.nome)
+        e.touch()
+        self.doc.recompute()
+        self.assertTrue(e.Verificacao[0].startswith("✗") and "Usinix Pro" in e.Verificacao[0])
+        PE.reconstruir(e)
+        self.assertIsNone(e.Banzos)
+        # a industrial continua igual
+        i = PE.criar(self.doc)
+        self.assertEqual(PE.tipo_nome(i), PE.INDUSTRIAL)
+        self.assertTrue(i.Conforme, "\n".join(i.Verificacao))
+
+    def test_painel_com_o_tipo(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import PrumoEscada as PE
+        p0 = PE.PainelEscada()
+        self.assertTrue(p0.tipo_escada.parentWidget() is not None)
+        PE.registrar_tipo(_TipoEscadaTeste())
+        p = PE.PainelEscada()
+        p.tipo_escada.setCurrentText(_TipoEscadaTeste.nome)
+        self.assertEqual(p.largura.value(), 555.0)
+        self.assertTrue(p._secoes["industrial"][0].isHidden())
+        self.assertFalse(p._secoes_tipo[_TipoEscadaTeste.nome][0].isHidden())
+        p.lado_teste.setValue(250.0)
+        kw = p._kw()
+        self.assertEqual((kw["TipoEscada"], kw["LadoTeste"]), (_TipoEscadaTeste.nome, 250.0))
+        p.tipo_escada.setCurrentText(PE.INDUSTRIAL)
+        self.assertEqual(p.largura.value(), 800.0, "volta o valor de partida da industrial")
+        self.assertFalse(p._secoes["industrial"][0].isHidden())
+        e = PE.criar(self.doc, **dict(kw))
+        p2 = PE.PainelEscada()
+        p2.editar_objeto(e)
+        self.assertEqual((p2.tipo_escada.currentText(), p2.lado_teste.value()), (_TipoEscadaTeste.nome, 250.0))
+
+    def test_marca_nos_relatorios_e_folhas(self):
+        import tempfile
+        import PrumoMarca
+        import PrumoFolhas
+        import PrumoVaso as V
+        import PrumoMemorialNR13 as M
+        self.assertFalse(PrumoMarca.propria())
+        self.assertEqual(PrumoMarca.atual()["nome"], "USINIX")
+        pasta = tempfile.mkdtemp()
+        logo = os.path.join(pasta, "logo.png")
+        try:
+            from PySide import QtGui
+            img = QtGui.QImage(300, 80, QtGui.QImage.Format_ARGB32)
+            img.fill(QtGui.QColor("#003A70"))
+            img.save(logo)
+        except Exception:
+            with open(os.path.join(PrumoMarca.ICONES, "prumo.png"), "rb") as a, open(logo, "wb") as b:
+                b.write(a.read())
+        modelo_copia = os.path.join(pasta, "folha.svg")
+
+        class Prov:
+            def perfil(self):
+                return {"nome": "EMPRESA TESTE", "logo": logo, "logo_capa": logo, "logo_tem_nome": True,
+                        "rodape": "Empresa Teste Ltda", "rodape_linhas": ["CREA-XX 123"], "empresa": "Empresa Teste",
+                        "responsavel": "Eng. Teste", "registro": "XX-123/D", "logo_inexistente": None}
+
+            def modelo_folha(self, caminho):
+                with open(caminho, encoding="utf-8") as a, open(modelo_copia, "w", encoding="utf-8") as b:
+                    b.write(a.read())
+                return modelo_copia
+        PrumoMarca.definir(Prov())
+        mc = PrumoMarca.atual()
+        self.assertTrue(PrumoMarca.propria())
+        self.assertEqual((mc["nome"], mc["cor"]), ("EMPRESA TESTE", "#003A70"), "o que não muda vem do Usinix")
+        v = V.criar(self.doc, 800, 2000, 0.9, 138.0, 0.85, 1.5, V.TAMPOS[0], "ASTM A285 Gr C", "60 °C")
+        M.garantir_campos(v)
+        html_, _av = M.montar(v)
+        self.assertIn(logo, html_)
+        self.assertIn("Eng. Teste", html_)
+        self.assertIn("CREA XX-123/D", html_)
+        caminho, _a = M.salvar_pdf(v, os.path.join(pasta, "memorial.pdf"))
+        self.assertGreater(os.path.getsize(caminho), 1000)
+        c = PrumoFolhas.campos_padrao(self.doc)
+        self.assertEqual((c["empresa"], c["resp_tecnico"], c["crea"]), ("Empresa Teste", "Eng. Teste", "XX-123/D"))
+        page = PrumoFolhas.nova_folha(self.doc, "A4")
+        self.assertEqual(os.path.normcase(page.Template.Template), os.path.normcase(modelo_copia))
+        PrumoMarca.definir(None)
+        self.assertEqual(PrumoMarca.modelo_folha(PrumoFolhas.arquivo("A4")), PrumoFolhas.arquivo("A4"))
+
+
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
            T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
@@ -19403,4 +19603,4 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
            T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha,
            T141ReservatoriosETorres, T142PreviaDosComponentes,
-           T143FerramentaAbreAoClicar, T144FacesDoEsbocoSemMotor]
+           T143FerramentaAbreAoClicar, T144FacesDoEsbocoSemMotor, T145PacotesExternos]

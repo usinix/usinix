@@ -131,6 +131,14 @@ def campos_padrao(doc, objs=None):
     v = {"data": time.strftime("%d/%m/%Y"), "unidade": "mm", "revisao": "0",
          "titulo": doc.Label if doc else "", "empresa": getattr(doc, "Company", "") or "",
          "desenhista": getattr(doc, "CreatedBy", "") or "", "folha": "1 / 1"}
+    try:
+        import PrumoMarca                 # perfil de marca (pacote externo): empresa e responsável de partida
+        mc = PrumoMarca.atual()
+        for chave, campo in (("empresa", "empresa"), ("responsavel", "resp_tecnico"), ("registro", "crea")):
+            if mc.get(chave) and not v.get(campo):
+                v[campo] = mc[chave]
+    except Exception:
+        pass
     for chave, valor in cadastro().items():
         if valor:                       # o que estiver nas Preferências manda
             v[chave] = valor
@@ -173,6 +181,8 @@ def nova_folha(doc, formato=FORMATO_PADRAO, norma=NORMA_PADRAO, retrato=None, ca
     caminho = arquivo(formato, norma, retrato)
     if not os.path.isfile(caminho):
         raise FileNotFoundError(caminho)
+    import PrumoMarca
+    caminho = PrumoMarca.modelo_folha(caminho)     # com a logo da empresa, se um pacote der o modelo
     doc.openTransaction("Nova folha ABNT")
     page = doc.addObject("TechDraw::DrawPage", "Folha")
     page.Label = "Folha %s" % formato

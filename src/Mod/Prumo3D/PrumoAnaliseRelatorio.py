@@ -256,13 +256,7 @@ def gerar_pdf(analise, caminho):
 
 def _capa(p, W, H, k, analise):
     M = R.MARGEM_MM
-    p.fillRect(QtCore.QRectF(0, 0, W, 95 * k), QtGui.QColor(R.NAVY))
-    p.fillRect(QtCore.QRectF(0, 95 * k, W, 3 * k), QtGui.QColor(R.YEL))
-    if os.path.isfile(R.LOGO):
-        p.drawImage(QtCore.QRectF(M * k, 22 * k, 26 * k, 26 * k), QtGui.QImage(R.LOGO))
-    p.setPen(QtGui.QColor("#FFFFFF"))
-    p.setFont(R._fonte(5.0 * k, QtGui.QFont.DemiBold))
-    p.drawText(QtCore.QRectF((M + 32) * k, 24 * k, W, 10 * k), "USINIX")
+    mc = R.faixa_capa(p, W, k)
     p.setFont(R._fonte(8.5 * k, QtGui.QFont.Bold))
     p.drawText(QtCore.QRectF(M * k, 55 * k, W - 2 * M * k, 30 * k), QtCore.Qt.TextWordWrap,
                "Memória de cálculo — estrutura metálica")
@@ -271,7 +265,7 @@ def _capa(p, W, H, k, analise):
     p.drawText(QtCore.QRectF(M * k, 112 * k, W, 12 * k), "Verificação por barras · NBR 8800:2024 · NBR 8681:2025")
     linhas = [("Estrutura", analise.Estrutura.Label), ("Situação", analise.Situacao),
               ("Maior taxa de uso", _f(analise.TaxaMaxima, 2)), ("Data", time.strftime("%d/%m/%Y")),
-              ("Responsável técnico", "—"), ("CREA", "—"), ("ART nº", "—")]
+              ("Responsável técnico", mc["responsavel"] or "—"), ("CREA", mc["registro"] or "—"), ("ART nº", "—")]
     y = 130 * k
     for rot, val in linhas:
         p.setPen(QtGui.QColor(R.INK2))
@@ -294,6 +288,4 @@ def _cabecalho(p, W, k, analise):
                "Memória de cálculo · " + analise.Estrutura.Label)
     p.setPen(QtGui.QColor(R.INK2))
     p.setFont(R._fonte(3.0 * k))
-    p.drawText(QtCore.QRectF(W - (M + 60) * k, 8 * k, 60 * k, 6 * k), QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter,
-               "USINIX")
-    p.fillRect(QtCore.QRectF(M * k, 15 * k, W - 2 * M * k, 0.5 * k), QtGui.QColor(R.NAVY))
+    R.cabecalho_direita(p, W, k)
