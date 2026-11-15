@@ -266,12 +266,6 @@ TABS = [
         ("Pisos e fechamentos", [
             ("Prumo_Piso", L, "Piso e\nfechamento"),
         ]),
-        ("Acessos", [
-            ("Prumo_Escada", L, "Escada"),
-        ]),
-        ("Segurança de máquinas", [
-            ("Prumo_ProtecaoNR12", L, "Proteção\nNR-12"), ("Prumo_RelatorioProtecao", S, "Relatório das proteções"),
-        ]),
         ("Solda", [
             ("Prumo_Solda", L, "Cordão de\nsolda"), ("Prumo_ListaSoldas", S, "Lista de soldas"),
             ("Prumo_ListaDeCorte", S, "Lista de corte"), ("Prumo_TabelaFuros", S, "Tabela de furos"),
@@ -325,21 +319,6 @@ TABS = [
         ]),
         ("Outros", [
             ("Prumo_Componentes_outros", L, "Bombas,\nquadros e mais"), ("Prumo_Componentes", S, "Todos os componentes"),
-        ]),
-    ]},
-    {"id": "vasos", "label": "Vasos", "wb": None, "panels": [
-        ("Vaso de pressão", [
-            ("Prumo_Vaso", L, "Vaso de\npressão"),
-        ]),
-        ("Cálculo", [
-            ("Prumo_MemoriaVaso", L, "Memória de\ncálculo"), ("Prumo_MemorialNR13", L, "Memorial\nNR-13"),
-            ("Prumo_TesteVaso", L, "Simular teste\nde pressão"),
-        ]),
-        ("Desenho", [
-            ("Prumo_DesenhoVaso", L, "Desenho\ndo vaso"),
-        ]),
-        ("Conferir", [
-            ("Prumo_Massa", L, "Propriedades\nde massa"),
         ]),
     ]},
     {"id": "chapa", "label": "Chapa", "wb": "SMWorkbench", "panels": [
@@ -823,8 +802,8 @@ def _quebra(texto):
 
 
 def ordenar_abas(tabs):
-    """As abas na ordem que o usuário deixou (arrastando); as que não estão na ordem gravada (novas) ficam
-    no lugar de sempre, depois das gravadas."""
+    """As abas na ordem que o usuário deixou (arrastando); as que não estão na ordem gravada (novas) entram ao
+    lado da vizinha de sempre."""
     try:
         gravada = [x for x in _params().GetString("OrdemAbas", "").split(",") if x]
     except Exception:
@@ -832,10 +811,16 @@ def ordenar_abas(tabs):
     if not gravada:
         return tabs
     pos = {tid: k for k, tid in enumerate(gravada)}
-    conhecidas = [t for t in tabs if t["id"] in pos]
-    novas = [t for t in tabs if t["id"] not in pos]
-    conhecidas.sort(key=lambda t: pos[t["id"]])
-    return conhecidas + novas
+    res = [t for t in tabs if t["id"] in pos]
+    res.sort(key=lambda t: pos[t["id"]])
+    # as novas (ex.: abas de um pacote instalado depois) entram logo depois da aba que vem antes delas na ordem de
+    # sempre (Escadas depois de Estruturas, onde quer que o usuário tenha posto Estruturas); sem vizinha, no fim
+    for k, t in enumerate(tabs):
+        if t["id"] in pos:
+            continue
+        antes = next((tabs[j] for j in range(k - 1, -1, -1) if tabs[j] in res), None)
+        res.insert(res.index(antes) + 1 if antes is not None else len(res), t)
+    return res
 
 
 class RibbonButton(QtWidgets.QToolButton):
@@ -1206,6 +1191,44 @@ class AlcaAltura(QtWidgets.QWidget):
         self.ribbon.definir_altura(ALTURA_PADRAO)
 
 
+class BarraAbas(QtWidgets.QTabBar):
+    """Barra de abas da faixa: as abas marcadas com "destaque" (as de pacotes, ex.: Usinix Pro) saem com o cabeçalho
+    azul, o nome em branco e o filete amarelo em cima; o conteúdo da aba é igual ao das outras."""
+
+    AZUL, AZUL_CLARO, AMARELO = "#003A70", "#0B4F8F", "#F7BE00"
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.destaques = set()
+
+    def paintEvent(self, ev):
+        super().paintEvent(ev)
+        if not self.destaques:
+            return
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.TextAntialiasing)
+        compacto = str((self.parentWidget().property("compacto") if self.parentWidget() else "") or "")
+        tam = {"3": 9.5, "4": 9.0}.get(compacto, 10.0)
+        mouse = self.mapFromGlobal(QtGui.QCursor.pos())
+        for i in range(self.count()):
+            if self.tabData(i) not in self.destaques:
+                continue
+            r = QtCore.QRectF(self.tabRect(i)).adjusted(1, 0, -1, 0)
+            if not r.intersects(QtCore.QRectF(ev.rect())):
+                continue
+            sel = i == self.currentIndex()
+            cor = self.AZUL_CLARO if (not sel and self.tabRect(i).contains(mouse)) else self.AZUL
+            p.fillRect(r, QtGui.QColor(cor))
+            p.fillRect(QtCore.QRectF(r.x(), r.y(), r.width(), 3.0 if sel else 2.0), QtGui.QColor(self.AMARELO))
+            f = QtGui.QFont(self.font())
+            f.setPointSizeF(tam)
+            f.setWeight(QtGui.QFont.DemiBold if sel else QtGui.QFont.Normal)
+            p.setFont(f)
+            p.setPen(QtGui.QColor("#FFFFFF"))
+            p.drawText(r.adjusted(0, 2, 0, 0), QtCore.Qt.AlignCenter, self.tabText(i))
+        p.end()
+
+
 class PrumoRibbon(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1245,7 +1268,8 @@ class PrumoRibbon(QtWidgets.QWidget):
         rl.addWidget(brand)
         # sem seletor de bancadas: tudo fica nas abas (as bancadas sem aba saem de vista no Usinix)
         rl.addSpacing(4)
-        self.tabbar = QtWidgets.QTabBar()
+        self.tabbar = BarraAbas()
+        self.tabbar.setMouseTracking(True)
         self.tabbar.setDrawBase(False)
         self.tabbar.setExpanding(False)
         # tela estreita (notebook com escala de 150–200 %): as abas rolam em vez de impor largura mínima à
@@ -1255,7 +1279,10 @@ class PrumoRibbon(QtWidgets.QWidget):
         self.tabbar.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         self.tabbar.setFocusPolicy(QtCore.Qt.NoFocus)
         for t in self._tabs:
-            self.tabbar.addTab(t["label"])
+            i = self.tabbar.addTab(t["label"])
+            self.tabbar.setTabData(i, t["id"])
+            if t.get("destaque"):
+                self.tabbar.destaques.add(t["id"])
         self.tabbar.currentChanged.connect(self._on_tab_changed)
         self.tabbar.tabBarDoubleClicked.connect(self._toggle_collapse)
         # segurar e arrastar uma aba muda a ordem (fica gravada para a próxima vez)

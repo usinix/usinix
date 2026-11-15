@@ -1326,209 +1326,6 @@ class T18ChapaMetalica(unittest.TestCase):
 
 
 # ======================================================================= vaso de pressão
-class T19VasoPressao(unittest.TestCase):
-    def setUp(self):
-        self.doc = novo_doc("PrumoTesteVaso")
-
-    def tearDown(self):
-        fechar(self.doc)
-
-    def test_formulas_do_costado(self):
-        import PrumoVaso as V
-        c = V.Calculo(1000, 1.0, 138.0, 1.0, 1.5)
-        self.assertAlmostEqual(c.t_circ, 501.5 / (138.0 - 0.6), places=9)
-        self.assertAlmostEqual(c.t_long, 501.5 / (2 * 138.0 + 0.4), places=9)
-        self.assertAlmostEqual(c.t_costado, c.t_circ)
-
-    def test_formulas_dos_tampos(self):
-        import PrumoVaso as V
-        P, S, E, D = 2.0, 120.0, 0.85, 800.0
-        Dc = D + 2 * 3.0
-        self.assertAlmostEqual(V.Calculo(D, P, S, E, 3.0, V.TAMPOS[0]).t_tampo, P * Dc / (2 * S * E - 0.2 * P))
-        # torisférico padrão: L = raio interno da coroa = diâmetro externo (corroído)
-        c = V.Calculo(D, P, S, E, 3.0, V.TAMPOS[1])
-        L = D + 2 * (c.t_tampo + 3.0) + 3.0
-        self.assertAlmostEqual(c.L_tampo, L)
-        self.assertAlmostEqual(c.t_tampo, 0.885 * P * L / (S * E - 0.1 * P))
-        self.assertGreater(c.t_tampo, 0.885 * P * Dc / (S * E - 0.1 * P))
-        self.assertAlmostEqual(V.Calculo(D, P, S, E, 3.0, V.TAMPOS[2]).t_tampo, P * (Dc / 2) / (2 * S * E - 0.2 * P))
-
-    def test_pmta_inverte_a_espessura(self):
-        """Com a espessura exatamente mínima, a PMTA volta à pressão de projeto."""
-        import PrumoVaso as V
-        for tipo in V.TAMPOS:
-            c = V.Calculo(1200, 1.6, 138.0, 0.85, 2.0, tipo)
-            mc, mt = c.minimos_com_corrosao()
-            self.assertAlmostEqual(c.pmta_costado(mc), 1.6, places=9)
-            self.assertAlmostEqual(c.pmta_tampo(mt), 1.6, places=9)
-
-    def test_aviso_fora_do_limite(self):
-        import PrumoVaso as V
-        c = V.Calculo(500, 60.0, 138.0, 1.0)
-        self.assertTrue(any("0,385" in a for a in c.avisos))
-
-    def test_entradas_invalidas(self):
-        import PrumoVaso as V
-        with self.assertRaises(ValueError):
-            V.Calculo(1000, 1.0, 0.0, 1.0)
-        with self.assertRaises(ValueError):
-            V.Calculo(1000, 1.0, 138.0, 1.2)
-        with self.assertRaises(ValueError):
-            V.Calculo(1000, 1.0, 138.0, 1.0, -1.0)
-
-    def test_denominador_nao_positivo(self):
-        import PrumoVaso as V
-        # S·E − 0,6·P ≤ 0
-        with self.assertRaises(ValueError):
-            V.Calculo(1000, 300.0, 138.0, 1.0)
-        with self.assertRaises(ValueError):
-            V.Calculo(1000, 230.0, 138.0, 1.0)   # exatamente no limite: 138 − 0,6·230 = 0
-        # torisférico: 1 − 2k ≤ 0 mesmo com o costado ainda calculável
-        with self.assertRaises(ValueError):
-            V.Calculo(1000, 80.0, 138.0, 1.0, 0.0, V.TAMPOS[1])
-
-    def test_vaso_com_pressao_impossivel_nao_quebra(self):
-        import PrumoVaso as V
-        v = V.criar(self.doc, 1000, 1000, 300.0, 138.0, 1.0)
-        self.assertTrue(any("não realizado" in a for a in v.Avisos))
-        self.assertEqual(v.MinimoCostado, 0.0)
-        self.assertIn("não realizado", V.memoria(v))
-
-    def test_limites_de_aplicacao(self):
-        import PrumoVaso as V
-        c = V.Calculo(1000, 100.0, 138.0, 1.0, 0.0, V.TAMPOS[2])
-        self.assertTrue(any("0,665" in a for a in c.avisos))
-        self.assertTrue(any("0,356" in a for a in c.avisos))
-        c = V.Calculo(1000, 0.05, 138.0, 1.0, 0.0, V.TAMPOS[0])
-        self.assertTrue(any("0,002" in a for a in c.avisos))
-        c = V.Calculo(1000, 1.0, 138.0, 1.0, 0.0, V.TAMPOS[0])
-        self.assertEqual(c.avisos, [])
-
-    def test_rotulo_antigo_do_tampo(self):
-        import PrumoVaso as V
-        self.assertEqual(V.tipo_tampo("Torisférico (L = D, r = 6 %)"), 1)
-        self.assertEqual(V.tipo_tampo(V.TAMPOS[0]), 0)
-        self.assertEqual(V.tipo_tampo(V.TAMPOS[2]), 2)
-
-    def test_bocal_fora_do_costado(self):
-        import PrumoVaso as V
-        v = V.criar(self.doc, 1000, 2000, 1.0, 138.0, 1.0, 0.0, V.TAMPOS[0],
-                    bocais=['2500; 90; Tubo 2" Sch 40; 150', '500; 90; Tubo 2" Sch 40; 150'])
-        self.assertTrue(any("fora do costado" in a for a in v.Avisos))
-        self.assertTrue(v.Shape.isValid())
-
-    def test_memoria_indica_E_dos_tampos_e_L(self):
-        import PrumoVaso as V
-        v = V.criar(self.doc, 1000, 1000, 1.0, 138.0, 0.85, 1.0, V.TAMPOS[1])
-        m = V.memoria(v)
-        self.assertIn("E usado nos tampos = 0,85", m)
-        self.assertIn("raio interno da coroa", m)
-
-    def test_chapa_acima(self):
-        import PrumoVaso as V
-        self.assertEqual(V.chapa_acima(5.15), 6.35)
-        self.assertEqual(V.chapa_acima(6.35), 6.35)
-        self.assertEqual(V.chapa_acima(80.0), 80)
-
-    def test_tampos_validos_e_alturas(self):
-        import PrumoVaso as V
-        for tipo in V.TAMPOS:
-            t = V.tampo(500, 10, tipo)
-            self.assertTrue(t.isValid(), tipo)
-            self.assertEqual(len(t.Solids), 1)
-            self.assertAlmostEqual(t.BoundBox.XLength, V.altura_tampo(500, 10, tipo), places=3)
-        # 2:1 → profundidade interna D/4; torisférico padrão → ~0,169·D
-        self.assertAlmostEqual(V.altura_tampo(500, 0, V.TAMPOS[0]), 250.0)
-        self.assertAlmostEqual(V.altura_tampo(500, 0, V.TAMPOS[1]) / 1000.0, 0.1693, places=3)
-
-    def test_volume_interno(self):
-        import PrumoVaso as V
-        self.assertAlmostEqual(V.volume_interno(1000, 2000, V.TAMPOS[0]),
-                               math.pi * 0.25 * 2 + 2 * (2 / 3.0 * math.pi * 0.25 * 0.25), places=6)
-        self.assertAlmostEqual(V.volume_interno(1000, 0, V.TAMPOS[2]), 4 / 3.0 * math.pi * 0.125, places=6)
-        tori = (V.volume_interno(1000, 0, V.TAMPOS[1])) / 2
-        self.assertAlmostEqual(tori, 0.0809, places=3)   # ≈ 0,0809·D³ para o torisférico padrão
-
-    def test_vaso_completo_com_bocais(self):
-        import PrumoVaso as V
-        v = V.criar(self.doc, 1000, 2000, 1.0, 138.0, 1.0, 1.5, V.TAMPOS[0],
-                    bocais=['500; 90; Tubo 2" Sch 40; 150', '1500; 0; Tubo 4" Sch 80; 200'])
-        self.assertTrue(v.Shape.isValid())
-        self.assertEqual(len(v.Shape.Solids), 1)
-        self.assertEqual(list(v.Avisos), [])
-        self.assertAlmostEqual(v.MinimoCostado, 501.5 / 137.4 + 1.5, places=6)
-        self.assertGreater(v.PMTACostado, 1.0)
-        # bocal de 2" passa pelo topo: deve existir furo (face cilíndrica do diâmetro interno do tubo)
-        import PrumoPerfis
-        it = PrumoPerfis.perfil('Tubo 2" Sch 40')
-        ri = it["D"] / 2 - it["esp"]
-        self.assertTrue(any(f.Surface.__class__.__name__ == "Cylinder" and abs(f.Surface.Radius - ri) < 1e-6
-                            for f in v.Shape.Faces))
-        self.assertIn("UG-27", V.memoria(v))
-
-    def test_espessura_adotada_menor_avisa(self):
-        import PrumoVaso as V
-        v = V.criar(self.doc, 1000, 1000, 1.0, 138.0, 1.0, 0.0, V.TAMPOS[2], t_costado=2.0, t_tampo=2.0)
-        self.assertTrue(any("costado menor" in a for a in v.Avisos))
-
-    def test_bocal_invalido(self):
-        import PrumoVaso as V
-        self.assertIsNone(V.interpretar_bocal("500; 90; Tubo 99\" Sch 40; 100"))
-        self.assertIsNone(V.interpretar_bocal("500; noventa; Tubo 2\" Sch 40; 100"))
-        self.assertIsNotNone(V.interpretar_bocal('500; 90; Tubo 2" Sch 40; 100'))
-
-    def test_sem_tensao_nao_calcula(self):
-        import PrumoVaso as V
-        v = V.criar(self.doc, 1000, 1000, 1.0, 0.0, 1.0)
-        self.assertTrue(v.Shape.isNull())
-        self.assertIn("tensão admissível", v.Avisos[0])
-
-    def test_dialogo(self):
-        if not FreeCAD.GuiUp:
-            self.skipTest("sem interface")
-        import PrumoVaso as V
-        p = V.PainelVaso()
-        try:
-            p.S.setValue(0.0)
-            self.assertIn("tensão admissível", p.pendencia())
-            p.S.setValue(138.0)
-            self.assertIsNone(p.pendencia())
-        finally:
-            p.form.deleteLater() if hasattr(p.form, "deleteLater") else None
-
-    def test_unidades_de_pressao(self):
-        import PrumoVaso as V
-        self.assertAlmostEqual(V._unidade("kgf/cm²")[1], 0.0980665, 9)
-        self.assertAlmostEqual(V._unidade("psi")[1] * 145.0377377, 1.0, 6)
-        self.assertEqual(V.fmt_p(1.0, "kgf/cm²"), "10,20 kgf/cm² (1,000 MPa)")
-        self.assertEqual(V.fmt_p(1.0, "psi"), "145,0 psi (1,000 MPa)")
-        v = V.criar(self.doc, 1000, 2000, 1.0, 138.0, 1.0)
-        v.UnidadePressao = "kgf/cm²"
-        self.doc.recompute()
-        self.assertIn("Pressão de projeto: 10,20 kgf/cm² (1,000 MPa)", V.memoria(v))
-        self.assertTrue(any("kgf/cm² (" in l for l in V.tabela_dados(v)))
-        if not FreeCAD.GuiUp:
-            return
-        p = V.PainelVaso()
-        try:
-            p.P_.setValue(1.5)
-            p.unid_p.setCurrentText("psi")
-            self.assertAlmostEqual(p.P_.value(), 217.6, 1)          # 1,5 MPa em psi
-            self.assertAlmostEqual(p.pressao_mpa(), 1.5, 3)
-            p.unid_p.setCurrentText("kgf/cm²")
-            self.assertAlmostEqual(p.P_.value(), 15.30, 2)
-            p.P_.setValue(10.0)                                      # 10 kgf/cm²
-            pr = p.props()
-            self.assertAlmostEqual(pr["PressaoProjeto"], 0.980665, 6)
-            self.assertEqual(pr["UnidadePressao"], "kgf/cm²")
-            p.carregar(v)
-            self.assertEqual(p.unid_p.currentText(), "kgf/cm²")
-            self.assertAlmostEqual(p.pressao_mpa(), 1.0, 3)
-        finally:
-            p.form.deleteLater() if hasattr(p.form, "deleteLater") else None
-
-
-# ======================================================================= fixadores
 class T20Fixadores(unittest.TestCase):
     def setUp(self):
         self.doc = novo_doc("PrumoTesteFixadores")
@@ -5595,225 +5392,6 @@ class T44RotulasCargasSecoes(unittest.TestCase):
         self.doc = FreeCAD.openDocument(arq)
         self.assertIsNotNone(PrumoPerfis.perfil(nome))
 
-
-class T45BancadaVasos(unittest.TestCase):
-    """Bancada de vasos de pressão: formulário com prévia, suportes, posição, teste de pressão,
-    desenho com cotas e tabela, e teste de pressão por elementos finitos de casca."""
-
-    def setUp(self):
-        self.doc = novo_doc("PrumoTesteVasos")
-        FreeCAD.setActiveDocument(self.doc.Name)
-
-    def tearDown(self):
-        if FreeCAD.GuiUp:
-            FreeCADGui.Selection.clearSelection()
-            if FreeCADGui.Control.activeDialog():
-                FreeCADGui.Control.closeDialog()
-        fechar(self.doc)
-
-    def test_criterios_e_pressao_de_teste(self):
-        import PrumoVaso as V
-        self.assertAlmostEqual(V.s_estimado(260.0, 485.0), min(485 / 3.5, 2 * 260 / 3.0))
-        self.assertAlmostEqual(V.pressao_teste(1.0, 138.0, 138.0, V.TESTES[0]), 1.3)
-        self.assertAlmostEqual(V.pressao_teste(1.0, 120.0, 138.0, V.TESTES[0]), 1.3 * 138 / 120)
-        self.assertAlmostEqual(V.pressao_teste(1.0, 138.0, None, V.TESTES[1]), 1.1)
-
-    def _vaso(self, **kw):
-        import PrumoVaso as V
-        v = V.criar(self.doc, 800, 1500, 1.0, 138.0, 1.0, 1.5, V.TAMPOS[0], "ASTM A516 Gr 70 (SA-516 70)", "100 °C",
-                    ['500; 90; Tubo 2" Sch 40; 150'])
-        v.Suportes = kw.get("suportes", "Selas")
-        v.Sy = 260.0
-        for k, val in kw.items():
-            if k != "suportes":
-                setattr(v, k, val)
-        self.doc.recompute()
-        return v
-
-    def test_suportes_posicao_e_teste(self):
-        import PrumoVaso as V
-        v = self._vaso()
-        self.assertEqual(v.Avisos, [])
-        self.assertTrue(v.Shape.isValid())
-        self.assertEqual(len(v.Shape.Solids), 1)
-        self.assertAlmostEqual(v.PMTA, min(v.PMTACostado, v.PMTATampo))
-        self.assertAlmostEqual(v.PressaoTeste, 1.3 * v.PMTA)
-        self.assertAlmostEqual(v.PressaoTesteFundo, v.PressaoTeste + V.AGUA * 800, places=6)
-        self.assertLess(v.Shape.BoundBox.ZMin, -400)                  # selas abaixo do vaso
-        v.Orientacao = "Vertical"
-        v.Suportes = "Saia"
-        self.doc.recompute()
-        bb = v.Shape.BoundBox
-        self.assertGreater(bb.ZLength, bb.XLength)                     # em pé
-        self.assertGreater(v.PressaoTesteFundo - v.PressaoTeste, V.AGUA * 1500)
-        v.Suportes = "Selas"
-        self.doc.recompute()
-        self.assertTrue(any("horizontal" in a for a in v.Avisos))
-        self.assertIn("Teste de pressão", V.memoria(v))
-
-    def test_todo_suporte_oferecido_constroi(self):
-        """Cada suporte que o painel oferece para a posição tem de aparecer no modelo (antes, saia e pernas
-        no vaso deitado não construíam nada)."""
-        import PrumoVaso as V
-        v = self._vaso(suportes="Nenhum")
-        for pos, sups in V.SUPORTES_POR_POSICAO.items():
-            v.Orientacao = pos
-            v.Suportes = "Nenhum"
-            self.doc.recompute()
-            vol0 = v.Shape.Volume
-            for sup in sups:
-                if sup == "Nenhum":
-                    continue
-                v.Suportes = sup
-                self.doc.recompute()
-                self.assertEqual(v.Avisos, [], "%s/%s" % (pos, sup))
-                self.assertTrue(v.Shape.isValid(), "%s/%s" % (pos, sup))
-                self.assertGreater(v.Shape.Volume, vol0 * 1.01, "%s no vaso %s não construiu nada" % (sup, pos))
-        if FreeCAD.GuiUp:
-            p = V.abrir_painel()
-            try:
-                p.orient.setCurrentText("Horizontal")
-                self.assertEqual([p.sup.itemText(i) for i in range(p.sup.count())],
-                                 ["Nenhum", "Selas", "Pés de chapa", "Pernas"])
-                p.sup.setCurrentText("Pernas")
-                p.orient.setCurrentText("Vertical")
-                self.assertEqual([p.sup.itemText(i) for i in range(p.sup.count())], ["Nenhum", "Saia", "Pernas"])
-                self.assertEqual(p.sup.currentText(), "Pernas", "o que ainda serve continua escolhido")
-                p.orient.setCurrentText("Horizontal")
-                p.orient.setCurrentText("Vertical")
-                p.sup.setCurrentText("Saia")
-                p.orient.setCurrentText("Horizontal")
-                self.assertEqual(p.sup.currentText(), "Selas")
-            finally:
-                p.close()
-
-    def test_pes_de_chapa_de_compressor(self):
-        """Pés de chapa dobrada em U (reservatório de compressor): quatro, abertos para as pontas, sapatas no chão
-        com furo, e no FEM."""
-        import PrumoVaso as V
-        v = self._vaso(suportes="Nenhum")
-        sem = v.Shape.Volume
-        v.Suportes = "Pés de chapa"
-        self.doc.recompute()
-        self.assertEqual(v.Avisos, [])
-        self.assertTrue(v.Shape.isValid())
-        self.assertEqual(len(v.Shape.Solids), 1, "os pés ficam soldados no costado")
-        pes = V.pes_de_chapa(300.0, 1.0, 400.0 + 6.0, 800.0)
-        self.assertEqual(len(pes), 2, "frente e trás")
-        for pe in pes:
-            self.assertTrue(pe.isValid())
-            self.assertEqual(len(pe.Solids), 1)
-        # o pé abre para a ponta do vaso: a sapata fica mais longe do meio que o topo do U
-        bbp = pes[0].BoundBox
-        self.assertGreater(bbp.XMax, 300.0 + 60.0)
-        bb = v.Shape.BoundBox
-        self.assertLess(bb.ZMin, -406.0 - 50.0, "sapatas abaixo do costado")
-        self.assertGreater(v.Shape.Volume, sem + 4 * pes[0].Volume * 0.5)
-        # a sapata é plana, no chão, com furo
-        chao = [f for f in v.Shape.Faces if abs(f.BoundBox.ZMax - bb.ZMin) < 1e-6 and abs(f.BoundBox.ZMin - bb.ZMin) < 1e-6]
-        self.assertGreaterEqual(len(chao), 4)
-        self.assertTrue(all(len(f.Wires) == 2 for f in chao), "cada sapata tem o furo de fixação")
-        # o teste de pressão por elementos finitos também entende os pés (casca média com apoio na sapata)
-        frag, grupos, apoio, _info = V.casca_media(v)
-        self.assertTrue(any(k[0] == "pé de chapa" for k in grupos), list(grupos))
-        self.assertTrue(apoio, "sem arestas de apoio nas sapatas")
-        v.Suportes = "Pernas"
-        self.doc.recompute()
-        frag, grupos, apoio, _info = V.casca_media(v)
-        self.assertTrue(any(k[0] == "perna" for k in grupos))
-        self.assertTrue(apoio)
-        v.Suportes = "Pés de chapa"
-        v.Orientacao = "Vertical"
-        self.doc.recompute()
-        self.assertTrue(any("horizontal" in a for a in v.Avisos))
-
-    def test_desenho_com_cotas_e_tabela(self):
-        import PrumoVaso as V
-        v = self._vaso()
-        page = V.desenho(v)
-        tipos = [o.TypeId for o in page.Views]
-        self.assertIn("TechDraw::DrawProjGroup", tipos)
-        self.assertEqual(tipos.count("TechDraw::DrawViewDimension"), 2)
-        ann = [o for o in page.Views if o.TypeId == "TechDraw::DrawViewAnnotation"][0]
-        self.assertTrue(any("PMTA" in l for l in ann.Text))
-        self.assertTrue(any(l.startswith("N1") for l in ann.Text))
-
-    def test_perimetro_medido_com_fita(self):
-        """Vaso existente: entra o perímetro externo (fita métrica) e o Ø interno sai descontando o costado."""
-        import math
-        import PrumoVaso as V
-        v = self._vaso(suportes="Nenhum")
-        v.EspessuraCostado = 6.35
-        v.PerimetroExterno = 1000.0 * math.pi
-        self.doc.recompute()
-        self.assertAlmostEqual(v.DiametroInterno.Value, 1000.0 - 2 * 6.35, places=4)
-        self.assertEqual(v.getEditorMode("DiametroInterno"), ["ReadOnly"])
-        self.assertAlmostEqual(v.Shape.BoundBox.YLength, 1000.0, places=1, msg="o Ø externo bate com a fita")
-        # sem espessura adotada: usa a chapa comercial da mínima (que depende do próprio Ø)
-        v.EspessuraCostado = 0.0
-        self.doc.recompute()
-        tc = V.chapa_acima(v.MinimoCostado)
-        self.assertAlmostEqual(v.DiametroInterno.Value, 1000.0 - 2 * tc, places=3)
-        self.assertIn("Perímetro externo medido", V.memoria(v))
-        v.PerimetroExterno = 0.0
-        v.DiametroInterno = 800.0
-        self.doc.recompute()
-        self.assertAlmostEqual(v.DiametroInterno.Value, 800.0)
-        if FreeCAD.GuiUp:
-            p = V.abrir_painel()
-            try:
-                self.assertTrue(p.por_perimetro(), "o padrão é o perímetro (vaso existente)")
-                p.tc.setValue(8.0)
-                p.D.setValue(2000.0 * math.pi)
-                # o campo guarda 0,1 mm: a fita também não mede melhor que isso
-                self.assertAlmostEqual(p.diametro_interno(), 2000.0 - 16.0, delta=0.05)
-                self.assertIn("Ø externo", p.lb_D.text())
-                d = p.props()
-                self.assertAlmostEqual(d["PerimetroExterno"], 2000.0 * math.pi, delta=0.05)
-                p.modo_D.setCurrentText(V.MEDIDAS_COSTADO[1])
-                self.assertAlmostEqual(p.D.value(), 1984.0, places=1, msg="trocar para diâmetro converte o número")
-                self.assertEqual(p.props()["PerimetroExterno"], 0.0)
-            finally:
-                p.close()
-
-    def test_painel_cria_e_edita(self):
-        if not FreeCAD.GuiUp:
-            self.skipTest("sem interface")
-        import PrumoVaso as V
-        p = V.abrir_painel()
-        try:
-            i = p.material.findData("ASTM A516 Gr 70 (SA-516 70)")
-            self.assertGreaterEqual(i, 0)
-            p.material.setCurrentIndex(i)
-            p._estimar_s()
-            self.assertGreater(p.S.value(), 100.0)
-            p._mais_bocal()
-            self.assertEqual(len(p._linhas_bocais()), 1)
-            self.assertIsNone(p.pendencia())
-        finally:
-            p.accept()
-            FreeCADGui.Control.closeDialog()
-        vs = [o for o in self.doc.Objects if "PressaoProjeto" in o.PropertiesList]
-        self.assertEqual(len(vs), 1)
-        self.assertEqual(len(vs[0].Bocais), 1)
-        self.assertGreater(vs[0].PressaoTeste, 0.0)
-
-    def test_teste_de_pressao_casca(self):
-        """Membrana no meio do costado: von Mises ≈ √3/2 · P·R/t (casca cilíndrica fechada)."""
-        import math
-        import PrumoVaso as V
-        import PrumoFEM as F
-        v = self._vaso()
-        est, erro = V.simular_teste(v, tamanho=45.0)
-        self.assertEqual(erro, "", erro)
-        self.assertEqual(F.avaliar(est)["_bloqueios"], [])
-        r = est.resultados[0]
-        nos = r.Mesh.FemMesh.Nodes
-        tc = V.chapa_acima(v.MinimoCostado)
-        Rm = 400 + tc / 2.0
-        meio = [s for n, s in zip(r.NodeNumbers, r.vonMises) if abs(nos[n].x - 750) < 60 and nos[n].z > 0.6 * Rm]
-        teoria = v.PressaoTeste * Rm / tc * math.sqrt(3) / 2
-        self.assertLess(abs(sum(meio) / len(meio) - teoria) / teoria, 0.10)
 
 class T46NBR2024(unittest.TestCase):
     """NBR 8800:2024 / NBR 8681:2025: área efetiva, Cb em λr sem teto, imperfeições (forças nocionais e
@@ -14730,6 +14308,46 @@ class T98CliqueSempreResponde(unittest.TestCase):
         self.assertEqual([t["id"] for t in rb._tabs], ids0)
 
 
+    def test_aba_nova_entra_ao_lado_da_vizinha_e_destaque_pinta(self):
+        import PrumoRibbon as R
+        g = R._params()
+        antes = g.GetString("OrdemAbas", "")
+        try:
+            # o usuário levou Estruturas para o começo; a aba nova (de pacote) vem logo depois dela
+            ids = [t["id"] for t in R.TABS]
+            gravada = ["estruturas"] + [x for x in ids if x != "estruturas"]
+            g.SetString("OrdemAbas", ",".join(gravada))
+            tabs = list(R.TABS)
+            k = ids.index("estruturas")
+            tabs.insert(k + 1, {"id": "nova_teste", "label": "Nova", "wb": None, "panels": [], "destaque": True})
+            res = [t["id"] for t in R.ordenar_abas(tabs)]
+            self.assertEqual(res[:2], ["estruturas", "nova_teste"])
+            self.assertEqual(len(res), len(tabs))
+        finally:
+            if antes:
+                g.SetString("OrdemAbas", antes)
+            else:
+                g.RemString("OrdemAbas")
+        if not FreeCAD.GuiUp:
+            return
+        from PySide import QtGui
+        b = R.BarraAbas()
+        for i, (tid, rot) in enumerate((("a", "Comum"), ("b", "Pro"))):
+            b.addTab(rot)
+            b.setTabData(i, tid)
+        b.destaques.add("b")
+        b.setCurrentIndex(0)
+        b.resize(b.sizeHint())
+        img = b.grab().toImage()
+        r = b.tabRect(1)
+        meio = img.pixelColor(r.x() + 4, r.center().y())
+        topo = img.pixelColor(r.center().x(), r.y() + 1)
+        comum = img.pixelColor(b.tabRect(0).x() + 4, b.tabRect(0).center().y())
+        self.assertEqual(meio.name().upper(), R.BarraAbas.AZUL)
+        self.assertEqual(topo.name().upper(), R.BarraAbas.AMARELO)
+        self.assertNotEqual(comum.name().upper(), R.BarraAbas.AZUL)
+
+
 class T90TracadoNasConexoes(unittest.TestCase):
     """Cantos e ramais do Esboço 3D fora dos ângulos das conexões: o traçado se ajusta conforme a linha (PVC e
     rosca vão para 90°/45°; no aço, a curva cortada faz qualquer canto até 90°)."""
@@ -16847,251 +16465,6 @@ class T125InstalarNoClaude(unittest.TestCase):
             j.deleteLater()
 
 
-class T126DiferencialSework(unittest.TestCase):
-    """1.11.0: distâncias da NBR ISO 13857, proteção NR-12 parametrizada, memorial NR-13 e sombras fora."""
-
-    def setUp(self):
-        self.doc = None
-
-    def tearDown(self):
-        if self.doc is not None:
-            fechar(self.doc)
-
-    def test_tabelas_da_norma(self):
-        import PrumoDistancias as D
-        # Tabela 2: sem interpolação — h entre linhas vale a que pede mais; hps entre colunas, a de baixo
-        self.assertEqual(D.alcance_sobre(1500, 1400)[0], 1100)
-        self.assertEqual(D.alcance_sobre(2100, 1900)[0], 800)
-        self.assertEqual(D.alcance_sobre(2600, 2000)[0], 500)
-        self.assertEqual(D.alcance_sobre(2700, 1000)[0], 0)
-        self.assertIsNone(D.alcance_sobre(1000, 900)[0])
-        self.assertIn("1 400", D.alcance_sobre(1000, 1200)[1])
-        # Tabela 1 (lesão leve)
-        self.assertEqual(D.alcance_sobre(900, 1000, "baixo")[0], 1400)
-        self.assertEqual(D.alcance_sobre(2500, 1000, "baixo")[0], 0)
-        # Tabela 4
-        self.assertEqual(D.abertura(25, "fenda")["s"], 850)
-        self.assertEqual(D.abertura(25, "fenda", comprimento_fenda=60)["s"], 200)
-        self.assertEqual(D.abertura(25, "quadrada")["s"], 120)
-        self.assertEqual(D.abertura(35, "quadrada")["s"], 200)
-        self.assertEqual(D.abertura(10, "circular")["s"], 20)
-        self.assertIsNone(D.abertura(130, "quadrada")["s"])
-        # Tabela 5 (crianças)
-        self.assertEqual(D.abertura(25, "quadrada", "3")["s"], 550)
-        self.assertEqual(D.abertura(15, "fenda", "3", comprimento_fenda=30)["s"], 120)
-        # Tabela 7
-        self.assertEqual(D.membros_inferiores(70, "fenda")["s"], 650)
-        self.assertEqual(D.membros_inferiores(70, "quadrada")["s"], 180)
-        self.assertIsNone(D.membros_inferiores(200, "fenda")["s"])
-        self.assertEqual(D.membros_inferiores(200, "quadrada")["s"], 1100)
-        self.assertEqual(D.maior_abertura(150), 30)
-
-    def test_verificacao_completa(self):
-        import PrumoDistancias as D
-        ok, itens = D.verificar(25, "quadrada", dist_abertura=150, altura_protecao=2000, altura_perigo=1200,
-                                folga_inferior=100, dist_folga=1200)
-        self.assertTrue(ok, D.texto(ok, itens))
-        ok, itens = D.verificar(50, "quadrada", dist_abertura=150, altura_protecao=2000, altura_perigo=1200)
-        self.assertFalse(ok)
-        self.assertIn("Tabela 4", D.texto(ok, itens))
-
-    def test_protecao_no_modelo(self):
-        import PrumoProtecao as PP
-        import PrumoBOM
-        self.doc = novo_doc("PrumoTesteProtecao")
-        maq = self.doc.addObject("Part::Box", "Maquina")
-        maq.Length, maq.Width, maq.Height = 600, 400, 900
-        maq.Placement.Base = FreeCAD.Vector(200, 200, 300)
-        self.doc.recompute()
-        g = PP.criar(self.doc, Forma=PP.FORMAS[1], Largura=1000, Profundidade=800, Altura=2600,
-                     FolgaInferior=0, Abertura=10, FioTela=2, ponto=(maq, ["Face2"]))
-        self.assertTrue(g.Shape.isValid())
-        self.assertEqual(len(g.Shape.Solids), 8)                       # 4 quadros + 4 telas
-        self.assertAlmostEqual(g.AlturaMedida, 1200, delta=1)
-        self.assertGreater(g.DistanciaMedida, 150)
-        self.assertLess(g.DistanciaMedida, 200)
-        self.assertTrue(g.Conforme, "\n".join(g.Verificacao))
-        g.Abertura = 50
-        self.doc.recompute()
-        self.assertFalse(g.Conforme)
-        self.assertTrue(any(v.startswith("✗ Abertura") for v in g.Verificacao))
-        # teto: some o alcance por cima
-        g.Abertura, g.Altura, g.Teto = 10, 1400, True
-        self.doc.recompute()
-        self.assertEqual(len(g.Shape.Solids), 10)
-        self.assertGreater(g.Shape.BoundBox.YMin, -1e-6, "o teto fica em cima do enclausuramento")
-        self.assertTrue(any("teto" in v for v in g.Verificacao))
-        # lista de materiais: um item com massa
-        linhas = PrumoBOM.coletar([g])
-        self.assertEqual(len(linhas), 1)
-        self.assertIn("Proteção enclausuramento", linhas[0].denominacao)
-        self.assertGreater(g.Peso, 10)
-        self.assertIn("CONFORME", PP.relatorio(g))
-
-    def test_painel_da_protecao(self):
-        if not FreeCAD.GuiUp:
-            self.skipTest("sem interface")
-        import PrumoProtecao as PP
-        self.doc = novo_doc("PrumoTestePainelProtecao")
-        p = PP.PainelProtecao()
-        try:
-            p.forma.setCurrentText(PP.FORMAS[1])
-            self.assertFalse(p.s_enc.isHidden())
-            p.tipo.setCurrentText(PP.TIPOS_TELA[1])
-            self.assertFalse(p.s_fenda.isHidden())
-            p.executar()
-            g = [o for o in self.doc.Objects if PP.e_protecao(o)][0]
-            self.assertEqual(g.Forma, PP.FORMAS[1])
-            self.assertIn("CONFORME", p.resultado.text())
-        finally:
-            p.form.deleteLater()
-
-    def test_enquadramento_nr13(self):
-        import PrumoMemorialNR13 as M
-        self.assertEqual(M.grupo(150)[0], 1)
-        self.assertEqual(M.grupo(50)[0], 2)
-        self.assertEqual(M.grupo(10)[0], 3)
-        self.assertEqual(M.grupo(2)[0], 4)
-        self.assertEqual(M.grupo(0.5)[0], 5)
-        g, aviso = M.grupo(30)
-        self.assertEqual(g, 2)
-        self.assertIn("maior risco", aviso)
-        self.assertEqual(M.categoria("A", 1), "I")
-        self.assertEqual(M.categoria("D", 1), "II")
-        self.assertEqual(M.categoria("C", 5), "V")
-        self.assertEqual(M.categoria("B", 4), "IV")
-        e = M.enquadramento(0.8, 1.139, "C — ar")
-        self.assertEqual((e["grupo"], e["categoria"]), (5, "V"))
-        self.assertTrue(e["abrangido"])
-        self.assertEqual(e["prazos"], (5, 10, 7, None))
-        self.assertFalse(M.enquadramento(0.005, 1.0, "C")["abrangido"])       # 5 kPa·m³ < 8
-
-    def test_memorial_em_pdf(self):
-        import tempfile
-        import PrumoVaso as V
-        import PrumoMemorialNR13 as M
-        self.doc = novo_doc("PrumoTesteMemorial")
-        v = V.criar(self.doc, 800, 2000, 0.9, 138.0, 0.85, 1.5, V.TAMPOS[0], "ASTM A285 Gr C", "60 °C")
-        M.garantir_campos(v)
-        v.MemTag, v.MemResponsavel, v.MemRegistro, v.MemART = "RAC-01", "Fulano", "MG-1/D", "MG2026"
-        html_, avisos = M.montar(v)
-        for t in ("RAC-01", "UG-27", "Categoria (Tabela 1)", "Portaria MTP n.º 1.846", "ART nº MG2026",
-                  "exame externo a cada 4 anos"):
-            self.assertIn(t, html_)
-        self.assertTrue(any("pressão de projeto" in a for a in avisos))
-        pasta = tempfile.mkdtemp()
-        caminho, _a = M.salvar_pdf(v, os.path.join(pasta, "memorial.pdf"))
-        with open(caminho, "rb") as fh:
-            dados = fh.read()
-        self.assertTrue(dados.startswith(b"%PDF"))
-        self.assertGreater(len(dados), 10000)
-        self.assertLessEqual(dados.count(b"/Type /Page\n") + dados.count(b"/Type/Page\n"), 3)
-
-    def test_ferramentas_da_ia_e_comandos(self):
-        import PrumoIA
-        self.assertIn("protecao_nr12", PrumoIA.FERRAMENTAS)
-        self.assertIn("memorial_nr13", PrumoIA.FERRAMENTAS)
-        r = PrumoIA.executar("distancias_seguranca", {"abertura": 25, "distancia": 150, "altura_protecao": 2000,
-                                                      "altura_perigo": 1200})
-        self.assertTrue(r["conforme"], r)
-        if FreeCAD.GuiUp:
-            cmds = FreeCADGui.listCommands()
-            for c in ("Prumo_ProtecaoNR12", "Prumo_RelatorioProtecao", "Prumo_MemorialNR13"):
-                self.assertIn(c, cmds)
-
-
-class T127Escada(unittest.TestCase):
-    """1.12.0: escada industrial num objeto só (banzos, degraus, guarda-corpo) com a NR-12, Anexo III."""
-
-    def setUp(self):
-        self.doc = novo_doc("PrumoTesteEscada")
-
-    def tearDown(self):
-        fechar(self.doc)
-
-    def test_escada_45_graus(self):
-        import PrumoEscada as PE
-        import PrumoEstrutura as E
-        import PrumoBOM
-        e = PE.criar(self.doc, Desnivel=2400, Angulo=45, LarguraUtil=800)
-        self.assertTrue(e.Conforme, "\n".join(e.Verificacao))
-        self.assertEqual(e.Degraus, 10)
-        self.assertAlmostEqual(e.AlturaEspelho, 2400 / 11.0, places=3)
-        m = PE.Medidas(e)
-        self.assertTrue(600 <= m.g + 2 * m.h <= 660)
-        # banzos: duas vigas I com a altura no plano vertical e pontas horizontais no piso e no topo
-        bs = E.barras_de(e.Banzos)
-        self.assertEqual(len(bs), 2)
-        n = FreeCAD.Vector(-m.sen, 0, m.cos)
-        for b in bs:
-            self.assertTrue(b.Shape.isValid())
-            ds = [v.Point.dot(n) for v in b.Shape.Vertexes]
-            self.assertAlmostEqual(max(ds) - min(ds), m.alt, delta=0.5)
-            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 0.0, places=3)
-            self.assertAlmostEqual(b.Shape.BoundBox.ZMax, 2400.0, places=3)
-        self.assertEqual(list(e.GuardaCorpo.Avisos), [])
-        # tudo num objeto: a escada contém as partes
-        for parte in (e.Banzos, e.GuardaCorpo, e.PecasDegraus):
-            self.assertIn(parte, e.Group)
-        # lista de materiais: degraus pela quantidade
-        linhas = {l.denominacao: l for l in PrumoBOM.coletar([e])}
-        deg = [l for d, l in linhas.items() if d.startswith("Degrau")]
-        self.assertEqual(len(deg), 1)
-        self.assertEqual(deg[0].qtd, 10)
-        self.assertTrue(any(d.startswith("Rodapé") for d in linhas))
-
-    def test_edicao_e_nr12(self):
-        import PrumoEscada as PE
-        e = PE.criar(self.doc, Desnivel=2400, Angulo=45, LarguraUtil=800)
-        e.Desnivel = 3200
-        e.LarguraUtil = 550
-        PE.reconstruir(e)
-        self.assertFalse(e.Conforme)
-        ruins = [v for v in e.Verificacao if v.startswith("✗")]
-        self.assertTrue(any("patamar" in v for v in ruins))
-        self.assertTrue(any("Largura útil" in v for v in ruins))
-        # escada com espelho a 60°: fora da Figura 1
-        e.TipoDegrau = PE.TIPOS_DEGRAU[2]
-        e.Angulo, e.Desnivel, e.LarguraUtil = 60, 2000, 800
-        PE.reconstruir(e)
-        self.assertTrue(any("com espelho" in v and v.startswith("✗") for v in e.Verificacao))
-        # sem guarda-corpo: some a estrutura e a verificação acusa
-        e.TipoDegrau, e.Angulo, e.LadosGuarda = PE.TIPOS_DEGRAU[0], 45, PE.LADOS[3]
-        PE.reconstruir(e)
-        self.assertIsNone(e.GuardaCorpo)
-        self.assertTrue(any("Sem guarda-corpo" in v for v in e.Verificacao))
-
-    def test_escada_deitada_e_posicao(self):
-        import PrumoEscada as PE
-        import PrumoEstrutura as E
-        e = PE.criar(self.doc, Desnivel=1200, Angulo=22, LarguraUtil=700,
-                     Posicao=FreeCAD.Placement(FreeCAD.Vector(1000, 500, 300), FreeCAD.Rotation(0, 0, 0)))
-        m = PE.Medidas(e)
-        n = FreeCAD.Vector(-m.sen, 0, m.cos)
-        b = E.barras_de(e.Banzos)[0]
-        ds = [v.Point.dot(n) for v in b.Shape.Vertexes]
-        self.assertAlmostEqual(max(ds) - min(ds), m.alt, delta=0.5)
-        self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 300.0, places=3)
-        self.assertAlmostEqual(e.PecasDegraus.Shape.BoundBox.XMin, 1000.0, places=3)
-        self.assertAlmostEqual(e.PecasDegraus.Shape.BoundBox.YMin, 500.0 - 800.0 / 2 + 5.0 - 200.0, delta=300)
-
-    def test_painel_e_ia(self):
-        import PrumoEscada as PE
-        import PrumoIA
-        r = PrumoIA.executar("escada", {"desnivel": 1800, "angulo": 40})
-        self.assertTrue(r["conforme"], r)
-        if not FreeCAD.GuiUp:
-            return
-        self.assertIn("Prumo_Escada", FreeCADGui.listCommands())
-        e = self.doc.getObject(r["objeto"])
-        p = PE.PainelEscada().editar_objeto(e)
-        try:
-            self.assertEqual(p.desnivel.value(), 1800)
-            self.assertIn("Confere", p.resultado.text() or "Confere")
-        finally:
-            p.form.deleteLater()
-
-
 class T128CortarBarras(unittest.TestCase):
     """1.13.0: corte ou furo feito uma vez e aplicado em várias barras (escopo), ligado à ferramenta."""
 
@@ -17504,136 +16877,6 @@ class T132EnrijecedorPlaca(unittest.TestCase):
         novos = [o for o in self.doc.Objects[antes:] if isinstance(getattr(o, "Proxy", None), X.Reforco)]
         self.assertEqual(len(novos), 4, "um enrijecedor em cada lado do perfil")
         self._confere(novos, pl)
-
-
-class T133EscadaPatamarEChapas(unittest.TestCase):
-    """1.15.0: escada com patamar (lances de até 3 000 mm, NR-12 Anexo III 11 e / 12 e) e chapas de fixação dos
-    banzos (base e topo)."""
-
-    def setUp(self):
-        self.doc = novo_doc("PrumoTesteEscadaPatamar")
-
-    def tearDown(self):
-        fechar(self.doc)
-
-    def _pecas(self, esc):
-        import PrumoEstrutura as E
-        res = [esc.PecasDegraus] + E.barras_de(esc.Banzos)
-        if esc.GuardaCorpo is not None:
-            res += E.barras_de(esc.GuardaCorpo)
-        return res
-
-    def test_patamar_divide_em_lances_sem_interferencia(self):
-        import json
-        import PrumoEscada as PE
-        import PrumoEstrutura as E
-        import PrumoInterferencia as I
-        esc = PE.criar(self.doc, Desnivel=4800, Patamares=True)
-        self.doc.recompute()
-        m = PE.Medidas(esc)
-        self.assertEqual(esc.Lances, 2)
-        self.assertTrue(all(ni * m.h <= 3000.0 + 1e-6 for _x, _z, ni in m.lances))
-        self.assertEqual(sum(ni for _x, _z, ni in m.lances), m.n)
-        self.assertAlmostEqual(m.L, m.n * m.g + 1000.0, places=6)
-        self.assertTrue(esc.Conforme, esc.Verificacao)
-        self.assertTrue(any("2 lances com patamar" in v for v in esc.Verificacao))
-        self.assertTrue(any(v.startswith("✓ Patamar com 1000 mm") for v in esc.Verificacao), esc.Verificacao)
-        esc.ComprimentoPatamar = 500
-        esc.recompute()
-        self.assertTrue(any(v.startswith("✗ Patamar com 500 mm") for v in esc.Verificacao))
-        self.assertFalse(esc.Conforme)
-        esc.ComprimentoPatamar = 1000
-        esc.recompute()
-        bs = E.barras_de(esc.Banzos)
-        self.assertEqual(len(bs), 6, "dois lados × (lance, patamar, lance)")
-        for b in bs:
-            self.assertTrue(b.Shape.isValid())
-            self.assertAlmostEqual(b.Shape.BoundBox.YLength, m.bf, delta=0.5, msg="altura da viga na vertical")
-        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc))], [])
-        itens = [json.loads(t)["den"] for t in esc.PecasDegraus.Itens]
-        self.assertTrue(any(t.startswith("Piso do patamar") for t in itens), itens)
-        # topo da viga do patamar sob o piso do patamar
-        x0, x1, zp = m.patamares()[0]
-        meio = [b for b in bs if b.Shape.BoundBox.XMin > x0 - 200 and b.Shape.BoundBox.XMax < x1 + 200]
-        self.assertEqual(len(meio), 2)
-        self.assertAlmostEqual(meio[0].Shape.BoundBox.ZMax, zp - max(m.e, 25.0), delta=0.5)
-        # mais alto: três lances; desligado: volta a um lance (sem sobrar barra)
-        esc.Desnivel = 6500
-        PE.reconstruir(esc)
-        self.assertEqual(esc.Lances, 3)
-        self.assertEqual(len(E.barras_de(esc.Banzos)), 10)
-        esc.Patamares = False
-        esc.Desnivel = 2400
-        PE.reconstruir(esc)
-        self.assertEqual(esc.Lances, 1)
-        self.assertEqual(len(E.barras_de(esc.Banzos)), 2)
-        orfas = [o for o in self.doc.Objects if E.eh_barra(o) and o.Estrutura is None]
-        self.assertEqual(orfas, [])
-        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc))], [])
-
-    def test_pes_de_apoio(self):
-        import PrumoEscada as PE
-        import PrumoEstrutura as E
-        import PrumoInterferencia as I
-        esc = PE.criar(self.doc, Desnivel=4800, Patamares=True, Apoio=PE.APOIOS[1], PerfilPes="W 150 x 13,0",
-                       VaoMaxPes=2000)
-        self.doc.recompute()
-        ps = E.barras_de(esc.Pes)
-        self.assertEqual(len(ps), 8, "par de pés nas duas pontas do patamar e um par em cada lance")
-        self.assertTrue(all(b.Perfil == "W 150 x 13,0" for b in ps))
-        import json
-        tc = esc.EspessuraChapa.Value
-        for b in ps:
-            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, tc, delta=0.01, msg="pé em cima da chapa de base")
-            self.assertLess(min(b.Shape.distToShape(v.Shape)[0] for v in E.barras_de(esc.Banzos)), 0.01,
-                            "pé encosta na viga")
-        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc) + ps)], [])
-        chapas = [json.loads(t) for t in esc.PecasDegraus.Itens if "Chapa de base do pé" in t]
-        self.assertEqual(len(chapas), 1)
-        self.assertEqual(chapas[0]["qtd"], 8)
-        planas = [sl for sl in esc.PecasDegraus.Shape.Solids if abs(sl.BoundBox.ZMin) < 1e-6
-                  and abs(sl.BoundBox.ZLength - tc) < 1e-6]
-        self.assertEqual(len(planas), 8)
-        for b in ps:
-            self.assertTrue(any(c.distToShape(b.Shape)[0] < 0.01 for c in planas), "pé apoiado na chapa")
-        esc.ChapaPes = False
-        PE.reconstruir(esc)
-        self.assertAlmostEqual(min(b.Shape.BoundBox.ZMin for b in E.barras_de(esc.Pes)), 0.0, delta=0.01)
-        esc.ChapaPes = True
-        esc.PerfilPes = 'U 6" x 12,20'
-        PE.reconstruir(esc)
-        self.assertTrue(all(b.Perfil == 'U 6" x 12,20' for b in E.barras_de(esc.Pes)))
-        esc.Apoio = PE.APOIOS[0]
-        PE.reconstruir(esc)
-        self.assertIsNone(esc.Pes)
-        self.assertEqual([o for o in self.doc.Objects if E.eh_barra(o) and o.Estrutura is None], [])
-
-    def test_chapas_de_fixacao_na_base_e_no_topo(self):
-        import json
-        import PrumoEscada as PE
-        import PrumoEstrutura as E
-        import PrumoInterferencia as I
-        esc = PE.criar(self.doc, Desnivel=2400, FixacaoBanzos=PE.FIXACOES[1], EspessuraChapa=12.5)
-        self.doc.recompute()
-        m = PE.Medidas(esc)
-        itens = [json.loads(t) for t in esc.PecasDegraus.Itens]
-        base = [d for d in itens if d["den"].startswith("Chapa de base")]
-        topo = [d for d in itens if d["den"].startswith("Chapa de topo")]
-        self.assertEqual((len(base), len(topo)), (1, 1))
-        self.assertEqual(base[0]["qtd"], 2)
-        bs = E.barras_de(esc.Banzos)
-        for b in bs:
-            self.assertAlmostEqual(b.Shape.BoundBox.ZMin, 12.5, delta=0.05, msg="a viga apoia na chapa de base")
-            self.assertAlmostEqual(b.Shape.BoundBox.XMax, m.L - 12.5, delta=0.05, msg="a viga encosta na chapa de topo")
-        sol = esc.PecasDegraus.Shape.Solids
-        chapas = [s for s in sol if abs(s.BoundBox.ZMin) < 1e-6 and abs(s.BoundBox.ZLength - 12.5) < 1e-6]
-        self.assertEqual(len(chapas), 2, "chapas deitadas no piso")
-        self.assertTrue(all(len(c.Faces) > 6 for c in chapas), "com furos")
-        em_pe = [s for s in sol if abs(s.BoundBox.XLength - 12.5) < 1e-6 and abs(s.BoundBox.XMax - m.L) < 1e-6]
-        self.assertEqual(len(em_pe), 2, "chapas em pé na face do piso de cima")
-        self.assertEqual([x.texto for x in I.verificar(self._pecas(esc))], [])
-        for b in bs:
-            self.assertTrue(any(c.distToShape(b.Shape)[0] < 0.01 for c in chapas + em_pe))
 
 
 class T134EsqueletoDeArestasETabelaDeCortes(unittest.TestCase):
@@ -19364,69 +18607,15 @@ class T142PreviaDosComponentes(unittest.TestCase):
         self.assertEqual((pv.az, pv.el, pv.zoom), (-35.0, 62.0, 1.0))
 
 
-class _TipoEscadaTeste:
-    """Tipo de escada mínimo para o teste do registro (T145)."""
-    nome = "Teste (só no teste)"
-    icone = None
-    padroes = {"LarguraUtil": 555.0}
-    parametros = ("LadoTeste",)
-
-    def propriedades(self, obj, add, enum):
-        add("App::PropertyLength", "LadoTeste", "Teste", "Lado do cubo", 300.0)
-
-    def medidas(self, esc):
-        return float(esc.LadoTeste.Value)
-
-    def executar(self, esc, mt):
-        esc.Degraus, esc.Vao, esc.Lances = 1, mt, 1
-        return [(mt <= 500.0, "Lado %d até 500" % mt)], ["nota do teste"]
-
-    def forma(self, esc, mt):
-        import Part
-        return Part.makeBox(mt, mt, mt), [("Cubo", 1, 1.0, "%d" % mt)]
-
-    def reconstruir(self, esc, mt):
-        import PrumoEscada as PE
-        PE.pecas_desenhadas(esc, "Cubo do teste")
-
-    def resumo(self, esc, mt):
-        return "cubo de %d" % mt
-
-    def relatorio(self, esc, mt):
-        return "Relatório do cubo de %d" % mt
-
-    def montar_painel(self, painel):
-        import PrumoPainel as P
-        sec = painel.form.secao("Cubo", "tipo")
-        painel.lado_teste = P.numero(300.0, 10.0, 2000.0)
-        sec.linha("largura", painel.lado_teste, "", "Lado")
-        return [sec]
-
-    def trocar_painel(self, painel):
-        for sc in painel._secoes["industrial"]:
-            sc.setVisible(False)
-
-    def kw_painel(self, painel):
-        return {"LadoTeste": painel.lado_teste.value()}
-
-    def carregar_painel(self, painel, obj):
-        painel.lado_teste.setValue(obj.LadoTeste.Value)
-
-    def pendencia_painel(self, painel):
-        return None
-
-
 class T145PacotesExternos(unittest.TestCase):
-    """1.19.2: ponto de encaixe para pacotes externos (Usinix Pro): registro, faixa, tipos de escada e marca dos
-    relatórios e das folhas."""
+    """1.19.2: ponto de encaixe para pacotes externos (Usinix Pro): registro, faixa e marca dos relatórios e das
+    folhas (os tipos de escada são testados no Pro, junto com a escada)."""
 
     def setUp(self):
         self.doc = novo_doc("PrumoTestePacotes")
 
     def tearDown(self):
-        import PrumoEscada as PE
         import PrumoMarca
-        PE._TIPOS.pop(_TipoEscadaTeste.nome, None)
         PrumoMarca.definir(None)
         if FreeCAD.GuiUp:
             try:
@@ -19475,62 +18664,10 @@ class T145PacotesExternos(unittest.TestCase):
             R.TABS[:] = antes_tabs
             X.EXTENSOES[:] = antes_ext
 
-    def test_tipo_de_escada_registrado(self):
-        import PrumoEscada as PE
-        PE.registrar_tipo(_TipoEscadaTeste())
-        self.assertIn(_TipoEscadaTeste.nome, PE.tipos())
-        e = PE.criar(self.doc, TipoEscada=_TipoEscadaTeste.nome)
-        self.assertEqual(e.LarguraUtil.Value, 555.0, "valores de partida do tipo")
-        self.assertTrue(e.Conforme, "\n".join(e.Verificacao))
-        self.assertIn("ℹ nota do teste", e.Verificacao)
-        self.assertAlmostEqual(e.PecasDegraus.Shape.Volume, 300.0 ** 3, delta=1.0)
-        self.assertEqual(e.PecasDegraus.Label, "Cubo do teste")
-        self.assertIsNone(e.Banzos, "a escada do tipo não monta as vigas da industrial")
-        self.assertEqual(PE.relatorio(e), "Relatório do cubo de 300")
-        e.LadoTeste = 600.0
-        PE.reconstruir(e)
-        self.assertFalse(e.Conforme)
-        # sem o pacote que traz o tipo: a escada avisa e não vira industrial
-        PE._TIPOS.pop(_TipoEscadaTeste.nome)
-        e.touch()
-        self.doc.recompute()
-        self.assertTrue(e.Verificacao[0].startswith("✗") and "Usinix Pro" in e.Verificacao[0])
-        PE.reconstruir(e)
-        self.assertIsNone(e.Banzos)
-        # a industrial continua igual
-        i = PE.criar(self.doc)
-        self.assertEqual(PE.tipo_nome(i), PE.INDUSTRIAL)
-        self.assertTrue(i.Conforme, "\n".join(i.Verificacao))
-
-    def test_painel_com_o_tipo(self):
-        if not FreeCAD.GuiUp:
-            self.skipTest("sem interface")
-        import PrumoEscada as PE
-        p0 = PE.PainelEscada()
-        self.assertTrue(p0.tipo_escada.parentWidget() is not None)
-        PE.registrar_tipo(_TipoEscadaTeste())
-        p = PE.PainelEscada()
-        p.tipo_escada.setCurrentText(_TipoEscadaTeste.nome)
-        self.assertEqual(p.largura.value(), 555.0)
-        self.assertTrue(p._secoes["industrial"][0].isHidden())
-        self.assertFalse(p._secoes_tipo[_TipoEscadaTeste.nome][0].isHidden())
-        p.lado_teste.setValue(250.0)
-        kw = p._kw()
-        self.assertEqual((kw["TipoEscada"], kw["LadoTeste"]), (_TipoEscadaTeste.nome, 250.0))
-        p.tipo_escada.setCurrentText(PE.INDUSTRIAL)
-        self.assertEqual(p.largura.value(), 800.0, "volta o valor de partida da industrial")
-        self.assertFalse(p._secoes["industrial"][0].isHidden())
-        e = PE.criar(self.doc, **dict(kw))
-        p2 = PE.PainelEscada()
-        p2.editar_objeto(e)
-        self.assertEqual((p2.tipo_escada.currentText(), p2.lado_teste.value()), (_TipoEscadaTeste.nome, 250.0))
-
     def test_marca_nos_relatorios_e_folhas(self):
         import tempfile
         import PrumoMarca
         import PrumoFolhas
-        import PrumoVaso as V
-        import PrumoMemorialNR13 as M
         self.assertFalse(PrumoMarca.propria())
         self.assertEqual(PrumoMarca.atual()["nome"], "USINIX")
         pasta = tempfile.mkdtemp()
@@ -19559,14 +18696,6 @@ class T145PacotesExternos(unittest.TestCase):
         mc = PrumoMarca.atual()
         self.assertTrue(PrumoMarca.propria())
         self.assertEqual((mc["nome"], mc["cor"]), ("EMPRESA TESTE", "#003A70"), "o que não muda vem do Usinix")
-        v = V.criar(self.doc, 800, 2000, 0.9, 138.0, 0.85, 1.5, V.TAMPOS[0], "ASTM A285 Gr C", "60 °C")
-        M.garantir_campos(v)
-        html_, _av = M.montar(v)
-        self.assertIn(logo, html_)
-        self.assertIn("Eng. Teste", html_)
-        self.assertIn("CREA XX-123/D", html_)
-        caminho, _a = M.salvar_pdf(v, os.path.join(pasta, "memorial.pdf"))
-        self.assertGreater(os.path.getsize(caminho), 1000)
         c = PrumoFolhas.campos_padrao(self.doc)
         self.assertEqual((c["empresa"], c["resp_tecnico"], c["crea"]), ("Empresa Teste", "Eng. Teste", "XX-123/D"))
         page = PrumoFolhas.nova_folha(self.doc, "A4")
@@ -19574,16 +18703,15 @@ class T145PacotesExternos(unittest.TestCase):
         PrumoMarca.definir(None)
         self.assertEqual(PrumoMarca.modelo_folha(PrumoFolhas.arquivo("A4")), PrumoFolhas.arquivo("A4"))
 
-
 RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15FolhasABNT, T16Perfis,
-           T17Estrutura, T18ChapaMetalica, T19VasoPressao, T20Fixadores, T21EnquadrarEsboco,
+           T17Estrutura, T18ChapaMetalica, T20Fixadores, T21EnquadrarEsboco,
            T22EstruturaGrupos, T23EstruturaCantos, T24EstruturaExtras,
            T25EstruturaInterface, T26Versao, T27Exemplos, T28TraducaoEArvore, T29GuiaEstrutura,
            T30Faixa, T31Bancadas, T32Arvore, T33PaineisVisuais,
            T34FluxoDeSelecao, T35PropriedadesDaPeca,
            T36ChapaFatorKeDXF, T37Variantes, T37bVariantesPainel, T38CopiarProjeto,
            T39Montagem, T40ModelosComRegras, T41GuiaMigracao, T42SimulacaoEstrutura,
-           T43DetalheLigacao, T44RotulasCargasSecoes, T45BancadaVasos, T46NBR2024,
+           T43DetalheLigacao, T44RotulasCargasSecoes, T46NBR2024,
            T47MolasTracaoModos, T48AssistenteEstrutura,
            T49ReguaHistorico, T50ConferirEsboco, T51FaixaContextual, T52Esboco3D, T53Tubulacao, T54ReferenciasAutomaticas,
            T55PainelLateral, T56PropriedadesEAparencia,
@@ -19613,9 +18741,9 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T122DoModeloParaAFabrica,
            T123AcabamentoEVisual,
            T124Bibliotecas, T125InstalarNoClaude,
-           T126DiferencialSework, T127Escada, T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
+           T128CortarBarras, T129CorposEEstruturas, T130CameraDoEsboco,
            T131DadosDasPranchas, T132EnrijecedorPlaca,
-           T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
+           T134EsqueletoDeArestasETabelaDeCortes,
            T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
            T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha,
            T141ReservatoriosETorres, T142PreviaDosComponentes,

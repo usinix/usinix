@@ -924,11 +924,8 @@ def register_commands():
                              ("PrumoInspetor", lambda m: m.registrar_comandos()),
                              ("PrumoMedir", lambda m: m.registrar_comandos()),
                              ("PrumoPiso", lambda m: m.registrar_comandos()),
-                             ("PrumoProtecao", lambda m: m.registrar_comandos()),
-                             ("PrumoEscada", lambda m: m.registrar_comandos()),
                              ("PrumoCorteEstrutura", lambda m: m.registrar_comandos()),
                              ("PrumoPecaNaFace", lambda m: m.registrar_comandos()),
-                             ("PrumoMemorialNR13", lambda m: m.registrar_comandos()),
                              ("PrumoBuscaComandos", lambda m: m.registrar_comandos()),
                              ("PrumoAnotacoes", lambda m: m.registrar_comandos()),
                              ("PrumoAjustes", lambda m: m.registrar_comandos()),
@@ -961,11 +958,6 @@ def register_commands():
                                                                                 m.CmdIsometrico())),
                              ("PrumoAssistenteEstrutura", lambda m: FreeCADGui.addCommand(
                                  "Prumo_AssistenteEstrutura", m.CmdAssistenteEstrutura())),
-                             ("PrumoVaso", lambda m: (
-                                 FreeCADGui.addCommand("Prumo_Vaso", m.CmdVaso()),
-                                 FreeCADGui.addCommand("Prumo_MemoriaVaso", m.CmdMemoriaVaso()),
-                                 FreeCADGui.addCommand("Prumo_DesenhoVaso", m.CmdDesenhoVaso()),
-                                 FreeCADGui.addCommand("Prumo_TesteVaso", m.CmdTesteVaso()))),
                              ("PrumoFixadores", lambda m: FreeCADGui.addCommand("Prumo_Fixador", m.CmdFixador())),
                              ("PrumoInserirEsboco", lambda m: m.registrar_comandos()),
                              ("PrumoMontagem", lambda m: m.registrar_comandos()),

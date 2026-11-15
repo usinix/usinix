@@ -15,9 +15,9 @@
 
 O Usinix é um CAD 3D paramétrico livre e gratuito, em português, feito para a **metal-mecânica**:
 quem projeta, fabrica e inspeciona peças, máquinas, caldeiraria e estruturas de aço. Peças e montagens,
-chapa dobrada, estruturas soldadas, tubulação e dutos, vasos de pressão, parafusos e porcas pela norma e
-desenho técnico ABNT para a fabricação, com cálculo onde o ofício pede (estruturas metálicas pelas
-normas brasileiras, teste de pressão do vaso).
+chapa dobrada, estruturas soldadas, tubulação e dutos, parafusos e porcas pela norma e desenho técnico
+ABNT para a fabricação, com cálculo onde o ofício pede (estruturas metálicas pelas normas brasileiras e
+simulação por elementos finitos).
 
 É baseado no [FreeCAD](https://www.freecad.org), mas escolhe um lado: o que não é do ofício (arquitetura
 e BIM, usinagem CNC, robótica, nuvem de pontos) fica de fora, e cada ferramenta que fica já chega com a
@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.19.2** (15/11/2026): correções pequenas e suporte a pacotes de ferramentas adicionais.
+**Versão atual: 1.20.0** (15/11/2026): vasos de pressão, escadas e proteções de máquina NR-12 saem do Usinix
+público e passam para o **Usinix Pro**, um pacote à parte com abas próprias por área (os arquivos feitos nas
+versões anteriores abrem com o pacote instalado). A faixa ganha abas destacadas para os pacotes.
+
+Na 1.19.2: correções pequenas e suporte a pacotes de ferramentas adicionais.
 
 Na 1.19.1: corrige a queda que às vezes acontecia ao sair de um esboço editado.
 
@@ -105,9 +109,9 @@ referência em vez de deixar tudo vermelho, e os avisos já trazem o botão que 
 |---|---|
 | ![Aba Desenho com a Paleta de vistas e a folha cotada](.github/images/usinix/aba-desenho.png) | ![Aba Montagem com o painel Mover junta](.github/images/usinix/aba-montagem.png) |
 
-| Procurar comando (Ctrl+K) | Reservatório com pés de chapa |
-|---|---|
-| ![Busca de comandos aberta na faixa](.github/images/usinix/procurar-comando.png) | ![Vaso deitado com pés de chapa dobrada](.github/images/usinix/vaso-pes-de-chapa.png) |
+| Procurar comando (Ctrl+K) |
+|---|
+| ![Busca de comandos aberta na faixa](.github/images/usinix/procurar-comando.png) |
 
 ### Comandos em cartões e programa que se atualiza sozinho
 
@@ -146,18 +150,6 @@ convergência e relatório.
 
 ![Detalhe de ligação calculado por elementos finitos](.github/images/usinix/detalhe-ligacao-fem.png)
 
-### Vasos de pressão do formulário ao desenho
-
-Aba própria com formulário e prévia ao vivo: casco, tampos (elíptico 2:1, torisférico, hemisférico),
-material, corrosão, bocais e suportes (selas, pés de chapa como nos reservatórios de compressor, saia ou
-pernas). Espessuras e PMTA pelo ASME VIII
-Div. 1, pressão de teste hidrostático ou pneumático, teste simulado por elementos finitos de casca e
-folha A3 com vistas cotadas e tabela de dados de projeto.
-
-| Formulário com prévia | Desenho gerado |
-|---|---|
-| ![Formulário do vaso de pressão](.github/images/usinix/vaso-de-pressao.png) | ![Desenho do vaso em folha A3](.github/images/usinix/vaso-desenho.png) |
-
 ### Desenho técnico no padrão ABNT e chapa metálica
 
 Folhas A0 a A4 com legenda brasileira (responsável técnico, CREA/CFT, ART, 1º diedro) e arranjos de
@@ -190,9 +182,8 @@ Cada área tem a sua aba na faixa de ferramentas: não há menu de bancadas para
 | Idioma | Tudo em português, inclusive propriedades e listas |
 | Interface | Faixa de ferramentas por abas, comandos em cartões no painel lateral, tela inicial, tutoriais e guia para quem vem do SolidWorks ou ZW3D |
 | Atualização | Avisa quando sai versão nova, baixa com barra de progresso, confere o arquivo e instala ao fechar |
-| Estruturas | Perfis brasileiros, cantos, reforços e enrijecedores em série, soldas, trabalhos na barra, escada e proteções pela NR-12, lista de corte, cálculo pela NBR 8800:2024 e NBR 8681:2025 |
+| Estruturas | Perfis brasileiros, cantos, reforços e enrijecedores em série, soldas, trabalhos na barra, lista de corte, cálculo pela NBR 8800:2024 e NBR 8681:2025 |
 | Simulação | Assistentes passo a passo para elementos finitos e para estruturas, com pendências e relatório em PDF |
-| Vasos | Formulário ASME VIII-1, teste de pressão, desenho cotado, memorial NR-13 |
 | Desenho | Folhas ABNT com legenda brasileira e lista de materiais |
 | Materiais | Aços e ligas usados no Brasil, com norma e fonte em cada um |
 | Componentes | Motores, compressores, válvulas, caldeira, reservatórios, torres de resfriamento, içamento, combate a incêndio, pessoas e mais, em escala real |
@@ -211,7 +202,7 @@ Todos os recursos
   que a tradução oficial do FreeCAD ainda não cobre.
 
 * **Faixa de ferramentas** Os comandos principais organizados em abas (Início, Esboço, Peça, Montagem,
-  Desenho, Estruturas, Tubulação, Componentes, Vasos, Chapa, Planilha, Simulação, Superfícies e Usinix), com ícones
+  Desenho, Estruturas, Tubulação, Componentes, Chapa, Planilha, Simulação, Superfícies e Usinix), com ícones
   grandes e rótulos claros, sem menu de bancadas. A aba Esboço aparece sozinha ao editar um esboço, e em
   tela de notebook a linha das abas se compacta para mostrar os nomes inteiros.
 
@@ -228,9 +219,6 @@ Todos os recursos
 
 * **Seção personalizada** Um esboço fechado vira perfil da estrutura, com centro de cisalhamento, J e Cw
   calculados por elementos finitos na própria seção e verificação completa pela NBR 8800:2024.
-
-* **Vasos de pressão** Formulário com prévia, espessuras e PMTA (ASME VIII-1), teste de pressão simulado
-  por elementos finitos de casca e desenho cotado em folha A3.
 
 * **Biblioteca de materiais** Aços estruturais, inoxidáveis, para vasos de pressão, para construção mecânica,
   tubos, forjados e alumínio, com as especificações usadas no Brasil.
@@ -321,12 +309,6 @@ Todos os recursos
 * **Padrão de estrutura** Repete a estrutura inteira em linha ou em volta de um eixo, com quantidade e
   espaçamento; as cópias acompanham a original e entram nas listas de materiais e de corte.
 
-* **Escada industrial** Desnível, ângulo e largura num objeto só: degraus calculados, patamares, guarda-corpo,
-  chapas de fixação e pés de apoio, com conferência ao vivo pela NR-12 (Anexo III).
-
-* **Proteções de máquina** Grade ou enclausuramento com quadro de tubo e tela, verificado pela ABNT NBR ISO
-  13857:2021, com relatório e item na lista de materiais.
-
 * **Componentes** Biblioteca em escala real para leiautes: motores IEC, compressores, secadores, válvulas,
   caldeira, talhas e trole, extintores, hidrantes e abrigos, caixas d'água e reservatórios (taça, coluna,
   torre), tambores e IBC, torres de resfriamento, rolamentos, quadros, paletes e pessoas.
@@ -335,7 +317,7 @@ Todos os recursos
   DXF de todas as chapas e lista de materiais e de corte em Excel.
 
 * **Conectar IA** O Claude Desktop e outros assistentes compatíveis com MCP usam as ferramentas do Usinix
-  (estruturas, escada, folhas, exportações), com instalação num clique.
+  (estruturas, folhas, exportações), com instalação num clique.
 
 * **Chapa metálica** Parede base, abas, dobras, recortes, alívios e planificação (bancada SheetMetal embutida).
 
