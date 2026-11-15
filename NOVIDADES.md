@@ -15,6 +15,15 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.19.2 — 15/11/2026
+
+### Correções e ajustes
+
+- **Escada:** os degraus não ficam mais marcados "por recalcular" depois de cada recálculo.
+- **Painéis que abrem ao clicar:** OK depois de o painel já ter seguido sozinho não roda a ferramenta de novo.
+- **Pacotes de ferramentas adicionais:** o Usinix passa a aceitar pacotes instalados à parte, que acrescentam
+  ferramentas à faixa, tipos de escada e a marca da empresa nos relatórios em PDF e nas folhas de desenho.
+
 ## 1.19.1 — 15/11/2026
 
 ![Esboço fechado depois de editado: sair do esboço não derruba mais o programa](.github/images/novidades/1.19.1.webp)
