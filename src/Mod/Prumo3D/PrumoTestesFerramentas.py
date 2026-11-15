@@ -2673,13 +2673,18 @@ class T28TraducaoEArvore(unittest.TestCase):
             self.skipTest("sem interface")
         import PrumoGui
         import time
+        # a tela inicial (sem projeto aberto) esconde os painéis laterais de propósito: o teste roda com um
+        # projeto aberto (antes dependia de outro teste ter deixado um aberto)
+        doc = novo_doc("PrumoTesteArvore")
         # troca de bancada (outros testes) restaura os painéis com atraso: espera assentar
         t = time.time()
-        while time.time() - t < 1.0:
+        while time.time() - t < 1.5:
             FreeCADGui.updateGui()
+            time.sleep(0.02)
         d = PrumoGui.painel_arvore()
         self.assertIsNotNone(d)
         visivel = d.isVisible()
+        self.addCleanup(fechar, doc)
         try:
             PrumoGui.mostrar_arvore(False)
             FreeCADGui.updateGui()
