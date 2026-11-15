@@ -125,7 +125,7 @@ def adicionar_painel(aba_id, painel, depois=None):
 
 
 def substituir_item(comando, novo_comando, novo_rotulo=None):
-    """Troca o comando de um botão da faixa (ex.: "Prumo_Escada" vira "Prumo_Escada|Prumo_EscadaMarinheiro",
+    """Troca o comando de um botão da faixa (ex.: "Prumo_Escada" vira "Prumo_Escada|Outro_Comando",
     um botão com setinha). Devolve quantos botões mudaram."""
     n = 0
     for t in _abas():

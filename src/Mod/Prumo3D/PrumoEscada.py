@@ -962,7 +962,7 @@ def apagar_partes(esc):
 
 
 def apagar(esc):
-    """Apaga a escada inteira (usado por objetos que criam escadas filhas, como o tanque)."""
+    """Apaga a escada inteira (usado por objetos que criam escadas filhas)."""
     doc = esc.Document
     apagar_partes(esc)
     if doc.getObject(esc.Name) is not None:
