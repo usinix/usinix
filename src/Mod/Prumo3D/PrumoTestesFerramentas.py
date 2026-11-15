@@ -12810,6 +12810,8 @@ class T85SoldaRugosidadeAjuste(unittest.TestCase):
                         "PrumoInserirDesenho.PainelInserir._preencher_com_selecao"}  # a seleção só marca a lista
         ruins = []
         for cls in todas(P.PainelTarefa):
+            if not cls.__module__.startswith("Prumo"):
+                continue        # painéis de pacotes externos (Usinix Pro) têm os testes deles
             for n in internos & set(vars(cls)):
                 ruins.append("%s.%s.%s" % (cls.__module__, cls.__name__, n))
         self.assertEqual(sorted(set(ruins) - de_proposito), [])
@@ -13668,11 +13670,18 @@ class T96BarraDeVistas(unittest.TestCase):
             nomes = [it[0] for it in B.ITENS if it != "|" and it[0] not in ("menu", "Std_DrawStyle",
                                                                              "Std_ToggleClipPlane")]
             nomes += [n for it in B.ITENS if it != "|" and it[0] == "menu" for n, _d in it[3]]
+            import PrumoGrade
+            grade_antes = PrumoGrade.modo()
             for _rodada in (1, 2):
                 for n in nomes:
                     v.graphicsView().findChild(QtWidgets.QFrame, B.NOME)   # outro código pegando a vista
                     barra._rodar(n)
                     QtWidgets.QApplication.processEvents()
+                    # Isolar sem nada escolhido abre o painel de seleção (1.19.0): fecha para o próximo botão e
+                    # para os testes seguintes (o T98 achava "há um painel aberto" e o T99 travava)
+                    if FreeCADGui.Control.activeDialog():
+                        FreeCADGui.Control.closeDialog()
+                        QtWidgets.QApplication.processEvents()
                     if n in esperado:
                         fim = time.time() + 3
                         while (any(abs(abs(x) - abs(y)) > 2e-3 for x, y in zip(v.getCameraOrientation().Q, esperado[n]))
@@ -13683,7 +13692,10 @@ class T96BarraDeVistas(unittest.TestCase):
                         for a_, b_ in zip(q, esperado[n]):
                             self.assertAlmostEqual(a_, abs(b_), places=2, msg=n)
             self.assertNotIn("Prumo_Sombras", barra.botoes, "as sombras saíram na 1.11")
+            PrumoGrade.definir_modo(grade_antes)
         finally:
+            if FreeCADGui.Control.activeDialog():
+                FreeCADGui.Control.closeDialog()
             fechar(doc)
 
 
@@ -14657,6 +14669,8 @@ class T98CliqueSempreResponde(unittest.TestCase):
         a = QtGui.QAction("Extrusão", None)
         a.setWhatsThis("PartDesign_Pad")
         a.setEnabled(False)
+        if FreeCADGui.Control.activeDialog():
+            FreeCADGui.Control.closeDialog()
         b = R.RibbonButton([a], R.S, "Extrusão")
         b._sync()
         self.assertTrue(b.isEnabled(), "o botão continua recebendo o clique")
