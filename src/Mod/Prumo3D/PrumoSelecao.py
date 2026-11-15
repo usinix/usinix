@@ -830,6 +830,8 @@ class PainelSelecao(P.PainelTarefa):
 
     def accept(self):
         # sem transação própria: o comando chamado abre a dele
+        if self._auto_feito and not self._vivo():
+            return True              # já seguiu sozinho (caixas cheias): não roda de novo
         falta = self.pendencia()
         if falta:
             self.form.mensagem.mostrar(falta, "erro")
