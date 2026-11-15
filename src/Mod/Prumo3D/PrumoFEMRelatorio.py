@@ -378,8 +378,11 @@ def _rodape(p, W, H, k, pagina, total):
     p.setPen(QtGui.QColor(INK2))
     p.setFont(_fonte(2.9 * k))
     texto = " · ".join([mc["rodape"]] + list(mc["rodape_linhas"]))
-    p.drawText(QtCore.QRectF(MARGEM_MM * k, H - 11.5 * k, W - (2 * MARGEM_MM + 40) * k, 6 * k),
-               QtCore.Qt.AlignVCenter | QtCore.Qt.TextWordWrap, texto)
+    if mc["rodape_linhas"]:
+        p.drawText(QtCore.QRectF(MARGEM_MM * k, H - 11.8 * k, W - (2 * MARGEM_MM + 40) * k, 9 * k),
+                   QtCore.Qt.AlignTop | QtCore.Qt.TextWordWrap, texto)
+    else:
+        p.drawText(QtCore.QRectF(MARGEM_MM * k, H - 11.5 * k, 120 * k, 6 * k), QtCore.Qt.AlignVCenter, texto)
     if pagina:
         p.drawText(QtCore.QRectF(W - (MARGEM_MM + 50) * k, H - 11.5 * k, 50 * k, 6 * k),
                    QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, "Página %d de %d" % (pagina, total))
