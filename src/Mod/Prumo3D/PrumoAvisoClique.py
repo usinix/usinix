@@ -62,6 +62,13 @@ def motivo_inativo(nome, rotulo=None):
             return "%s está esperando: há um painel aberto ao lado. Conclua (OK) ou cancele o painel antes." % r
     except Exception:
         pass
+    try:
+        import PrumoSelecao
+        falta = PrumoSelecao.motivo_sem_contexto(nome)
+        if falta:
+            return "%s: %s" % (r, falta[0].lower() + falta[1:])
+    except Exception:
+        pass
     dica = _primeira_frase(_info(nome).get("toolTip", ""))
     sel = FreeCADGui.Selection.getSelectionEx()
     if not sel:

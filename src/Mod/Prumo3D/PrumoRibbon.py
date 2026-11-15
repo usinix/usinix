@@ -118,7 +118,7 @@ TABS = [
             ("PartDesign_Body", L, "Novo\ncorpo"), ("PartDesign_CompSketches|Prumo_Esboco3D", L, "Esboço"),
             ("PartDesign_ShapeBinder", S, "Vínculo de forma"), ("PartDesign_SubShapeBinder", S, "Vínculo de subforma"),
             ("PartDesign_Clone", S, "Clonar"),
-            ("Std_Refresh", L, "Recalcular"), ("PartDesign_CompDatums", S, "Eixo, ponto, sistema"),
+            ("PartDesign_CompDatums", S, "Eixo, ponto, sistema"),
         ]),
         ("Adicionar material", [
             ("PartDesign_Pad", L, "Extrusão"), ("PartDesign_Revolution", L, "Revolução"),
@@ -159,8 +159,8 @@ TABS = [
             ("Part_Scale|Part_CompOffset|Part_Defeaturing|Part_Builder", S, "Escala / offset"),
         ]),
         ("Ferramentas", [
-            ("PartDesign_Plane", L, "Novo\nplano"),
-            ("Part_CheckGeometry", L, "Verificar\ngeometria"), ("Sketcher_ValidateSketch", L, "Validar\nesboço"),
+            ("PartDesign_Plane", L, "Novo\nplano"), ("Std_Refresh", L, "Recalcular"),
+            ("Part_CheckGeometry", S, "Verificar geometria"), ("Sketcher_ValidateSketch", S, "Validar esboço"),
             ("PartDesign_Boolean", S, "Booleana"),
         ]),
         ("Prumo", [
@@ -609,6 +609,10 @@ def _cmd_actions(name):
         acts = []
     if not acts and (name.startswith("Prumo_") or name.startswith("FEM_")):
         acts = [_own_action(name, cmd)]
+    for a in acts:
+        # grupos do Python (Inserir componente, Juntar/dividir...) não dizem o nome do comando na ação
+        if a is not None and not a.whatsThis() and not a.property("prumo_cmd"):
+            a.setProperty("prumo_cmd", name)
     return [a for a in acts if a is not None]
 
 
@@ -897,6 +901,8 @@ class RibbonButton(QtWidgets.QToolButton):
     def nome_comando(self, a=None):
         a = a or self._current
         n = a.whatsThis() if a is not None else ""
+        if not n and a is not None and len(self._actions) > 1:
+            n = _comando_pelo_texto(a.text()) or (a.property("prumo_cmd") or "")
         return n or (getattr(self, "_cmd", "") if len(self._actions) == 1 else "")
 
     def ativo(self):
@@ -968,21 +974,29 @@ class RibbonButton(QtWidgets.QToolButton):
 
 
 def _selecao_depois(nome):
-    """Comando que exige seleção antes mas que, no Usinix, também aceita a seleção depois."""
+    """Comando que exige seleção antes (ou uma montagem/folha/estudo aberto) mas que, no Usinix, abre o que
+    falta e pede a seleção depois: o botão fica ligado."""
     try:
         import PrumoSelecao
-        return nome in PrumoSelecao.SELECAO_PRIMEIRO and FreeCAD.ActiveDocument is not None
+        return PrumoSelecao.pode_pedir(nome)
     except Exception:
         return False
 
 
-def _pedir_selecao(nome):
-    """Se o comando precisa de seleção que ainda não existe, abre o painel e devolve True."""
+def _comando_pelo_texto(texto):
     try:
         import PrumoSelecao
-        if PrumoSelecao.precisa_de_painel(nome):
-            PrumoSelecao.pedir_para_comando(nome)
-            return True
+        return PrumoSelecao.comando_pelo_texto(texto)
+    except Exception:
+        return ""
+
+
+def _pedir_selecao(nome):
+    """Se falta o contexto (montagem, folha, estudo) ou a seleção, cuida disso e devolve True: o comando roda
+    depois, sozinho."""
+    try:
+        import PrumoSelecao
+        return PrumoSelecao.tratar(nome)
     except Exception as exc:
         FreeCAD.Console.PrintWarning("Usinix: seleção para {}: {}\n".format(nome, exc))
     return False
@@ -1055,7 +1069,7 @@ def _proxy_selecao(a, parent):
 def _nome_selecao(nome):
     try:
         import PrumoSelecao
-        return nome in PrumoSelecao.SELECAO_PRIMEIRO
+        return nome in PrumoSelecao.SELECAO_PRIMEIRO or PrumoSelecao.contexto_de(nome) is not None
     except Exception:
         return False
 
@@ -2054,7 +2068,9 @@ def situacao():
 
 
 def _dentro(chave, sit):
-    return {"folha": sit[1], "montagem": sit[3], "estudo": sit[5], "planilha": sit[6]}.get(chave, True)
+    # montagem ou folha que já existe conta como "dentro": o clique na ferramenta abre a montagem/folha sozinho
+    return {"folha": sit[1] or sit[2], "montagem": sit[3] or sit[4], "estudo": sit[5],
+            "planilha": sit[6]}.get(chave, True)
 
 
 def _ativo(nome, acts):
@@ -2079,7 +2095,7 @@ def como_mostrar(tab, cmd, sit, acts=()):
             return "nao"
         return "sim" if nome not in ABRIR_EXISTENTE or _ativo(nome, acts) else "nao"
     if nome in ABRIR_EXISTENTE:
-        return "nao"          # já está dentro: "abrir" não serve
+        return "sim" if _ativo(nome, acts) else "nao"    # já aberta: "abrir" não serve
     if cmd in RAROS.get(tab.get("regras", tab.get("id")), ()) or nome in RAROS.get(tab.get("regras", tab.get("id")), ()):
         return "raro"
     return "sim"

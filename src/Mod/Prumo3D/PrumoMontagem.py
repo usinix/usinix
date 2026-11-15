@@ -1510,7 +1510,7 @@ if FreeCAD.GuiUp:
             if self.ativo and not _elementos_da_selecao():
                 self.parar()
 
-    _ESTADO_INTELIGENTE = {"espera": None, "ultimo": None}
+    _ESTADO_INTELIGENTE = {"espera": None, "ultimo": None, "painel": None}
 
     def _rodar_inteligente():
         task, d = junta_inteligente()
@@ -1544,9 +1544,29 @@ if FreeCAD.GuiUp:
                 esp.parar()
             if len(_elementos_da_selecao()) >= 2:
                 return _rodar_inteligente()
-            FreeCADGui.Selection.clearSelection()
-            _ESTADO_INTELIGENTE["espera"] = EsperaJuntaInteligente()
-            return _ESTADO_INTELIGENTE["espera"]
+            return pedir_junta_inteligente()
+
+    def pedir_junta_inteligente():
+        """Sem os dois elementos: abre o painel que mostra o que já foi escolhido; com o segundo clique, a junta
+        certa abre sozinha (como as demais ferramentas, que abrem as configurações ao clicar)."""
+        import PrumoSelecao as S
+
+        def seguir(primeiro, segundo):
+            S.selecionar(primeiro, segundo)
+            task, d = _rodar_inteligente()
+            if task is None:
+                try:
+                    import PrumoAvisoClique
+                    PrumoAvisoClique.mostrar(d)
+                except Exception:
+                    pass
+            return task
+        p = S.pedir("Junta inteligente",
+                    "Clique em duas faces, arestas ou pontos, um em cada peça: o Usinix entende a forma e abre a "
+                    "junta certa (eixo e furo: concêntrica; faces planas: coincidente; cilindro na face: tangente).",
+                    [("Primeiro elemento", "elementos", 1, 1), ("Segundo elemento", "elementos", 1, 1)], seguir)
+        _ESTADO_INTELIGENTE["painel"] = p
+        return p
 
     class CmdPadrao:
         def GetResources(self):

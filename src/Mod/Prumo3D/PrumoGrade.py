@@ -8,6 +8,12 @@ e os eixos X (vermelho) e Y (verde). O passo segue a série 1-2-5 conforme o tam
 A grade não é selecionável, não aparece em capturas de seleção e não entra no arquivo: é só da tela.
 O botão "Grade" fica na barra de vistas embaixo da vista 3D, ao lado de Aparência (1.14.0; antes ficava na
 barra de status); a escolha fica gravada (Preferências › Usinix).
+
+Desde a 1.19.0 o botão tem três estados, um a cada clique:
+1. grade no chão (plano XY, em perspectiva, como antes);
+2. grade frontal infinita: virada para a tela, ocupa a área de trabalho inteira e acompanha a câmera (zoom, giro e
+   deslocamento), atrás do modelo; o quadrado se ajusta ao zoom (série 1-2-5);
+3. desligada.
 """
 
 import math
@@ -23,11 +29,36 @@ except ImportError:     # sem interface
 PARAM = "User parameter:BaseApp/Preferences/Mod/Prumo3D"
 NOME_NO = "PrumoGrade"
 SERIE = (1.0, 2.0, 5.0)
-_estado = {"botao": None, "timer": None, "obs": None, "passos": {}}
+NOME_TELA = "PrumoGradeTela"
+DESLIGADA, CHAO, TELA = 0, 1, 2
+NOMES_MODO = {DESLIGADA: "desligada", CHAO: "no chão (plano XY)", TELA: "frontal, na tela toda"}
+_estado = {"botao": None, "timer": None, "obs": None, "passos": {}, "telas": {}}
 
 
 def ligada():
     return FreeCAD.ParamGet(PARAM).GetBool("Grade", False)
+
+
+def modo():
+    """0 desligada, 1 no chão (perspectiva), 2 frontal infinita."""
+    if not ligada():
+        return DESLIGADA
+    m = FreeCAD.ParamGet(PARAM).GetInt("GradeModo", CHAO)
+    return m if m in (CHAO, TELA) else CHAO
+
+
+def definir_modo(m):
+    m = int(m) % 3
+    FreeCAD.ParamGet(PARAM).SetBool("Grade", m != DESLIGADA)
+    if m != DESLIGADA:
+        FreeCAD.ParamGet(PARAM).SetInt("GradeModo", m)
+    atualizar()
+    return m
+
+
+def proximo():
+    """Um clique no botão: chão → frontal → desligada → chão..."""
+    return definir_modo({DESLIGADA: CHAO, CHAO: TELA, TELA: DESLIGADA}[modo()])
 
 
 def passo_para(tamanho, celulas=20):
@@ -145,26 +176,225 @@ def _vistas():
 
 
 def _tirar(viewer):
-    from pivy import coin
     raiz = viewer.getSceneGraph()
     for i in reversed(range(raiz.getNumChildren())):
         ch = raiz.getChild(i)
-        if ch.getName().getString() == NOME_NO:
+        if ch.getName().getString() in (NOME_NO, NOME_TELA):
             raiz.removeChild(i)
+    t = _estado["telas"].pop(_chave(viewer), None)
+    if t is not None:
+        t.parar()
+
+
+def _chave(viewer):
+    try:
+        return int(viewer.getSceneGraph().this)
+    except Exception:
+        return id(viewer)
+
+
+# ------------------------------------------------------------------ grade frontal (na tela toda)
+def linhas_da_tela(foco, direita, cima, meia_altura, aspecto, celulas=16):
+    """Linhas (pares de pontos 3D) da grade frontal que cobre a vista: plano pela distância focal, virado para
+    a câmera. As linhas caem em múltiplos do passo medidos no mundo, então a grade anda junto com o modelo ao
+    deslocar a vista. Devolve (finas, fortes, passo)."""
+    meia_altura = max(float(meia_altura), 1e-6)
+    meia_larg = meia_altura * max(float(aspecto), 1e-3)
+    passo = passo_para(2 * meia_altura, celulas)
+    u0, v0 = foco.dot(direita), foco.dot(cima)
+    finas, fortes = [], []
+
+    def ponto(u, v):
+        p = foco + direita * (u - u0) + cima * (v - v0)
+        return (p.x, p.y, p.z)
+    folga = passo
+    ui, uf = u0 - meia_larg - folga, u0 + meia_larg + folga
+    vi, vf = v0 - meia_altura - folga, v0 + meia_altura + folga
+    for k in range(int(math.floor(ui / passo)), int(math.ceil(uf / passo)) + 1):
+        alvo = fortes if k % 5 == 0 else finas
+        alvo += [ponto(k * passo, vi), ponto(k * passo, vf)]
+    for k in range(int(math.floor(vi / passo)), int(math.ceil(vf / passo)) + 1):
+        alvo = fortes if k % 5 == 0 else finas
+        alvo += [ponto(ui, k * passo), ponto(uf, k * passo)]
+    return finas, fortes, passo
+
+
+class _GradeTela:
+    """Grade frontal de uma vista 3D: refeita quando a câmera muda (sensor) ou a janela muda de tamanho."""
+
+    def __init__(self, viewer, doc):
+        from pivy import coin
+        self.viewer, self.doc = viewer, doc
+        self.sep = coin.SoSeparator()
+        self.sep.setName(NOME_TELA)
+        ps = coin.SoPickStyle()
+        ps.style = coin.SoPickStyle.UNPICKABLE
+        self.sep.addChild(ps)
+        lm = coin.SoLightModel()
+        lm.model = coin.SoLightModel.BASE_COLOR
+        self.sep.addChild(lm)
+        # fica atrás de tudo: desenhada primeiro e sem gravar profundidade, o modelo pinta por cima
+        if hasattr(coin, "SoDepthBuffer"):
+            db = coin.SoDepthBuffer()
+            db.test = False
+            db.write = False
+            self.sep.addChild(db)
+        fina, grossa, _cx, _cy = _cores()
+        self.grupos = []
+        for cor in (fina, grossa):
+            g = coin.SoSeparator()
+            ds = coin.SoDrawStyle()
+            ds.lineWidth = 1
+            c = coin.SoBaseColor()
+            c.rgb = cor
+            co = coin.SoCoordinate3()
+            ls = coin.SoLineSet()
+            for n in (ds, c, co, ls):
+                g.addChild(n)
+            self.sep.addChild(g)
+            self.grupos.append((co, ls))
+        self.camera = None
+        self.sensor = None
+        self.ultimo = None
+        self.passo = None
+        viewer.getSceneGraph().insertChild(self.sep, 0)
+        self.chave = _chave(viewer)
+        self._ligar_camera()
+        self.refazer()
+        self.timer = QtCore.QTimer()
+        self.timer.setInterval(400)
+        self.timer.timeout.connect(self._conferir)
+        self.timer.start()
+
+    def _camera_atual(self):
+        try:
+            return self.viewer.getSoRenderManager().getCamera()
+        except Exception:
+            return None
+
+    def _ligar_camera(self):
+        from pivy import coin
+        cam = self._camera_atual()
+        if cam is None:
+            return
+        if self.sensor is not None:
+            self.sensor.detach()
+        self.camera = cam
+        self.sensor = coin.SoNodeSensor(lambda *_a: self._na_camera(), None)
+        self.sensor.setPriority(0)
+        self.sensor.attach(cam)
+
+    def _conferir(self):
+        # vista fechada: para de vez (não mexe mais no visualizador que sumiu)
+        try:
+            vivas = set(_chave(v) for _d, v in _vistas())
+        except Exception:
+            vivas = set()
+        if self.chave not in vivas:
+            self.parar()
+            _estado["telas"].pop(self.chave, None)
+            return
+        # câmera trocada (ortográfica/perspectiva) ou janela redimensionada
+        try:
+            cam = self._camera_atual()
+            if cam is not None and (self.camera is None or int(cam.this) != int(self.camera.this)):
+                self._ligar_camera()
+            self.refazer()
+        except Exception:
+            pass
+
+    def _na_camera(self):
+        if self.sensor is None:
+            return
+        try:
+            self.refazer()
+        except Exception:
+            pass
+
+    def estado_camera(self):
+        from pivy import coin
+        cam = self._camera_atual()
+        if cam is None:
+            return None
+        V = FreeCAD.Vector
+        rot = cam.orientation.getValue()
+        dire = rot.multVec(coin.SbVec3f(1, 0, 0))
+        cima = rot.multVec(coin.SbVec3f(0, 1, 0))
+        olhar = rot.multVec(coin.SbVec3f(0, 0, -1))
+        pos = cam.position.getValue()
+        dist = cam.focalDistance.getValue()
+        foco = V(*pos.getValue()) + V(*olhar.getValue()) * dist
+        tipo = cam.getTypeId().getName().getString()
+        if "Orthographic" in tipo:
+            meia = coin.cast(cam, "SoOrthographicCamera").height.getValue() / 2.0
+        else:
+            ang = coin.cast(cam, "SoPerspectiveCamera").heightAngle.getValue()
+            meia = dist * math.tan(ang / 2.0)
+        try:
+            asp = self.viewer.getSoRenderManager().getViewportRegion().getViewportAspectRatio()
+        except Exception:
+            asp = 16.0 / 9.0
+        return foco, V(*dire.getValue()), V(*cima.getValue()), meia, asp
+
+    def refazer(self):
+        e = self.estado_camera()
+        if e is None:
+            return
+        chave = (tuple(round(x, 6) for x in e[0]), tuple(round(x, 6) for x in e[1]),
+                 tuple(round(x, 6) for x in e[2]), round(e[3], 6), round(e[4], 4))
+        if chave == self.ultimo:
+            return
+        self.ultimo = chave
+        finas, fortes, passo = linhas_da_tela(*e)
+        self.passo = passo
+        for (co, ls), pts in zip(self.grupos, (finas, fortes)):
+            co.point.setNum(0)
+            if pts:
+                co.point.setValues(0, len(pts), pts)
+            ls.numVertices.setNum(0)
+            if pts:
+                ls.numVertices.setValues(0, len(pts) // 2, [2] * (len(pts) // 2))
+        try:
+            if passo != _estado["passos"].get(self.doc.Name):
+                _estado["passos"][self.doc.Name] = passo
+                _atualizar_botao()
+        except Exception:
+            pass
+
+    def parar(self):
+        try:
+            self.timer.stop()
+        except Exception:
+            pass
+        if self.sensor is not None:
+            try:
+                self.sensor.detach()
+            except Exception:
+                pass
+        self.sensor = None
 
 
 def atualizar(doc=None):
     """Põe (ou tira) a grade em todas as vistas 3D, ou só nas do documento `doc`."""
     if FreeCADGui is None:
         return
-    on = ligada()
+    m = modo()
     passos = {}
     for d, viewer in _vistas():
         if doc is not None and d is not doc:
             continue
         try:
+            if m == TELA:
+                # a frontal acompanha a câmera sozinha: recálculo do documento não precisa refazer
+                if doc is not None and _chave(viewer) in _estado["telas"]:
+                    continue
+                _tirar(viewer)
+                t = _GradeTela(viewer, d)
+                _estado["telas"][_chave(viewer)] = t
+                passos[d.Name] = t.passo
+                continue
             _tirar(viewer)
-            if on:
+            if m == CHAO:
                 tam, centro = tamanho_do_modelo(d)
                 no, passo = construir_no(tam, centro)
                 viewer.getSceneGraph().insertChild(no, 0)
@@ -183,6 +413,7 @@ def passo_atual():
 
 
 def alternar(ligar=None):
+    """Liga (no modo escolhido por último) ou desliga. O botão usa proximo(), que passa pelos três estados."""
     on = (not ligada()) if ligar is None else bool(ligar)
     FreeCAD.ParamGet(PARAM).SetBool("Grade", on)
     atualizar()
@@ -199,16 +430,25 @@ def _fmt(p):
 
 
 def ajustar_botao(b):
-    """Botão (marcado = ligada) e dica com o tamanho do quadrado."""
-    on = ligada()
+    """Botão (marcado = ligada; ícone diferente na frontal) e dica com o tamanho do quadrado."""
+    m = modo()
+    on = m != DESLIGADA
     p = passo_atual()
     if b.isChecked() != on:
         b.blockSignals(True)
         b.setChecked(on)
         b.blockSignals(False)
-    b.setToolTip("Grade (tela quadriculada) no plano XY: %s.\nClique para %s." % (
-        "ligada, quadrado de %s" % _fmt(p) if on and p else ("ligada" if on else "desligada"),
-        "desligar" if on else "ligar"))
+    if b.property("grade_modo") != m:
+        b.setProperty("grade_modo", m)
+        b.setIcon(_icone("grade_tela.svg" if m == TELA else "grade.svg"))
+    proximo_txt = {DESLIGADA: "ligar a grade no chão (plano XY)",
+                   CHAO: "trocar pela grade frontal, na tela toda",
+                   TELA: "desligar"}[m]
+    if m == DESLIGADA:
+        estado = "desligada"
+    else:
+        estado = "%s, quadrado de %s" % (NOMES_MODO[m], _fmt(p)) if p else NOMES_MODO[m]
+    b.setToolTip("Grade (tela quadriculada): %s.\nClique para %s." % (estado, proximo_txt))
 
 
 def botoes():
@@ -229,6 +469,16 @@ def _atualizar_botao():
 
 
 class _Observador:
+    def slotDeletedDocument(self, doc):
+        for k, t in list(_estado["telas"].items()):
+            try:
+                mesmo = t.doc is doc or t.doc.Name == doc.Name
+            except Exception:
+                mesmo = True
+            if mesmo:
+                t.parar()
+                _estado["telas"].pop(k, None)
+
     def slotRecomputedDocument(self, doc):
         if ligada():
             QtCore.QTimer.singleShot(0, lambda d=doc: atualizar(d))
@@ -238,23 +488,24 @@ class _Observador:
             QtCore.QTimer.singleShot(300, lambda: atualizar())
 
 
-def _icone():
+def _icone(arq="grade.svg"):
     import os
     import PrumoUtil
-    return QtGui.QIcon(PrumoUtil.icone("grade.svg")) if os.path.exists(PrumoUtil.icone("grade.svg")) else QtGui.QIcon()
+    return QtGui.QIcon(PrumoUtil.icone(arq)) if os.path.exists(PrumoUtil.icone(arq)) else QtGui.QIcon()
 
 
 class CmdGrade:
     def GetResources(self):
         import PrumoUtil
         return {"Pixmap": PrumoUtil.icone("grade.svg"), "MenuText": "Grade (tela quadriculada)",
-                "ToolTip": "Liga e desliga a grade no plano XY (botão na barra de vistas, ao lado de Aparência)."}
+                "ToolTip": "A cada clique: grade no chão (plano XY), grade frontal na tela toda, desligada (botão na "
+                           "barra de vistas, ao lado de Aparência)."}
 
     def IsActive(self):
         return True
 
     def Activated(self):
-        alternar()
+        proximo()
 
 
 def install():
@@ -281,9 +532,10 @@ def _garantir():
         _atualizar_botao()
         return
     faltam = False
+    nome = NOME_TELA if modo() == TELA else NOME_NO
     for d, viewer in _vistas():
         raiz = viewer.getSceneGraph()
-        if not any(raiz.getChild(i).getName().getString() == NOME_NO for i in range(raiz.getNumChildren())):
+        if not any(raiz.getChild(i).getName().getString() == nome for i in range(raiz.getNumChildren())):
             faltam = True
     if faltam:
         atualizar()

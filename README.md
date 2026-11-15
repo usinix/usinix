@@ -35,9 +35,13 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.18.0** (14/11/2026)
+**Versão atual: 1.19.0** (15/11/2026)
 
-- **Prévia dos componentes:** a janela de componentes mostra o desenho em 3D (gira com o mouse) antes de inserir.
+- **Clicou, abriu:** as ferramentas que pediam seleção antes agora abrem um painel que pede a seleção (como a
+  Extrusão), e as juntas abrem a montagem sozinhas.
+- **Grade frontal infinita:** o segundo clique no botão da grade a põe de frente para a tela, na área toda.
+
+Na 1.18.0: a janela de componentes mostra o desenho em 3D (gira com o mouse) antes de inserir.
 
 Na 1.17.0 e 1.17.1: reservatórios de água, galões, tambores, IBC e torres de resfriamento nos componentes, com
 escadas, tubos, flanges e válvulas conferidos.

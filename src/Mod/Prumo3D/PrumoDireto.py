@@ -737,6 +737,9 @@ if FreeCAD.GuiUp:
             return FreeCAD.ActiveDocument is not None
 
         def Activated(self):
+            import PrumoSelecao
+            if PrumoSelecao.tratar("Prumo_Posicionar"):     # sem a seleção: painel que pede os dois cliques
+                return
             p = _rodar("Posicionar peça", posicionar)
             if p is not None:
                 _aviso("%s posicionada. Desfazer: Ctrl+Z." % p.Label)
@@ -793,6 +796,9 @@ if FreeCAD.GuiUp:
             return FreeCAD.ActiveDocument is not None
 
         def Activated(self):
+            import PrumoSelecao
+            if PrumoSelecao.tratar("Prumo_Isolar"):     # sem a seleção: painel que pede os dois cliques
+                return
             if isolado() and not FreeCADGui.Selection.getSelection():
                 restaurar()
                 return
@@ -845,6 +851,9 @@ if FreeCAD.GuiUp:
             return FreeCAD.ActiveDocument is not None
 
         def Activated(self):
+            import PrumoSelecao
+            if PrumoSelecao.tratar("Prumo_MedirXYZ"):     # sem a seleção: painel que pede os dois cliques
+                return
             r = _rodar("Medir X, Y, Z", medir_xyz)
             if r is None:
                 return

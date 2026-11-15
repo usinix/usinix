@@ -12379,7 +12379,8 @@ class T83FaixaDoMomento(unittest.TestCase):
         page = PrumoFolhas.nova_folha(self.doc, "A3", "NBR16752", False, {}, [b], arranjo="frontal_superior")
         cmds, mais = self._aba("desenho")
         self.assertIn("Prumo_AbrirFolha", cmds, "com folha no projeto, aparece Abrir folha")
-        self.assertNotIn("TechDraw_SectionGroup", cmds, "folha fechada: ainda não há onde cortar")
+        # 1.19.0: com a folha no projeto as ferramentas já aparecem; o clique abre a folha sozinho e segue
+        self.assertIn("TechDraw_SectionGroup", cmds, "folha fechada mas existente: o clique abre a folha")
         PrumoFolhas._abrir_folha(page)
         self._esp(1.5)
         self.assertTrue(self.R.folha_aberta())
@@ -13551,15 +13552,18 @@ class T89NovidadesDoZW3D(unittest.TestCase):
         import PrumoRibbon as R
         self.assertNotIn("PartDesign_MultiTransform", R.RAROS["peca"])
 
-    def test_recalcular_na_peca_abaixo_do_vinculo_de_forma(self):
+    def test_recalcular_na_peca_ao_lado_do_novo_plano(self):
         import PrumoRibbon as R
         abas = [t["id"] for t in R.TABS for _p, its in t["panels"] for c, *_r in its
                 if "Std_Refresh" in c.split("|")]
         self.assertEqual(abas, ["peca"])
         peca = [t for t in R.TABS if t["id"] == "peca"][0]
-        corpo = [c for c, *_r in dict(peca["panels"])["Corpo"]]
-        # Recalcular (grande) logo depois da coluna Vínculo de forma / Vínculo de subforma / Clonar
-        self.assertEqual(corpo.index("Std_Refresh"), corpo.index("PartDesign_Clone") + 1)
+        ferr = [(c, t) for c, t, *_r in dict(peca["panels"])["Ferramentas"]]
+        # Recalcular grande ao lado de Novo plano; Verificar geometria, Validar esboço e Booleana pequenos (3 linhas)
+        self.assertEqual([c for c, _t in ferr][:5], ["PartDesign_Plane", "Std_Refresh", "Part_CheckGeometry",
+                                                     "Sketcher_ValidateSketch", "PartDesign_Boolean"])
+        self.assertEqual([t for _c, t in ferr][:5], [R.L, R.L, R.S, R.S, R.S])
+        self.assertNotIn("Std_Refresh", [c for c, *_r in dict(peca["panels"])["Corpo"]])
 
     def test_vistas_so_na_barra_de_baixo(self):
         import PrumoRibbon as R
@@ -14435,10 +14439,10 @@ class T106RevisaoDaFaixa(unittest.TestCase):
         import PrumoRibbon as R
         peca = [t for t in R.TABS if t["id"] == "peca"][0]
         tam = {c: t for _p, its in peca["panels"] for c, t, *_r in its}
-        for c in ("Std_Refresh", "Part_CheckGeometry", "Sketcher_ValidateSketch", "Prumo_Massa",
-                  "Prumo_ListaMateriais"):
+        for c in ("Std_Refresh", "Prumo_Massa", "Prumo_ListaMateriais"):
             self.assertEqual(tam[c], R.L, c)
-        for c in ("Prumo_Variantes", "Prumo_Modelo"):
+        # 1.19.0: Verificar geometria e Validar esboço viraram pequenos (três linhas com a Booleana)
+        for c in ("Prumo_Variantes", "Prumo_Modelo", "Part_CheckGeometry", "Sketcher_ValidateSketch"):
             self.assertEqual(tam[c], R.S, c)
 
     def test_menu_da_setinha_sem_nome_repetido(self):
@@ -14977,32 +14981,31 @@ class T91JuntaInteligente(unittest.TestCase):
         bb = self.bloco.Shape.BoundBox
         self.assertTrue(abs(bb.ZMin - 30.0) < 1e-3 or abs(bb.ZMax - 30.0) < 1e-3, bb)
 
-    def test_sem_selecao_espera_os_dois_cliques(self):
+    def test_sem_selecao_abre_o_painel_e_segue_no_segundo_clique(self):
+        """Clicar na junta sem nada escolhido abre o painel (não fica esperando às escondidas); o segundo
+        clique abre a junta certa sozinho."""
         if not FreeCAD.GuiUp:
             self.skipTest("sem interface")
+        import PrumoPainel as P
         FreeCADGui.Selection.clearSelection()
         cmd = self.M.CmdJuntaInteligente()
         self.assertTrue(cmd.IsActive())
-        esp = cmd.Activated()
-        self.assertIsNotNone(self.M._ESTADO_INTELIGENTE["espera"])
+        p = cmd.Activated()
+        self._esp(0.3)
+        self.assertIs(P._ATIVO.get("painel"), p, "o clique abre o painel da junta inteligente")
+        self.assertTrue(FreeCADGui.Control.activeDialog())
         FreeCADGui.Selection.addSelection(self.doc.Name, self.asm.Name,
                                           "%s.%s" % (self.base.Name, self._face(self.base, "Cylinder")))
-        self._esp(0.2)
-        self.assertTrue(esp.ativo, "um clique só: continua esperando")
+        self._esp(0.4)
+        self.assertEqual(len(p.caixas[0].valores()), 1)
+        self.assertIs(P._ATIVO.get("painel"), p, "um clique só: o painel continua aberto")
         FreeCADGui.Selection.addSelection(self.doc.Name, self.asm.Name, "%s.Face1" % self.eixo.Name)
-        self._esp(0.8)
-        self.assertFalse(esp.ativo)
+        self._esp(1.2)
         task, d = self.M._ESTADO_INTELIGENTE["ultimo"]
         self.assertIsNotNone(task, d)
         self.assertEqual(task.joint.JointType, "Cylindrical")
         task.reject()
-        # clicou numa peça e depois no vazio: desiste (sem clique nenhum, desiste sozinho depois de 90 s)
-        esp2 = cmd.Activated()
-        FreeCADGui.Selection.addSelection(self.doc.Name, self.asm.Name, "%s.Face1" % self.eixo.Name)
-        self._esp(0.2)
-        FreeCADGui.Selection.clearSelection()
         self._esp(0.3)
-        self.assertFalse(esp2.ativo)
 
     def test_combinacao_sem_regra_explica(self):
         if not FreeCAD.GuiUp:
@@ -18443,14 +18446,49 @@ class T123AcabamentoEVisual(unittest.TestCase):
             G.atualizar(self.doc)
             self.assertEqual(G.passo_atual(), 2000.0)
             self.assertIn("quadrado de 2 m", botao.toolTip())
-            botao.click()
+            botao.click()                                       # 2º clique: frontal, na tela toda
+            self.assertEqual(G.modo(), G.TELA)
+            self.assertTrue(botao.isChecked())
+            self.assertFalse(tem_grade(), "a do chão saiu")
+            raiz = FreeCADGui.getDocument(self.doc.Name).ActiveView.getViewer().getSceneGraph()
+            self.assertTrue(any(raiz.getChild(i).getName().getString() == G.NOME_TELA
+                                for i in range(raiz.getNumChildren())), "a frontal entrou")
+            self.assertIn("frontal", botao.toolTip())
+            botao.click()                                       # 3º clique: desliga
             self.assertFalse(G.ligada())
             self.assertFalse(tem_grade(), "desligou: some da vista")
+            self.assertFalse(any(raiz.getChild(i).getName().getString() == G.NOME_TELA
+                                 for i in range(raiz.getNumChildren())))
+            self.assertEqual(G._estado["telas"], {})
             self.assertFalse(botao.isChecked())
             self.assertIsNone(FreeCADGui.getMainWindow().statusBar().findChild(QtWidgets.QToolButton, "PrumoBotaoGrade"),
                               "saiu da barra de status")
         finally:
             G.alternar(antes)
+
+    def test_grade_frontal_cobre_a_vista_e_segue_a_camera(self):
+        import PrumoGrade as G
+        V = FreeCAD.Vector
+        finas, fortes, passo = G.linhas_da_tela(V(0, 0, 0), V(1, 0, 0), V(0, 1, 0), 100.0, 2.0)
+        self.assertEqual(passo, 20.0)
+        xs = [p[0] for p in finas + fortes]
+        ys = [p[1] for p in finas + fortes]
+        self.assertLessEqual(min(xs), -200.0)
+        self.assertGreaterEqual(max(xs), 200.0)
+        self.assertLessEqual(min(ys), -100.0)
+        self.assertGreaterEqual(max(ys), 100.0)
+        self.assertTrue(all(abs(p[2]) < 1e-9 for p in finas + fortes), "plano de frente para a câmera")
+        # deslocar a vista: as linhas continuam nos múltiplos do passo (a grade anda com o modelo)
+        f2, g2, _p = G.linhas_da_tela(V(7, 3, 0), V(1, 0, 0), V(0, 1, 0), 100.0, 2.0)
+        verticais = [p[0] for i, p in enumerate(f2 + g2) if i % 2 == 0 and abs(p[0] - (f2 + g2)[i + 1][0]) < 1e-9]
+        self.assertTrue(verticais and all(abs(x / 20.0 - round(x / 20.0)) < 1e-9 for x in verticais), verticais[:5])
+        # aproximar (zoom): o quadrado diminui
+        self.assertEqual(G.linhas_da_tela(V(0, 0, 0), V(1, 0, 0), V(0, 1, 0), 5.0, 2.0)[2], 1.0)
+        # vista girada: o plano fica de frente (perpendicular ao olhar)
+        d, c = V(0, 1, 0), V(0, 0, 1)
+        fi, fo, _p = G.linhas_da_tela(V(0, 0, 0), d, c, 50.0, 1.5)
+        self.assertTrue(all(abs(p[0]) < 1e-9 for p in fi + fo))
+        self.assertEqual({G.DESLIGADA: G.CHAO, G.CHAO: G.TELA, G.TELA: G.DESLIGADA}, {0: 1, 1: 2, 2: 0})
 
     def test_opcoes_sem_texto_cortado(self):
         if not FreeCAD.GuiUp:
@@ -18978,6 +19016,215 @@ class T141ReservatoriosETorres(unittest.TestCase):
         finally:
             fechar(doc)
 
+class T143FerramentaAbreAoClicar(unittest.TestCase):
+    """Um fluxo só: clicar na ferramenta abre as configurações dela (como a Extrusão). Quem precisava de seleção
+    antes abre um painel que pede a seleção; quem só funciona com a montagem/folha/estudo aberto abre isso
+    sozinho e segue."""
+
+    _esp = T62PainelDeComando._esp
+
+    def setUp(self):
+        self.doc = novo_doc("PrumoCliqueAbre")
+        FreeCAD.setActiveDocument(self.doc.Name)
+        FreeCADGui.Selection.clearSelection()
+
+    def tearDown(self):
+        FreeCADGui.Selection.clearSelection()
+        try:
+            if FreeCADGui.Control.activeDialog():
+                FreeCADGui.Control.closeDialog()
+            gd = FreeCADGui.getDocument(self.doc.Name)
+            if gd.getInEdit() is not None:
+                gd.resetEdit()
+        except Exception:
+            pass
+        self._esp(0.2)
+        fechar(self.doc)
+
+    def _montagem(self):
+        import Part
+        FreeCADGui.activateWorkbench("AssemblyWorkbench")
+        asm = self.doc.addObject("Assembly::AssemblyObject", "Assembly")
+        asm.newObject("Assembly::JointGroup", "Joints")
+        a = asm.newObject("Part::Box", "A")
+        b = asm.newObject("Part::Box", "B")
+        b.Placement.Base = FreeCAD.Vector(30, 0, 0)
+        self.doc.recompute()
+        return asm, a, b
+
+    def test_tabela_cobre_as_ferramentas_de_selecao_antes(self):
+        import PrumoSelecao as S
+        for cmd in ("PartDesign_Clone", "Part_CheckGeometry", "Sketcher_ValidateSketch", "Prumo_Cotas",
+                    "Prumo_AtualizarEstrutura", "Assembly_ToggleGrounded", "Prumo_MatrizLeve", "Prumo_Posicionar",
+                    "Prumo_MedirXYZ", "SheetMetal_AddBase", "SheetMetal_AddWall", "SheetMetal_Unfold",
+                    "Surface_ExtendFace", "Surface_BlendCurve", "FEM_SolverRun", "TechDraw_SectionView",
+                    "TechDraw_LeaderLine", "TechDraw_Hatch", "TechDraw_2PointCenterLine", "TechDraw_WeldSymbol"):
+            self.assertIn(cmd, S.SELECAO_PRIMEIRO, cmd)
+            for _r, f, _mn, _mx in S._spec(cmd)[2]:
+                self.assertTrue(callable(S._filtro(f)), "%s: filtro %s" % (cmd, f))
+        self.assertEqual(S.contexto_de("Assembly_CreateJointFixed"), "montagem")
+        self.assertEqual(S.contexto_de("Prumo_JuntaInteligente"), "montagem")
+        self.assertEqual(S.contexto_de("TechDraw_LeaderLine"), "folha")
+        self.assertEqual(S.contexto_de("FEM_ConstraintFixed"), "estudo")
+        self.assertIsNone(S.contexto_de("Assembly_CreateAssembly"))
+        self.assertIsNone(S.contexto_de("FEM_Analysis"))
+
+    def test_face_dentro_do_corpo_volta_igual(self):
+        """O caminho completo devolve a seleção como foi feita (face de operação dentro do corpo)."""
+        import PrumoSelecao as S
+        body = self.doc.addObject("PartDesign::Body", "Corpo")
+        box = body.newObject("PartDesign::AdditiveBox", "Caixa")
+        self.doc.recompute()
+        FreeCADGui.Selection.addSelection(self.doc.Name, body.Name, "%s.Face3" % box.Name)
+        vals = S.distribuir_selecao([("Face", "faces", 1, 1)])
+        self.assertEqual(vals, [[(body, "%s.Face3" % box.Name)]])
+        S.selecionar(*vals)
+        sx = FreeCADGui.Selection.getSelectionEx()
+        self.assertEqual([(x.Object.Name, list(x.SubElementNames)) for x in sx], [(box.Name, ["Face3"])])
+        self.assertEqual(S.distribuir_selecao([("Aresta", "arestas", 1, 1)]), [[]], "face não serve de aresta")
+        self.assertEqual(S.FILTROS["faces_planas"](body, ("%s.Face3" % box.Name,))[0][1], (body, "%s.Face3" % box.Name))
+
+    def test_chapa_sem_selecao_pede_e_com_aresta_roda(self):
+        import Part
+        import PrumoSelecao as S
+        if "SheetMetal_AddWall" not in FreeCADGui.listCommands():
+            FreeCADGui.activateWorkbench("SMWorkbench")
+        if "SheetMetal_AddWall" not in FreeCADGui.listCommands():
+            self.skipTest("bancada de chapa ausente")
+        self.assertTrue(S.precisa_de_painel("SheetMetal_AddWall"))
+        self.assertTrue(S.pode_pedir("SheetMetal_AddWall"))
+        f = self.doc.addObject("Part::Feature", "Chapa")
+        f.Shape = Part.makeBox(100, 50, 2)
+        self.doc.recompute()
+        FreeCADGui.Selection.addSelection(self.doc.Name, f.Name, "Edge1")
+        self.assertTrue(S.satisfeita("SheetMetal_AddWall"))
+        self.assertFalse(S.precisa_de_painel("SheetMetal_AddWall"), "com a aresta escolhida roda direto")
+
+    def test_painel_de_duas_caixas_segue_sozinho(self):
+        """Caixas de quantidade fixa: cheias, o comando segue sem o OK."""
+        import Part
+        import PrumoSelecao as S
+        import PrumoPainel as P
+        a = self.doc.addObject("Part::Box", "A")
+        b = self.doc.addObject("Part::Cylinder", "B")
+        self.doc.recompute()
+        feito = []
+        p = S.pedir("Teste", "Duas faces.", [("Primeira", "faces", 1, 1), ("Segunda", "faces", 1, 1)],
+                    lambda x, y: feito.append((x, y)))
+        self._esp(0.2)
+        self.assertIs(P._ATIVO.get("painel"), p)
+        FreeCADGui.Selection.addSelection(self.doc.Name, a.Name, "Face1")
+        self._esp(0.4)
+        self.assertEqual(feito, [], "uma caixa ainda vazia: espera")
+        FreeCADGui.Selection.addSelection(self.doc.Name, b.Name, "Face1")
+        self._esp(0.8)
+        self.assertEqual(feito, [([(a, "Face1")], [(b, "Face1")])])
+        self.assertFalse(FreeCADGui.Control.activeDialog(), "o painel fechou sozinho")
+
+    def test_junta_com_montagem_fechada_abre_a_montagem_e_a_junta(self):
+        import PrumoSelecao as S
+        import UtilsAssembly
+        asm, a, b = self._montagem()
+        self.assertIsNone(UtilsAssembly.activeAssembly())
+        self.assertTrue(S.pode_pedir("Assembly_CreateJointFixed"), "botão ligado: o clique abre a montagem")
+        self.assertTrue(S.tratar("Assembly_CreateJointFixed"))
+        self._esp(1.5)
+        self.assertIs(UtilsAssembly.activeAssembly(), asm, "a montagem abriu sozinha")
+        self.assertTrue(FreeCADGui.Control.activeDialog(), "e a junta abriu as configurações")
+        FreeCADGui.Control.closeDialog()
+        self._esp(0.3)
+
+    def test_junta_inteligente_pelo_clique_mostra_o_painel(self):
+        import PrumoSelecao as S
+        import PrumoPainel as P
+        import UtilsAssembly
+        asm, a, b = self._montagem()
+        self.assertTrue(S.tratar("Prumo_JuntaInteligente"))
+        self._esp(1.5)
+        self.assertIs(UtilsAssembly.activeAssembly(), asm)
+        p = P._ATIVO.get("painel")
+        self.assertIsNotNone(p)
+        self.assertEqual(p.titulo, "Junta inteligente")
+        self.assertTrue(FreeCADGui.Control.activeDialog())
+
+    def test_fixar_peca_pede_a_peca_com_o_caminho(self):
+        import PrumoSelecao as S
+        asm, a, b = self._montagem()
+        FreeCADGui.getDocument(self.doc.Name).setEdit(asm)
+        self._esp(0.6)
+        self.assertTrue(S.precisa_de_painel("Assembly_ToggleGrounded"))
+        p = S.pedir_para_comando("Assembly_ToggleGrounded", mostrar=False, adiar=False)
+        p.distribuir(a, ("Face1",), asm, ["%s.Face1" % a.Name])
+        self.assertEqual(p.caixas[0].valores(), [(asm, "%s." % a.Name)])
+        p.accept()
+        self._esp(0.6)
+        juntas = [j for g in asm.Group if g.TypeId == "Assembly::JointGroup" for j in g.Group]
+        self.assertTrue(any(type(getattr(j, "Proxy", None)).__name__ == "GroundedJoint" for j in juntas),
+                        [type(getattr(j, "Proxy", None)).__name__ for j in juntas])
+
+    def test_aviso_quando_nao_ha_montagem(self):
+        import PrumoSelecao as S
+        import PrumoAvisoClique as AV
+        self.assertFalse(S.pode_pedir("Assembly_CreateJointFixed"))
+        self.assertFalse(S.tratar("Assembly_CreateJointFixed"))
+        self.assertIn("Nova montagem", AV.motivo_inativo("Assembly_CreateJointFixed", "Travar"))
+
+    def test_faixa_mostra_restricoes_com_montagem_fechada(self):
+        import PrumoRibbon as R
+        asm, a, b = self._montagem()
+        tab = [t for t in R.TABS if t["id"] == "montagem"][0]
+        sit = R.situacao()
+        self.assertTrue(sit[4] and not sit[3])
+        if not R.faixa_contextual():
+            self.skipTest("faixa sem contexto")
+        self.assertEqual(R.como_mostrar(tab, "Assembly_CreateJointFixed", sit), "sim")
+        self.assertEqual(R.como_mostrar(tab, "Prumo_EditarMontagem", sit), "sim", "e o Abrir montagem continua")
+
+    def test_corte_no_desenho_pede_a_vista_e_abre_o_corte(self):
+        import PrumoSelecao as S
+        import PrumoPainel as P
+        FreeCADGui.activateWorkbench("TechDrawWorkbench")
+        box = self.doc.addObject("Part::Box", "Bloco")
+        page = self.doc.addObject("TechDraw::DrawPage", "Folha")
+        tpl = self.doc.addObject("TechDraw::DrawSVGTemplate", "Modelo")
+        page.Template = tpl
+        v = self.doc.addObject("TechDraw::DrawViewPart", "Vista")
+        v.Source = [box]
+        page.addView(v)
+        self.doc.recompute()
+        self._esp(1.0)
+        self.assertTrue(S.tratar("TechDraw_SectionView"))
+        self._esp(1.5)
+        p = P._ATIVO.get("painel")
+        self.assertIsNotNone(p, "sem vista escolhida: painel que pede a vista")
+        self.assertEqual(p.titulo, "Corte")
+        FreeCADGui.Selection.addSelection(self.doc.Name, v.Name)
+        self._esp(1.5)
+        self.assertTrue(p._auto_feito, "a vista escolhida fecha o painel de seleção sozinho")
+        self.assertTrue(FreeCADGui.Control.activeDialog(), "e abre o painel do corte")
+
+    def test_solver_unico_entra_sozinho(self):
+        import PrumoSelecao as S
+        try:
+            import ObjectsFem
+        except Exception:
+            self.skipTest("FEM ausente")
+        an = ObjectsFem.makeAnalysis(self.doc, "Estudo")
+        sv = ObjectsFem.makeSolverCalculiXCcxTools(self.doc)
+        an.addObject(sv)
+        self.doc.recompute()
+        p = S.pedir_para_comando("FEM_SolverRun", mostrar=False, adiar=False)
+        self.assertEqual(p.caixas[0].valores(), [sv])
+        self.assertTrue(p.completa())
+        p.close()
+
+    def test_grupo_do_solidos_acha_o_subcomando_pelo_texto(self):
+        import PrumoSelecao as S
+        FreeCADGui.activateWorkbench("PartWorkbench")
+        txt = [a.text() for a in FreeCADGui.Command.get("Part_CompJoinFeatures").getAction()]
+        self.assertEqual(S.comando_pelo_texto(txt[0]), "Part_JoinConnect", txt)
+
+
 class T142PreviaDosComponentes(unittest.TestCase):
     """1.18.0: "quero que no modal dos componentes mostre o desenho do componente, para que eu visualize antes de
     inserir" — prévia 3D renderizada fora da tela, que gira com o mouse e acompanha modelo e tamanho."""
@@ -19082,4 +19329,5 @@ RAPIDOS = [T11CotasNaTela, T12Massa, T13MenuContexto, T14ListaMateriais, T15Folh
            T133EscadaPatamarEChapas, T134EsqueletoDeArestasETabelaDeCortes,
            T135FuroPadraoNBR8800, T136ComponentesDetalhados, T137TestesSemAbrirNavegador,
            T138EnrijecedoresEmSerie, T139PadraoDeEstrutura, T140SoldaArrastavelNaFolha,
-           T141ReservatoriosETorres, T142PreviaDosComponentes]
+           T141ReservatoriosETorres, T142PreviaDosComponentes,
+           T143FerramentaAbreAoClicar]

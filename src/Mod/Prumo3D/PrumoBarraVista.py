@@ -156,13 +156,14 @@ class BarraVista(QtWidgets.QFrame):
         return b
 
     def _botao_grade(self):
-        """Liga e desliga a grade (tela quadriculada); fica marcado enquanto a grade está ligada."""
+        """Grade (tela quadriculada): chão, frontal na tela toda ou desligada; marcado enquanto ligada."""
         import PrumoGrade
         b = self._botao("Prumo_Grade", "Grade")
         b.setIcon(PrumoGrade._icone())
         b.setCheckable(True)
         b.setObjectName("PrumoBotaoGrade")
-        b.toggled.connect(lambda on: PrumoGrade.ligada() != on and PrumoGrade.alternar(on))
+        # três estados a cada clique: no chão → frontal na tela toda → desligada
+        b.clicked.connect(lambda _on=False: (PrumoGrade.proximo(), PrumoGrade.ajustar_botao(b)))
         self.botoes["Prumo_Grade"] = b
         PrumoGrade.ajustar_botao(b)
         return b

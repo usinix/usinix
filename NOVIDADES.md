@@ -15,6 +15,33 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.19.0 — 15/11/2026
+
+![Junta inteligente: o clique abre o painel que mostra o que já foi escolhido](.github/images/novidades/1.19.0.webp)
+
+### Clicou, abriu
+
+- **A ferramenta abre as configurações ao clicar**, como a Extrusão. As que antes exigiam escolher as peças
+  primeiro (e não faziam nada sem isso) agora abrem um painel que diz o que escolher, mostra o que já foi escolhido
+  e roda sozinho quando a escolha fica completa (duas faces, duas arestas...). Vale para Subtrair/Unir/Interseção,
+  Clonar, Verificar geometria, Validar esboço, Cotas da operação, Fixar peça, Posicionar peça, Medir X, Y, Z,
+  Isolar, Matriz leve, Atualizar estrutura, as ferramentas da Chapa (aba, dobra, bainha, recorte, alívio,
+  planificar...), Estender face e Curva de concordância, as anotações do Desenho (corte, detalhe, hachura, linha de
+  chamada, linhas de centro, roscas, símbolo de solda...) e a malha, o solver e os resultados da Simulação.
+- **Montagem:** as restrições (juntas), Inserir componente, Resolver e Vista explodida funcionam com a montagem
+  fechada: o clique abre a montagem sozinho e segue. A **Junta inteligente** abre o painel com o primeiro e o
+  segundo elemento; no segundo clique, a junta certa abre.
+- **Desenho e Simulação:** com a folha (ou o estudo) no projeto, as ferramentas já aparecem; o clique abre a folha
+  ou ativa o estudo. Havendo um só solver, malha ou resultado, ele já vem escolhido.
+- Sem montagem, folha ou estudo no projeto, o aviso diz onde criar.
+
+### Peça e vista 3D
+
+- Aba Peça › Ferramentas: **Recalcular** grande, ao lado de Novo plano; Verificar geometria, Validar esboço e
+  Booleana pequenos, em três linhas.
+- **Grade com dois modos:** o primeiro clique põe a grade no chão (como antes); o segundo, a **grade frontal
+  infinita**, de frente para a tela, ocupando a área de trabalho inteira e acompanhando o zoom; o terceiro desliga.
+
 ## 1.18.0 — 14/11/2026
 
 ![Janela de componentes com a prévia da torre de resfriamento](.github/images/novidades/1.18.0.webp)

@@ -201,14 +201,13 @@ def rodar(item, ribbon=None):
         acts = FreeCADGui.Command.get(cmd).getAction() or []
     except Exception:
         acts = []
+    try:
+        import PrumoSelecao
+        if PrumoSelecao.tratar(cmd):      # abre a montagem/folha que falta e/ou pede a seleção
+            return
+    except Exception:
+        pass
     if acts and not any(a.isEnabled() for a in acts):
-        try:
-            import PrumoSelecao
-            if PrumoSelecao.precisa_de_painel(cmd):
-                PrumoSelecao.pedir_para_comando(cmd)
-                return
-        except Exception:
-            pass
         AV.clique_inativo(cmd, _rot)
         return
     AV.executar(cmd, lambda: FreeCADGui.runCommand(cmd, 0), _rot)
