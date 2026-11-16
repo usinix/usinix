@@ -345,13 +345,13 @@ FunctionEnd
 !macroend
 !define EsperarFecharApp `!insertmacro _EsperarFecharApp`
 
-# Programas rodando de dentro de uma pasta (o Prumo e qualquer outro: processo filho, ferramenta auxiliar).
+# Programas rodando de dentro de uma pasta (o Usinix e qualquer outro: processo filho, ferramenta auxiliar).
 # ${result_n}: quantos; ${result_nomes}: nomes separados por vírgula. Usa o PowerShell do Windows.
 !macro _ProcessosDaPasta pasta result_n result_nomes
   nsExec::ExecToStack `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$p=[IO.Path]::GetFullPath('${pasta}').TrimEnd('\')+'\'; $$l=@(Get-Process | Where-Object { $$_.Path -and $$_.Path.StartsWith($$p,[StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { $$_.ProcessName } | Sort-Object -Unique); [Console]::Write($$l -join ', '); exit $$l.Count"`
   Pop ${result_n}
   Pop ${result_nomes}
-  # PowerShell ausente ou erro: não bloqueia (fica a espera pelo nome do Prumo)
+  # PowerShell ausente ou erro: não bloqueia (fica a espera pelo nome do Usinix)
   StrCmp ${result_n} "error" 0 +2
     StrCpy ${result_n} 0
 !macroend

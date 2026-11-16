@@ -7,6 +7,9 @@
 | Linux (64 bits) | `Usinix_…-Linux-….AppImage` | Marque como executável (`chmod +x`) e abra. Em algumas distribuições é preciso instalar o pacote `libfuse2`. |
 | Já tem o Usinix 1.1 ou mais novo | `Usinix_…-complemento.zip` | Não precisa baixar à mão: em **Ajuda → Sobre → Verificar atualizações**, o Usinix baixa só este arquivo (poucos MB) e a versão nova vale ao abrir de novo. |
 
+Na **1.21.0** a atualização só do complemento não serve: quem vem de uma versão anterior baixa o pacote completo
+(o Usinix oferece o certo em **Ajuda → Sobre → Verificar atualizações**).
+
 Cada arquivo tem um `-SHA256.txt` com o código de verificação.
 
 Os instaladores ainda não têm assinatura digital: o Windows mostra o aviso de "editor desconhecido".
@@ -25,7 +28,7 @@ Clique em **Mais informações → Executar assim mesmo**. Confira o arquivo pel
 6. **Chapa:** abra o exemplo da chapa dobrada e use **Planificar em DXF**; abra o DXF no seu CAD 2D.
 7. **Montagem:** coloque duas peças que se invadem e use **Verificar interferência**; depois
    **Copiar projeto** para outra pasta.
-8. **Peça:** use **Modelo com regras** para gerar uma placa com furos; mude a distância à borda e veja
+8. **Componentes:** use **Modelo com regras** para gerar uma placa com furos; mude a distância à borda e veja
    o aviso. Em **Variantes da peça**, crie P/M/G e troque a variante ativa.
 9. Salve, feche e abra de novo.
 

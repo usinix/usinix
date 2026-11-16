@@ -587,7 +587,7 @@ bool DrawSketchHandler::seekKeyPointAutoConstraint(
         } break;
         case KeyPointKind::Quadrant: {
             add(Sketcher::PointOnObject, keyPoint.geoId1);
-            // Prumo: também trava o ponto na horizontal/vertical do centro do círculo/arco,
+            // Usinix: também trava o ponto na horizontal/vertical do centro do círculo/arco,
             // para que o ponto do quadrante fique totalmente definido.
             const Part::Geometry* geo = sketchgui->getSketchObject()->getGeometry(keyPoint.geoId1);
             const Part::GeomConic* conic = dynamic_cast<const Part::GeomConic*>(geo);
@@ -823,7 +823,7 @@ int DrawSketchHandler::seekAutoConstraint(
         return 0;  // If Autoconstraints property is not set quit
     }
 
-    // Prumo 3D: ponto capturado por um ímã (quadrante, ponto médio, interseção) gera as restrições
+    // Usinix: ponto capturado por um ímã (quadrante, ponto médio, interseção) gera as restrições
     // que mantêm o ponto ali; a pré-seleção do cursor pode estar em outra curva e é ignorada
     const bool keyPoint = seekKeyPointAutoConstraint(suggestedConstraints, Pos, type);
     if (!keyPoint) {
@@ -833,7 +833,7 @@ int DrawSketchHandler::seekAutoConstraint(
     if (Dir.Length() > 1e-8 && type != AutoConstraint::CURVE) {
         seekAlignmentAutoConstraint(suggestedConstraints, Dir);
 
-        // Prumo: ponto preso num ímã já está definido; uma tangência sugerida junto (a linha entre dois
+        // Usinix: ponto preso num ímã já está definido; uma tangência sugerida junto (a linha entre dois
         // quadrantes costuma passar quase tangente ao círculo) sobra, o diagnóstico acusa redundância e o
         // FreeCAD descarta TODAS as restrições automáticas, deixando a linha solta
         if (type != AutoConstraint::VERTEX_NO_TANGENCY && !keyPoint) {
@@ -916,7 +916,7 @@ void DrawSketchHandler::createAutoConstraints(
                 case Sketcher::Horizontal: {
                     if (cstr.PosId != Sketcher::PointPos::none && posId1 != Sketcher::PointPos::none
                         && geoId2 != GeoEnum::GeoUndef) {
-                        // Prumo: dois pontos na mesma horizontal (ponto-ímã de quadrante)
+                        // Usinix: dois pontos na mesma horizontal (ponto-ímã de quadrante)
                         Gui::cmdAppObjectArgs(
                             sketchgui->getObject(),
                             "addConstraint(Sketcher.Constraint('Horizontal',%d,%d,%d,%d)) ",

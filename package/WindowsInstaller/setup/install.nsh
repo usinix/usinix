@@ -19,11 +19,11 @@ Section -ProgramFiles SecProgramFiles
   ${If} $RemoveInstDir == "true"
     ${DetailPrintToBoth} "Cleaning install folder '$INSTDIR'"
     # Usinix: a pasta antiga NUNCA é apagada aos pedaços (arquivo preso no meio deixava meia instalação).
-    # 1) espera o Prumo e qualquer programa rodando de dentro dela; 2) renomeia a pasta inteira de uma vez:
+    # 1) espera o Usinix e qualquer programa rodando de dentro dela; 2) renomeia a pasta inteira de uma vez:
     # se algo estiver preso a renomeação falha sem mexer em nada e a instalação antiga segue funcionando;
     # 3) a versão nova entra na pasta limpa e a antiga é apagada no fim (ou na próxima reinicialização).
     # a pasta de trabalho do próprio instalador não pode ficar dentro da pasta antiga: aberto pela
-    # atualização automática, ele herda a do Prumo (o atalho abre o Prumo em $INSTDIR\bin), e o Windows não
+    # atualização automática, ele herda a do Usinix (o atalho abre o Usinix em $INSTDIR\bin), e o Windows não
     # renomeia uma pasta que é a pasta de trabalho de um programa aberto (nem aparece na lista de processos)
     SetOutPath "$TEMP"
     ${EsperarFecharApp} limpar
@@ -37,7 +37,7 @@ Section -ProgramFiles SecProgramFiles
       ${EndIf}
     ${EndIf}
     renomear_pasta:
-    # antivírus e indexação do Windows seguram a pasta por alguns segundos logo depois que o Prumo fecha:
+    # antivírus e indexação do Windows seguram a pasta por alguns segundos logo depois que o Usinix fecha:
     # tenta de novo sozinho por até ~20 s antes de perguntar
     # (o teste ${Errors} apaga a marca de erro: o resultado fica guardado em $2)
     StrCpy $1 0
@@ -146,6 +146,9 @@ Section -MigrarPrumo SecMigrarPrumo
     CopyFiles /SILENT "$APPDATA\${APP_ID_ANTIGO}\*.*" "$APPDATA\${APP_DIR_USERDATA}"
     RMDir /r "$APPDATA\${APP_DIR_USERDATA}\v1-1\Mod\Prumo3D"
   ${EndIf}
+  # até a 1.20.0 o módulo se chamava Prumo3D: uma cópia antiga do complemento na pasta do usuário
+  # carregaria junto com o módulo novo (Mod\Usinix)
+  RMDir /r "$APPDATA\${APP_DIR_USERDATA}\v1-1\Mod\Prumo3D"
   ${If} $MultiUser.InstallMode == "AllUsers"
     SetShellVarContext all
   ${EndIf}

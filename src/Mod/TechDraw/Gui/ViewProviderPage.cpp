@@ -274,9 +274,9 @@ bool ViewProviderPage::doubleClicked()
         Gui::Command::assureWorkbench("TechDrawWorkbench");
         show();
     }
-    // Usinix: double click on the page also opens the title block fields (Prumo_EditarLegenda, when present)
+    // Usinix: double click on the page also opens the title block fields (Usinix_EditarLegenda, when present)
     auto& mgr = Gui::Application::Instance->commandManager();
-    if (Gui::Command* cmd = mgr.getCommandByName("Prumo_EditarLegenda")) {
+    if (Gui::Command* cmd = mgr.getCommandByName("Usinix_EditarLegenda")) {
         Gui::Selection().clearSelection();
         Gui::Selection().addSelection(getObject()->getDocument()->getName(), getObject()->getNameInDocument());
         cmd->invoke(0);

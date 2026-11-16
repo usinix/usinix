@@ -66,7 +66,7 @@ concurrency:
 jobs:
   planejar:
     name: Planejar
-    runs-on: ${{ (github.event.inputs.maquina || 'github') == 'pc' && fromJSON('["self-hosted","prumo","Windows"]') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event.inputs.maquina || 'github') == 'pc' && fromJSON('["self-hosted","usinix","Windows"]') || 'ubuntu-latest' }}
     outputs:
       matriz: ${{ steps.m.outputs.matriz }}
     steps:
@@ -94,12 +94,12 @@ jobs:
           if [[ -n "$v" ]]; then
             # 11/11/2026: "1.4.0" digitado no lugar de "1.14.0" compilou 40 minutos e só falhou no fim
             # ("a release with the same tag name already exists: v1.4.0"). Confere antes de compilar:
-            # a versão não pode existir e tem de ser a do código (VERSAO em PrumoVersao.py)
+            # a versão não pode existir e tem de ser a do código (VERSAO em UsinixVersao.py)
             if gh api "repos/${REPO}/git/ref/tags/v${v}" >/dev/null 2>&1; then
-              echo "::error title=Versão já publicada::A versão v${v} já existe na página de versões. Confira o número (a versão do código é a que está em PrumoVersao.py)."
+              echo "::error title=Versão já publicada::A versão v${v} já existe na página de versões. Confira o número (a versão do código é a que está em UsinixVersao.py)."
               exit 1
             fi
-            codigo=$(gh api "repos/${REPO}/contents/src/Mod/Prumo3D/PrumoVersao.py?ref=${SHA}" --jq .content 2>/dev/null \
+            codigo=$(gh api "repos/${REPO}/contents/src/Mod/Usinix/UsinixVersao.py?ref=${SHA}" --jq .content 2>/dev/null \
                      | base64 -d 2>/dev/null | sed -n 's/^VERSAO = "\([^"]*\)".*/\1/p' | head -1)
             if [[ -n "$codigo" && "$codigo" != "${v%%-*}" ]]; then
               echo "::error title=Versão diferente da do código::Você digitou ${v}, mas o código no main está na ${codigo}. Publique como ${codigo}."
@@ -114,7 +114,7 @@ jobs:
           maquina="${{ github.event.inputs.maquina || 'github' }}"
           plat="${{ github.event.inputs.plataformas || 'ambas' }}"
           if [ "$maquina" = "pc" ]; then
-            lin='["self-hosted","prumo","Linux"]'; win='["self-hosted","prumo","Windows"]'
+            lin='["self-hosted","usinix","Linux"]'; win='["self-hosted","usinix","Windows"]'
           else
             lin='"ubuntu-22.04"'; win='"windows-2022"'
           fi
@@ -201,8 +201,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf 'VERSAO_COMPILADA = "%s"\n' "${BUILD_TAG}" > src/Mod/Prumo3D/PrumoVersaoCompilada.py
-          pixi exec --spec "python=3.11" --spec "pillow" python prumo-build/ferramentas/selo_versao_splash.py "${BUILD_TAG}"
+          printf 'VERSAO_COMPILADA = "%s"\n' "${BUILD_TAG}" > src/Mod/Usinix/UsinixVersaoCompilada.py
+          pixi exec --spec "python=3.11" --spec "pillow" python usinix-build/ferramentas/selo_versao_splash.py "${BUILD_TAG}"
 
       # pasta fixa do ccache; o caminho vai num arquivo na raiz do código, que os roteiros de
       # compilação (build.sh / build.bat) leem
@@ -210,13 +210,13 @@ jobs:
         shell: bash
         run: |
           if [ "${RUNNER_OS}" = "Windows" ]; then d='D:\ccache'; else d="${HOME}/ccache"; fi
-          echo "PRUMO_CCACHE_DIR=${d}" >> "$GITHUB_ENV"
-          printf '%s' "${d}" > prumo_ccache_dir.txt
+          echo "USINIX_CCACHE_DIR=${d}" >> "$GITHUB_ENV"
+          printf '%s' "${d}" > usinix_ccache_dir.txt
 
       - name: Restaurar o cache de compilação
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ env.PRUMO_CCACHE_DIR }}
+          path: ${{ env.USINIX_CCACHE_DIR }}
           key: ccache-${{ matrix.target }}-${{ github.run_id }}
           restore-keys: ccache-${{ matrix.target }}-
 
@@ -226,7 +226,7 @@ jobs:
         run: |
           set -euo pipefail
           # Python do próprio pixi: o computador próprio não precisa ter Python instalado
-          pixi exec --spec "python=3.11" python package/scripts/write_version_info.py ../prumo3d_version.txt
+          pixi exec --spec "python=3.11" python package/scripts/write_version_info.py ../usinix_version.txt
           cd package/rattler-build
           # restos de execuções anteriores (computador próprio): só os arquivos gerados — a pasta
           # também guarda os roteiros de empacotamento, que são do repositório
@@ -239,7 +239,7 @@ jobs:
         if: always() && github.ref == 'refs/heads/main' && steps.compilar.outcome != 'skipped'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ env.PRUMO_CCACHE_DIR }}
+          path: ${{ env.USINIX_CCACHE_DIR }}
           key: ccache-${{ matrix.target }}-${{ github.run_id }}
 
       - name: Empacotar
@@ -250,7 +250,7 @@ jobs:
           WINDOWS_SIGN_RELEASE: "0"
           TARGET_PLATFORM: ${{ matrix.target }}
           # no computador próprio, o 7-Zip do ambiente pixi falha (código 2): só o instalador
-          PRUMO_SEM_7Z: ${{ runner.environment != 'github-hosted' && '1' || '0' }}
+          USINIX_SEM_7Z: ${{ runner.environment != 'github-hosted' && '1' || '0' }}
         run: |
           set -euo pipefail
           cd package/rattler-build
@@ -262,7 +262,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          destino="${PRUMO_PACOTES:-$HOME/Prumo3D-pacotes}/${BUILD_TAG}"
+          destino="${USINIX_PACOTES:-$HOME/Usinix-pacotes}/${BUILD_TAG}"
           mkdir -p "$destino"
           # só os arquivos (instalador, .7z, AppImage, somas); a pasta montada fica no runner
           find package/rattler-build/${{ matrix.pasta }} -maxdepth 1 -type f -name 'Usinix_*' \
@@ -276,7 +276,7 @@ jobs:
         if: runner.environment == 'github-hosted'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: prumo3d-${{ matrix.target }}
+          name: usinix-${{ matrix.target }}
           if-no-files-found: error
           # o plano gratuito inclui pouco armazenamento para artefatos; a versão publicada fica
           # na página de versões, então os artefatos da execução expiram logo
@@ -368,7 +368,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p arquivos
-          for d in baixados/prumo3d-*; do cp -v "$d"/* arquivos/; done
+          for d in baixados/usinix-*; do cp -v "$d"/* arquivos/; done
           if [ -d baixados/instalador-assinado ]; then
             cp -v baixados/instalador-assinado/* arquivos/
             echo "Instalador do Windows: assinado (SignPath)" >> "$GITHUB_STEP_SUMMARY"
@@ -387,12 +387,12 @@ jobs:
           # o selo da tela de abertura com a versão também vai no complemento: quem atualiza só o
           # complemento vê a versão nova ao abrir (o Usinix põe essa splash nos dados do usuário)
           python3 -m pip install --quiet --user pillow
-          python3 prumo-build/ferramentas/selo_versao_splash.py "${tag#v}"
+          python3 usinix-build/ferramentas/selo_versao_splash.py "${tag#v}"
           # networkx (Python puro) junto do complemento: quem atualiza só o complemento numa instalação antiga,
           # sem o networkx no pacote, também tem o planificador novo da Chapa (SheetMetal procura em libs/)
           python3 -m pip download --quiet --no-deps --only-binary=:all: "networkx==3.4.2" -d /tmp/nx
-          mkdir -p src/Mod/Prumo3D/libs
-          python3 -c "import zipfile,glob; z=zipfile.ZipFile(glob.glob('/tmp/nx/networkx-*.whl')[0]); [z.extract(n,'src/Mod/Prumo3D/libs') for n in z.namelist() if n.startswith('networkx/') and '/tests/' not in n]"
+          mkdir -p src/Mod/Usinix/libs
+          python3 -c "import zipfile,glob; z=zipfile.ZipFile(glob.glob('/tmp/nx/networkx-*.whl')[0]); [z.extract(n,'src/Mod/Usinix/libs') for n in z.namelist() if n.startswith('networkx/') and '/tests/' not in n]"
           python3 package/scripts/pacote_complemento.py "${tag}" arquivos
           echo "Complemento: $(ls arquivos/*-complemento.zip)" >> "$GITHUB_STEP_SUMMARY"
 

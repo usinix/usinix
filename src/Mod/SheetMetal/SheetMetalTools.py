@@ -1261,12 +1261,12 @@ def smIsEqualAngle(ang1, ang2, p=5):
 def smIsNetworkxAvailable():
     spec = importlib.util.find_spec("networkx")
     if spec is None:
-        # Prumo 3D: instalação atualizada só pelo complemento (sem o networkx no pacote): o complemento traz
-        # uma cópia em Mod/Prumo3D/libs
+        # Usinix: instalação atualizada só pelo complemento (sem o networkx no pacote): o complemento traz
+        # uma cópia em Mod/Usinix/libs
         import os
         import sys
         for base in (FreeCAD.getUserAppDataDir(), FreeCAD.getHomePath()):
-            libs = os.path.join(base, "Mod", "Prumo3D", "libs")
+            libs = os.path.join(base, "Mod", "Usinix", "libs")
             if os.path.isdir(os.path.join(libs, "networkx")) and libs not in sys.path:
                 sys.path.append(libs)
         spec = importlib.util.find_spec("networkx")

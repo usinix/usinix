@@ -118,9 +118,9 @@ if(BUILD_START)
     add_subdirectory(Start)
 endif(BUILD_START)
 
-if(BUILD_PRUMO3D)
-    add_subdirectory(Prumo3D)
-endif(BUILD_PRUMO3D)
+if(BUILD_USINIX)
+    add_subdirectory(Usinix)
+endif(BUILD_USINIX)
 
 if(BUILD_SHEETMETAL)
     add_subdirectory(SheetMetal)

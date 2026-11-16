@@ -1,0 +1,506 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Usinix - guia ilustrado no painel de tarefas.
+"""Mostra, acima dos parâmetros do recurso em edição, um desenho que explica o que
+a função faz no modo escolhido, com uma instrução curta. O desenho acompanha as
+mudanças de modo em tempo real (lê as propriedades do objeto em edição).
+"""
+
+import FreeCAD
+import UsinixEstilo
+import FreeCADGui
+
+try:
+    from PySide import QtCore, QtGui, QtWidgets
+except ImportError:  # pragma: no cover
+    from PySide2 import QtCore, QtGui, QtWidgets
+try:
+    from PySide6 import QtSvg
+except ImportError:  # pragma: no cover
+    from PySide2 import QtSvg
+try:
+    import shiboken6 as shiboken
+except ImportError:  # pragma: no cover
+    import shiboken2 as shiboken
+
+import UsinixIlustra as I
+
+PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/Usinix"
+
+QSS = """
+#UsinixGuia { background: #FFFFFF; border: 1px solid #DCE4EC; border-left: 4px solid #F7BE00; border-radius: 8px; }
+#UsinixGuia QLabel { background: transparent; color: #1F2A36; }
+#UsinixGuiaTitulo { color: #003A70; font-weight: 700; font-size: 10pt; }
+#UsinixGuiaTexto { color: #33404D; font-size: 9pt; }
+#UsinixGuiaLegenda { color: #4A5866; font-size: 8pt; }
+#UsinixGuiaAlerta { background: #FFF6D6; color: #4D3B00; font-size: 8.5pt; border-left: 3px solid #E0A100;
+                    border-radius: 4px; padding: 6px 8px; }
+#UsinixGuia QToolButton { border: none; background: transparent; color: #66727F; padding: 0 2px; }
+#UsinixGuia QToolButton:hover { color: #003A70; }
+"""
+
+
+
+def _desligar(sinal):
+    """Desliga tudo o que estiver ligado ao sinal, sem aviso quando não há nada ligado (o PySide6 avisa
+    "Failed to disconnect (None) from signal" em vez de dar erro)."""
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        try:
+            sinal.disconnect()
+        except Exception:
+            pass
+
+def _get(obj, name, default=None):
+    try:
+        return getattr(obj, name)
+    except Exception:
+        return default
+
+
+def _side_mode(obj, default="Length"):
+    """Extrusão/Cavidade 1.1: SideType (One side / Two sides / Symmetric) + Type."""
+    side = str(_get(obj, "SideType", "") or "")
+    mode = str(_get(obj, "Type", default) or default)
+    mid = bool(_get(obj, "Midplane", False)) or side == "Symmetric"
+    if side == "Two sides":
+        mode = "TwoLengths"
+    return mode, mid
+
+
+PAD_TXT = {
+    "Length": "Selecione um esboço fechado e informe o comprimento. O sólido cresce na direção normal ao esboço.",
+    "TwoLengths": "Informe um comprimento para cada lado do esboço.",
+    "UpToFace": "Clique na face onde a extrusão deve parar.",
+    "UpToFirst": "A extrusão para na primeira face que encontrar.",
+    "UpToLast": "A extrusão segue até a última face do corpo na direção escolhida.",
+    "UpToShape": "Selecione a forma (sólido ou faces) onde a extrusão deve parar.",
+}
+POCKET_TXT = {
+    "Length": "Selecione um esboço fechado sobre a peça e informe a profundidade do corte.",
+    "ThroughAll": "O corte atravessa a peça inteira na direção escolhida.",
+    "TwoLengths": "Informe uma profundidade para cada lado do esboço.",
+    "UpToFace": "Clique na face onde o corte deve parar.",
+    "UpToFirst": "O corte para na primeira face que encontrar.",
+    "UpToShape": "Selecione a forma onde o corte deve parar.",
+}
+
+
+# ---------------------------------------------------------------- boas práticas
+PROFILE_TYPES = ("PartDesign::Pad", "PartDesign::Pocket", "PartDesign::Revolution", "PartDesign::Groove",
+                 "PartDesign::Hole")
+STABLE_SUPPORT = ("App::Plane", "App::Line", "App::Point", "App::Origin", "PartDesign::Plane", "PartDesign::Line",
+                  "PartDesign::Point", "PartDesign::CoordinateSystem", "App::LocalCoordinateSystem",
+                  # referência de uma face só (Peça na face): os nomes Face1/VertexN dela não mudam
+                  "PartDesign::SubShapeBinder", "PartDesign::ShapeBinder")
+
+MSG_FACE = ("Este esboço está preso a uma face criada pelo próprio modelo. Se uma operação anterior mudar, "
+            "a face pode ser renumerada e o esboço perde a referência. Prefira anexá-lo a um plano da origem "
+            "ou a um plano de referência.")
+MSG_FILLET = ("Há operações depois deste {} no histórico. Arredondamentos e chanfros mudam a numeração das "
+              "arestas e costumam quebrar o que vem depois: quando possível, deixe-os para o fim do modelo.")
+
+
+def _profile_sketch(obj):
+    prof = _get(obj, "Profile")
+    if isinstance(prof, (tuple, list)) and prof:
+        prof = prof[0]
+    return prof if prof is not None and getattr(prof, "TypeId", "") == "Sketcher::SketchObject" else None
+
+
+def _on_generated_face(sk):
+    sup = _get(sk, "AttachmentSupport") or _get(sk, "Support") or []
+    for item in sup:
+        o = item[0] if isinstance(item, (tuple, list)) else item
+        if o is None:
+            continue
+        if getattr(o, "TypeId", "") not in STABLE_SUPPORT and str(getattr(o, "TypeId", "")).startswith(("PartDesign::", "Part::")):
+            return True
+    return False
+
+
+def _features_after(obj):
+    try:
+        body = obj.getParentGeoFeatureGroup()
+        grp = list(body.Group)
+        i = grp.index(obj)
+    except Exception:
+        return False
+    for o in grp[i + 1:]:
+        if getattr(o, "TypeId", "").startswith("PartDesign::") and o.isDerivedFrom("PartDesign::Feature") \
+                and not o.TypeId.startswith(("PartDesign::Plane", "PartDesign::Line", "PartDesign::Point")):
+            return True
+    return False
+
+
+def alerts(obj):
+    """Lista de avisos de boas práticas para o objeto em edição."""
+    out = []
+    t = getattr(obj, "TypeId", "")
+    try:
+        if t == "Sketcher::SketchObject" and _on_generated_face(obj):
+            out.append(MSG_FACE)
+        elif t in PROFILE_TYPES:
+            sk = _profile_sketch(obj)
+            if sk is not None and _on_generated_face(sk):
+                out.append(MSG_FACE)
+        if t in ("PartDesign::Fillet", "PartDesign::Chamfer") and _features_after(obj):
+            out.append(MSG_FILLET.format("arredondamento" if t.endswith("Fillet") else "chanfro"))
+    except Exception:
+        pass
+    return out
+
+
+def describe(obj):
+    """Retorna (chave, título, desenho Iso, texto) para o objeto em edição, ou None."""
+    t = obj.TypeId
+    if t == "PartDesign::Pad":
+        mode, mid = _side_mode(obj)
+        g = I.pad(mode, mid, bool(_get(obj, "Reversed", False)))
+        txt = "O comprimento é dividido igualmente para os dois lados do esboço." if mid and mode == "Length" \
+            else PAD_TXT.get(mode, PAD_TXT["Length"])
+        return ("pad", mode, mid), "Extrusão", g, txt
+    if t == "PartDesign::Pocket":
+        mode, mid = _side_mode(obj)
+        g = I.pocket(mode, mid)
+        txt = "A profundidade é dividida igualmente para os dois lados do esboço." if mid and mode == "Length" \
+            else POCKET_TXT.get(mode, POCKET_TXT["Length"])
+        return ("pocket", mode, mid), "Cavidade", g, txt
+    if t in ("PartDesign::Revolution", "PartDesign::Groove"):
+        groove = t.endswith("Groove")
+        mode = str(_get(obj, "Type", "Angle"))
+        g = I.revolution(mode, groove)
+        txt = ("Gira o perfil em torno do eixo removendo material. " if groove else
+               "Gira o perfil em torno do eixo criando o sólido. ") + \
+              "Escolha o eixo (do esboço, da origem ou uma aresta) e o ângulo."
+        return ("rev", groove, mode), "Ranhura" if groove else "Revolução", g, txt
+    if t == "PartDesign::Hole":
+        cut = str(_get(obj, "HoleCutType", "None"))
+        cut = "Counterbore" if "Counterbore" in cut or "Cheesehead" in cut or "Socket" in cut \
+            else "Countersink" if "Countersink" in cut or "Countersunk" in cut or "Counterdrill" in cut else "None"
+        thr = bool(_get(obj, "Threaded", False))
+        drill = str(_get(obj, "DrillPoint", "Angled"))
+        g = I.hole(cut, thr, drill)
+        txt = "Selecione círculos ou pontos de um esboço. Defina diâmetro, profundidade, cabeça (rebaixo ou escareado) e rosca."
+        return ("hole", cut, thr, drill), "Furo", g, txt
+    if t == "PartDesign::Fillet":
+        return ("fillet",), "Arredondar", I.fillet_chamfer("Fillet"), \
+            "Selecione as arestas (ou faces) e informe o raio do arredondamento."
+    if t == "PartDesign::Chamfer":
+        ct = str(_get(obj, "ChamferType", "Equal distance"))
+        txt = {"Two distances": "Selecione as arestas e informe as duas distâncias do chanfro.",
+               "Distance and Angle": "Selecione as arestas e informe a distância e o ângulo do chanfro."}.get(
+            ct, "Selecione as arestas e informe a distância do chanfro (igual nas duas faces).")
+        return ("chamfer", ct), "Chanfro", I.fillet_chamfer("Chamfer", ct), txt
+    if t == "PartDesign::LinearPattern":
+        return ("lin",), "Padrão linear", I.pattern("Linear"), \
+            "Escolha a direção, o comprimento total (ou o espaçamento) e o número de ocorrências."
+    if t == "PartDesign::PolarPattern":
+        return ("pol",), "Padrão circular", I.pattern("Polar"), \
+            "Escolha o eixo, o ângulo total e o número de ocorrências."
+    if t == "PartDesign::Mirrored":
+        return ("mir",), "Espelhar", I.pattern("Mirror"), \
+            "Escolha o plano de espelhamento (do esboço, da origem ou uma face plana)."
+    if t == "PartDesign::Thickness":
+        return ("thick",), "Casca", I.thickness(), \
+            "Selecione as faces que ficarão abertas e informe a espessura da parede."
+    if t == "PartDesign::Draft":
+        return ("draft",), "Ângulo de saída", I.draft(), \
+            "Selecione as faces a inclinar, o plano neutro e o ângulo de saída."
+    return None
+
+
+class GuiaFrame(QtWidgets.QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("UsinixGuia")
+        self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
+        self.setStyleSheet(UsinixEstilo.tema(QSS))
+        lay = QtWidgets.QVBoxLayout(self)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(4)
+        head = QtWidgets.QHBoxLayout()
+        self.title = QtWidgets.QLabel()
+        self.title.setObjectName("UsinixGuiaTitulo")
+        head.addWidget(self.title, 1)
+        self.toggle = QtWidgets.QToolButton()
+        self.toggle.setToolTip("Mostrar / ocultar o desenho")
+        self.toggle.clicked.connect(self._toggle)
+        head.addWidget(self.toggle)
+        lay.addLayout(head)
+        self.image = QtWidgets.QLabel()
+        self.image.setAlignment(QtCore.Qt.AlignCenter)
+        self.image.setMinimumSize(1, 60)
+        self.image.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        lay.addWidget(self.image)
+        self.legend = QtWidgets.QLabel()
+        self.legend.setObjectName("UsinixGuiaLegenda")
+        self.legend.setTextFormat(QtCore.Qt.RichText)
+        self.legend.setWordWrap(True)
+        lay.addWidget(self.legend)
+        self.text = QtWidgets.QLabel()
+        self.text.setObjectName("UsinixGuiaTexto")
+        self.text.setWordWrap(True)
+        lay.addWidget(self.text)
+        self.alert = QtWidgets.QLabel()
+        self.alert.setObjectName("UsinixGuiaAlerta")
+        self.alert.setWordWrap(True)
+        self.alert.setVisible(False)
+        lay.addWidget(self.alert)
+        self._svg = None
+        self._ultima = None
+        self._apply_collapsed()
+
+    def _collapsed(self):
+        return FreeCAD.ParamGet(PARAM_PATH).GetBool("GuiaRecolhido", False)
+
+    def _apply_collapsed(self):
+        c = self._collapsed()
+        has = bool(getattr(self, "_svg", None))
+        self.image.setVisible(not c and has)
+        self.legend.setVisible(not c and has)
+        self.toggle.setText("mostrar ▾" if c else "ocultar ▴")
+
+    def _toggle(self):
+        FreeCAD.ParamGet(PARAM_PATH).SetBool("GuiaRecolhido", not self._collapsed())
+        self._apply_collapsed()
+        self._render()
+
+    def set_compacto(self, msgs, ao_dispensar=None):
+        """Só o aviso, numa linha: "⚠ Preso a uma face do modelo. Por quê?" e × para dispensar."""
+        self._msgs = list(msgs)
+        self._aberto = False
+        self._ao_dispensar = ao_dispensar
+        for w in (self.title, self.image, self.legend, self.text):
+            w.setVisible(False)
+        self._svg = None
+        self._ultima = None
+        self.toggle.setVisible(True)
+        self.toggle.setText("×")
+        self.toggle.setToolTip("Dispensar este aviso")
+        _desligar(self.toggle.clicked)
+        self.toggle.clicked.connect(self._dispensar)
+        self.alert.setTextFormat(QtCore.Qt.RichText)
+        _desligar(self.alert.linkActivated)
+        self.alert.linkActivated.connect(self._por_que)
+        self._mostrar_compacto()
+
+    @staticmethod
+    def _primeira_frase(m):
+        m = m.strip()
+        for sep in (". ", "; "):
+            if sep in m:
+                return m.split(sep, 1)[0] + "."
+        return m
+
+    def _mostrar_compacto(self):
+        if not self._msgs:
+            self.alert.setVisible(False)
+            return
+        if self._aberto:
+            corpo = "<br><br>".join(self._msgs)
+            link = " <a href='menos' style='color:#003A70;font-weight:600'>Menos</a>"
+        else:
+            corpo = self._primeira_frase(self._msgs[0])
+            link = " <a href='mais' style='color:#003A70;font-weight:600'>Por quê?</a>"
+        self.alert.setText("⚠&nbsp; " + corpo + link)
+        self.alert.setVisible(True)
+
+    def _por_que(self, _href):
+        self._aberto = not self._aberto
+        self._mostrar_compacto()
+
+    def _dispensar(self):
+        if callable(getattr(self, "_ao_dispensar", None)):
+            self._ao_dispensar()
+        self.hide()
+
+    def set_alerts(self, msgs):
+        self.alert.setText("\n\n".join("⚠  " + m for m in msgs))
+        self.alert.setVisible(bool(msgs))
+
+    def set_content(self, title, g, text):
+        if getattr(self, "_msgs", None) is not None:      # vinha do modo compacto: volta ao normal
+            self._msgs = None
+            _desligar(self.toggle.clicked)
+            self.toggle.clicked.connect(self._toggle)
+            self.toggle.setToolTip("Mostrar / ocultar o desenho")
+            self.title.setVisible(True)
+            self.alert.setTextFormat(QtCore.Qt.PlainText)
+        self.title.setText(("Como funciona · " if g is not None else "Boa prática · ") + title)
+        self.text.setText(text)
+        self.text.setVisible(bool(text))
+        self.image.setVisible(g is not None and not self._collapsed())
+        self.toggle.setVisible(g is not None)
+        self._svg = g.svg() if g is not None else None
+        self._ultima = None
+        self._apply_collapsed()
+        items = getattr(g, "legend", []) if g is not None else []
+        self.legend.setText("&nbsp;&nbsp;".join(
+            "<span style='color:%s'>■</span>&nbsp;%s" % (c if c.upper() != "#FFFFFF" else "#C9D2DC", t) for c, t in items))
+        self._render()
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        self._render()
+
+    def _render(self):
+        if not self._svg or self._collapsed() or getattr(self, "_renderizando", False):
+            return
+        try:
+            import shiboken6
+            if not (shiboken6.isValid(self) and shiboken6.isValid(self.image)):
+                return
+        except ImportError:
+            pass
+        par = self.parentWidget()
+        avail = (par.width() if par is not None else self.width()) - 40
+        w = max(140, min(int(avail * 0.7), 290))   # ilustração menor: deixa o painel para os campos
+        h = int(w * I.H / I.W)
+        dpr = self.devicePixelRatioF()
+        # mudar a altura da imagem redimensiona o quadro, que chama _render de novo: só redesenha se a
+        # imagem muda (senão vira uma recursão de redimensionamentos que derruba o programa)
+        chave = (hash(self._svg), w, h, dpr, UsinixEstilo.escuro())
+        if chave == getattr(self, "_ultima", None):
+            return
+        self._renderizando = True
+        try:
+            self._desenhar(w, h, dpr)
+            self._ultima = chave
+        finally:
+            self._renderizando = False
+
+    def _desenhar(self, w, h, dpr):
+        img = QtGui.QImage(int(w * dpr), int(h * dpr), QtGui.QImage.Format_ARGB32_Premultiplied)
+        img.fill(0)
+        if UsinixEstilo.escuro():
+            # ilustração mantém as cores claras, sobre um cartão claro
+            pb = QtGui.QPainter(img)
+            pb.setRenderHint(QtGui.QPainter.Antialiasing)
+            pb.setPen(QtCore.Qt.NoPen)
+            pb.setBrush(QtGui.QColor("#E9EEF4"))
+            pb.drawRoundedRect(QtCore.QRectF(0, 0, img.width(), img.height()), 8 * dpr, 8 * dpr)
+            pb.end()
+        r = QtSvg.QSvgRenderer(QtCore.QByteArray(self._svg.encode("utf-8")))
+        p = QtGui.QPainter(img)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        r.render(p)
+        p.end()
+        pm = QtGui.QPixmap.fromImage(img)
+        pm.setDevicePixelRatio(dpr)
+        self.image.setPixmap(pm)
+        self.image.setFixedHeight(h)
+
+
+class Guia:
+    def __init__(self):
+        self.frame = None
+        self.key = None
+        self.timer = QtCore.QTimer(FreeCADGui.getMainWindow())
+        self.timer.setInterval(350)
+        self.timer.timeout.connect(self.tick)
+
+    def start(self):
+        self.timer.start()
+
+    def stop(self):
+        self.timer.stop()
+        self._drop()
+
+    def _valid(self):
+        return self.frame is not None and shiboken.isValid(self.frame)
+
+    def _drop(self):
+        if self._valid():
+            self.frame.hide()
+            self.frame.deleteLater()
+        self.frame, self.key = None, None
+
+    dispensados = set()
+
+    def _task_panel(self):
+        mw = FreeCADGui.getMainWindow()
+        for w in mw.findChildren(QtWidgets.QWidget):
+            if w.metaObject().className() == "Gui::TaskView::TaskPanel" and w.isVisible():
+                return w
+        return None
+
+    def tick(self):
+        try:
+            self._tick()
+        except Exception as exc:  # nunca derrubar a interface
+            FreeCAD.Console.PrintLog("Usinix guia: {}\n".format(exc))
+
+    def _tick(self):
+        if not FreeCAD.ParamGet(PARAM_PATH).GetBool("GuiaIlustrado", True):
+            self._drop()
+            return
+        if not FreeCADGui.Control.activeDialog():
+            if self.frame is not None:
+                self._drop()
+            return
+        gdoc = FreeCADGui.ActiveDocument
+        vp = gdoc.getInEdit() if gdoc else None
+        obj = vp.Object if vp is not None else None
+        info = describe(obj) if obj is not None else None
+        warn = alerts(obj) if obj is not None else []
+        so_aviso = info is None and bool(warn)
+        if so_aviso:
+            if (obj.Name, tuple(warn)) in Guia.dispensados:
+                self._drop()
+                return
+            info = (("alerta", obj.TypeId), obj.Label, None, "")
+        if info is None:
+            self._drop()
+            return
+        key, title, g, text = info
+        key = (key, tuple(warn))
+        panel = self._task_panel()
+        if panel is None:
+            return
+        if not self._valid() or self.frame.parent() is not panel:
+            self._drop()
+            lay = panel.layout()
+            idx = 0
+            import UsinixUI
+            for i, w in UsinixUI.widgets_do_layout(lay):
+                if w is not None and w.isVisible():
+                    idx = i
+                    break
+            self.frame = GuiaFrame(panel)
+            lay.insertWidget(idx, self.frame)
+            self.key = None
+        if key != self.key:
+            self.key = key
+            if so_aviso:
+                nome = (obj.Name, tuple(warn))
+                self.frame.set_compacto(warn, lambda n=nome: Guia.dispensados.add(n))
+            else:
+                self.frame.set_content(title, g, text)
+                self.frame.set_alerts(warn)
+
+
+_guia = {"obj": None}
+
+
+def install():
+    if _guia["obj"] is None:
+        _guia["obj"] = Guia()
+    _guia["obj"].start()
+    return _guia["obj"]
+
+
+def uninstall():
+    if _guia["obj"] is not None:
+        _guia["obj"].stop()
+
+
+def reload():
+    import importlib
+    import UsinixGuia as mod
+    import UsinixIlustra
+    mod.uninstall()
+    importlib.reload(UsinixIlustra)
+    mod = importlib.reload(mod)
+    return mod.install()

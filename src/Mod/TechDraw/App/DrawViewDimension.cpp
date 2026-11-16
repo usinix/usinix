@@ -466,7 +466,7 @@ short DrawViewDimension::mustExecute() const
 
 namespace
 {
-/// Prumo 3D: o tipo da cota como se fala ("de distância", "de raio"...)
+/// Usinix: o tipo da cota como se fala ("de distância", "de raio"...)
 std::string tipoEmPortugues(const char* tipo)
 {
     const std::string t = tipo ? tipo : "";
@@ -523,7 +523,7 @@ App::DocumentObjectExecReturn* DrawViewDimension::execute()
     // we have either or both valid References3D and References2D
     ReferenceVector references = getEffectiveReferences();
 
-    // Prumo 3D (ideia do ThunderealCAD, docs/TechDrawErrors.md 3.3): a falha vira o erro de recálculo que a
+    // Usinix (ideia do ThunderealCAD, docs/TechDrawErrors.md 3.3): a falha vira o erro de recálculo que a
     // pessoa lê, dizendo qual cota, de qual vista, em quais elementos e por quê, e se as referências foram
     // reencontradas pela geometria depois que a vista mudou. Antes: "Invalid selection - Det = 0".
     auto described = [&](const std::string& why) {

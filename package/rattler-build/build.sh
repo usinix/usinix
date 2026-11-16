@@ -31,10 +31,10 @@ unset CMAKE_GENERATOR
 unset CMAKE_GENERATOR_PLATFORM
 
 # Cache de compilação (ccache) entre versões: o fluxo do GitHub grava a pasta do cache em
-# prumo_ccache_dir.txt na raiz do código (o rattler-build não repassa variáveis de ambiente).
+# usinix_ccache_dir.txt na raiz do código (o rattler-build não repassa variáveis de ambiente).
 # Sem o arquivo (compilação local), o ccache segue o padrão.
-if [[ -f "${SRC_DIR}/prumo_ccache_dir.txt" ]]; then
-    export CCACHE_DIR="$(tr -d '\r\n' < "${SRC_DIR}/prumo_ccache_dir.txt")"
+if [[ -f "${SRC_DIR}/usinix_ccache_dir.txt" ]]; then
+    export CCACHE_DIR="$(tr -d '\r\n' < "${SRC_DIR}/usinix_ccache_dir.txt")"
     # a pasta de trabalho do rattler-build muda a cada compilação: caminhos relativos a ela
     export CCACHE_BASEDIR="$(dirname "${SRC_DIR}")"
     export CCACHE_NOHASHDIR=1
@@ -45,7 +45,7 @@ if [[ -f "${SRC_DIR}/prumo_ccache_dir.txt" ]]; then
     echo "ccache: ${CCACHE_DIR} (base ${CCACHE_BASEDIR})"
 fi
 
-# Prumo é metal-mecânica: BIM, CAM, Robot, OpenSCAD, Inspection, Points, ReverseEngineering, IDF, JtReader e
+# Usinix é metal-mecânica: BIM, CAM, Robot, OpenSCAD, Inspection, Points, ReverseEngineering, IDF, JtReader e
 # Cloud ficam fora da compilação (os -D BUILD_*=OFF abaixo). Comentário fora do comando: dentro dele quebra a linha.
 cmake \
     ${CMAKE_ARGS} \

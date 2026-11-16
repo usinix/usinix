@@ -1,0 +1,194 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+"""Janela "Sobre o Usinix" no padrão visual Usinix."""
+import os
+
+from PySide import QtCore, QtGui, QtWidgets
+
+import UsinixEstilo
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ICON_SVG = os.path.join(HERE, "Resources", "icons", "usinix.svg")
+ICON_PNG = os.path.join(HERE, "Resources", "icons", "usinix.png")
+# endereço público do projeto (ajustar se o repositório mudar de lugar)
+URL_PROJETO = "github.com/usinix/usinix"
+
+QSS = """
+#SwSobre { background: #F4F7FB; }
+#SwSobreTopo { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0A4D8C, stop:1 #002A52);
+               border-bottom: 4px solid #F7BE00; }
+#SwSobreTopo QLabel { background: transparent; }
+#SwSobreNome { color: #FFFFFF; font-size: 20pt; font-weight: 700; }
+#SwSobreVersao { color: #C9DAEA; font-size: 10pt; }
+#SwSobreCard { background: #FFFFFF; border: 1px solid #DCE3EC; border-radius: 8px; }
+#SwSobreCard QLabel { background: transparent; }
+#SwSobreRotulo { color: #6B7785; font-size: 8.5pt; }
+#SwSobreValor { color: #1F2A36; font-size: 10pt; }
+#SwSobreEmpresa { color: #003A70; font-size: 11pt; font-weight: 700; }
+#SwSobreLegal { color: #8A96A3; font-size: 8.5pt; }
+"""
+
+
+def _pix(size):
+    dpr = max(QtWidgets.QApplication.instance().devicePixelRatio(), 1)
+    src = ICON_SVG if os.path.isfile(ICON_SVG) else ICON_PNG
+    pm = QtGui.QIcon(src).pixmap(int(size * dpr), int(size * dpr))
+    pm.setDevicePixelRatio(dpr)
+    return pm
+
+
+class SobreDialog(QtWidgets.QDialog):
+    def __init__(self, versao, base, parent=None):
+        super().__init__(parent)
+        self.setObjectName("SwSobre")
+        self.setWindowTitle("Sobre o Usinix")
+        self.setStyleSheet(UsinixEstilo.tema(QSS))
+        self.setMinimumWidth(520)
+        v = QtWidgets.QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 16)
+        v.setSpacing(14)
+
+        topo = QtWidgets.QFrame()
+        topo.setObjectName("SwSobreTopo")
+        th = QtWidgets.QHBoxLayout(topo)
+        th.setContentsMargins(24, 20, 24, 20)
+        th.setSpacing(18)
+        ic = QtWidgets.QLabel()
+        ic.setPixmap(_pix(84))
+        th.addWidget(ic)
+        tc = QtWidgets.QVBoxLayout()
+        tc.setSpacing(2)
+        n = QtWidgets.QLabel("Usinix")
+        n.setObjectName("SwSobreNome")
+        ver = QtWidgets.QLabel("Versão " + versao)
+        ver.setObjectName("SwSobreVersao")
+        tc.addStretch(1)
+        tc.addWidget(n)
+        tc.addWidget(ver)
+        tc.addStretch(1)
+        th.addLayout(tc, 1)
+        v.addWidget(topo)
+
+        card = QtWidgets.QFrame()
+        card.setObjectName("SwSobreCard")
+        g = QtWidgets.QGridLayout(card)
+        g.setContentsMargins(18, 14, 18, 14)
+        g.setHorizontalSpacing(18)
+        g.setVerticalSpacing(8)
+        emp = QtWidgets.QLabel("USINIX")
+        emp.setObjectName("SwSobreEmpresa")
+        g.addWidget(emp, 0, 0, 1, 2)
+        linhas = [
+            ("Para", "Metal-mecânica: peças, chapa, estruturas, tubulação, vasos e desenho técnico"),
+            ("Idioma", "Português do Brasil"),
+            ("Projeto", URL_PROJETO),
+            ("Base", base),
+        ]
+        try:
+            import UsinixVersao
+            if UsinixVersao.commit():
+                linhas.append(("Código", UsinixVersao.commit()))
+        except Exception:
+            pass
+        for i, (r, val) in enumerate(linhas, start=1):
+            a = QtWidgets.QLabel(r)
+            a.setObjectName("SwSobreRotulo")
+            b = QtWidgets.QLabel(val)
+            b.setObjectName("SwSobreValor")
+            b.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+            g.addWidget(a, i, 0)
+            g.addWidget(b, i, 1)
+        g.setColumnStretch(1, 1)
+        wrap = QtWidgets.QHBoxLayout()
+        wrap.setContentsMargins(20, 0, 20, 0)
+        wrap.addWidget(card)
+        v.addLayout(wrap)
+
+        # atualizações: nunca obrigatórias
+        upd = QtWidgets.QFrame()
+        upd.setObjectName("SwSobreCard")
+        ul = QtWidgets.QGridLayout(upd)
+        ul.setContentsMargins(18, 12, 18, 12)
+        ul.setHorizontalSpacing(12)
+        ut = QtWidgets.QLabel("Atualizações")
+        ut.setObjectName("SwSobreEmpresa")
+        ul.addWidget(ut, 0, 0)
+        self.bt_atualizar = QtWidgets.QPushButton("Verificar atualizações")
+        self.bt_atualizar.setToolTip("Consulta a página de versões do projeto. Só atualiza se você concordar.")
+        self.bt_atualizar.clicked.connect(self.verificar)
+        ul.addWidget(self.bt_atualizar, 0, 1, QtCore.Qt.AlignRight)
+        self.auto = QtWidgets.QCheckBox("Verificar ao abrir (no máximo uma vez por dia)")
+        try:
+            import FreeCAD
+            self.auto.setChecked(FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Usinix")
+                                 .GetBool("VerificarAtualizacoes", True))
+        except Exception:
+            self.auto.setChecked(True)
+        self.auto.toggled.connect(self._auto)
+        ul.addWidget(self.auto, 1, 0, 1, 2)
+        ul.setColumnStretch(0, 1)
+        uw = QtWidgets.QHBoxLayout()
+        uw.setContentsMargins(20, 0, 20, 0)
+        uw.addWidget(upd)
+        v.addLayout(uw)
+
+        legal = QtWidgets.QLabel(
+            "Software livre sob licença LGPL-2.1-or-later, baseado no FreeCAD (freecad.org). "
+            "O Usinix não é um projeto oficial do FreeCAD.")
+        legal.setObjectName("SwSobreLegal")
+        legal.setWordWrap(True)
+        lw = QtWidgets.QHBoxLayout()
+        lw.setContentsMargins(22, 0, 22, 0)
+        lw.addWidget(legal)
+        v.addLayout(lw)
+
+        bb = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
+        self.bt_copiar = bb.addButton("Copiar informações do sistema", QtWidgets.QDialogButtonBox.ActionRole)
+        self.bt_copiar.setToolTip("Versão, sistema e placa de vídeo — cole junto ao relato de um problema")
+        self.bt_copiar.clicked.connect(self.copiar_info)
+        self.bt_licencas = bb.addButton("Licenças e bibliotecas", QtWidgets.QDialogButtonBox.HelpRole)
+        self.bt_licencas.setToolTip("Créditos, licença LGPL e bibliotecas de terceiros (Sobre do FreeCAD)")
+        self.bt_licencas.clicked.connect(self.licencas)
+        bb.rejected.connect(self.reject)
+        bb.button(QtWidgets.QDialogButtonBox.Close).setText("Fechar")
+        bb.button(QtWidgets.QDialogButtonBox.Close).setDefault(True)
+        bw = QtWidgets.QHBoxLayout()
+        bw.setContentsMargins(20, 0, 20, 0)
+        bw.addWidget(bb)
+        v.addLayout(bw)
+
+
+    def verificar(self):
+        import UsinixAtualizar
+        self.bt_atualizar.setText("Consultando…")
+        self.bt_atualizar.setEnabled(False)
+
+        def volta():
+            self.bt_atualizar.setText("Verificar atualizações")
+            self.bt_atualizar.setEnabled(True)
+        self._verificacao = UsinixAtualizar.verificar_agora(self)
+        QtCore.QTimer.singleShot(1500, volta)
+        return self._verificacao
+
+    def _auto(self, on):
+        import FreeCAD
+        FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Usinix").SetBool("VerificarAtualizacoes", bool(on))
+
+    def licencas(self):
+        try:
+            import FreeCADGui
+            FreeCADGui.runCommand("Std_About", 0)
+        except Exception:
+            pass
+
+    def copiar_info(self):
+        import UsinixVersao
+        txt = UsinixVersao.info_sistema()
+        QtWidgets.QApplication.clipboard().setText(txt)
+        self.bt_copiar.setText("Copiado ✓")
+        QtCore.QTimer.singleShot(2000, lambda: self.bt_copiar.setText("Copiar informações do sistema"))
+        return txt
+
+
+def mostrar(versao, base, parent=None):
+    d = SobreDialog(versao, base, parent)
+    return d.exec_() if hasattr(d, "exec_") else d.exec()

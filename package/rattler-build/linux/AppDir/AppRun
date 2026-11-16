@@ -47,10 +47,12 @@ fi
 
 # Usinix (antes Prumo 3D): na primeira abertura, as configurações do Prumo viram a base das do Usinix.
 # O complemento antigo na pasta do usuário (Mod/Prumo3D) não vem: passaria por cima do programa novo.
+# Até a 1.20.0 o módulo também se chamava Prumo3D: a cópia antiga do complemento sai (carregaria junto).
 for base in "${XDG_DATA_HOME:-$HOME/.local/share}" "${XDG_CONFIG_HOME:-$HOME/.config}"; do
     if [ -d "$base/Prumo3D" ] && [ ! -e "$base/Usinix" ]; then
         cp -a "$base/Prumo3D" "$base/Usinix" 2>/dev/null && rm -rf "$base/Usinix"/*/Mod/Prumo3D
     fi
+    rm -rf "$base/Usinix"/*/Mod/Prumo3D 2>/dev/null
 done
 
 "${MAIN}" "$@"

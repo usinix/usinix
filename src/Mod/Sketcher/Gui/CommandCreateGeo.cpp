@@ -217,7 +217,7 @@ bool CmdSketcherCreateLine::isActive()
     return isCommandActive(getActiveGuiDocument());
 }
 
-// Construction line (Prumo 3D) ==========================================
+// Construction line (Usinix) ==========================================
 // A line drawn directly as construction geometry: the creation mode switches to construction while
 // the tool is active and goes back to what it was when the tool ends.
 

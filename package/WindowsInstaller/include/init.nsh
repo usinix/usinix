@@ -125,7 +125,7 @@ Function .onInit
    !define LIBRARY_X64
   ${endif}
 
-  # Prumo aberto: espera ele fechar (até 60 s) antes de seguir; ver EsperarFecharApp em utils.nsh
+  # Usinix aberto: espera ele fechar (até 60 s) antes de seguir; ver EsperarFecharApp em utils.nsh
   ${EsperarFecharApp} ini
 
   # initialize the multi-user installer UI

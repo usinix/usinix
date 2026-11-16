@@ -9,11 +9,11 @@ Installer user interface settings
 #--------------------------------
 # General
 
-# Usinix: o nome mostrado é o da versão do Prumo (ex.: 1.0.0), não o do FreeCAD de base (1.1.4); a pasta e o
+# Usinix: o nome mostrado é o da versão do Usinix (ex.: 1.0.0), não o do FreeCAD de base (1.1.4); a pasta e o
 # registro continuam pela série do FreeCAD, para a atualização achar a instalação anterior
 !ifndef APP_ROTULO
-  !ifdef PRUMO_VERSAO
-    !define APP_ROTULO "${PRUMO_VERSAO}"
+  !ifdef USINIX_VERSAO
+    !define APP_ROTULO "${USINIX_VERSAO}"
   !else
     !define APP_ROTULO "${APP_VERSION}"
   !endif

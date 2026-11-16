@@ -6,8 +6,8 @@ set -e
 set -x
 
 conda_env="AppDir/usr"
-# Usinix: PRUMO_CONDA_ENV aponta para outro ambiente já compilado e instalado (ex.: pixi da raiz)
-origem="${PRUMO_CONDA_ENV:-../.pixi/envs/default}"
+# Usinix: USINIX_CONDA_ENV aponta para outro ambiente já compilado e instalado (ex.: pixi da raiz)
+origem="${USINIX_CONDA_ENV:-../.pixi/envs/default}"
 
 mkdir -p ${conda_env}
 
@@ -37,8 +37,8 @@ rm -rf ${conda_env}/bin_tmp
 
 sed -i '1s|.*|#!/usr/bin/env python|' ${conda_env}/bin/pip
 
-# Usinix: o módulo Prumo3D vem em usr/Mod (instalado pelo CMake, como os outros módulos)
-test -f ${conda_env}/Mod/Prumo3D/InitGui.py || { echo "erro: módulo Prumo3D ausente em usr/Mod"; exit 1; }
+# Usinix: o módulo Usinix vem em usr/Mod (instalado pelo CMake, como os outros módulos)
+test -f ${conda_env}/Mod/Usinix/InitGui.py || { echo "erro: módulo Usinix ausente em usr/Mod"; exit 1; }
 
 echo -e "\nCopying Icon and Desktop file"
 # Usinix: atalho e ícone próprios
@@ -55,9 +55,9 @@ Terminal=false
 Categories=Graphics;Science;Engineering;
 MimeType=application/x-extension-fcstd;
 DESKTOP
-cp ../../../src/Mod/Prumo3D/Resources/icons/prumo.svg AppDir/org.usinix.Usinix.svg
+cp ../../../src/Mod/Usinix/Resources/icons/usinix.svg AppDir/org.usinix.Usinix.svg
 # o appimagetool novo (out/2026) exige o ícone em PNG e o .DirIcon: o SVG sozinho não serve mais
-cp ../../../src/Mod/Prumo3D/Resources/icons/prumo.png AppDir/org.usinix.Usinix.png
+cp ../../../src/Mod/Usinix/Resources/icons/usinix.png AppDir/org.usinix.Usinix.png
 ln -sf org.usinix.Usinix.png AppDir/.DirIcon
 
 # Remove __pycache__ folders and .pyc files

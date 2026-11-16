@@ -780,7 +780,7 @@ protected:
                 c->Type = ac.Type;
                 if (posId2 != Sketcher::PointPos::none && posId1 != Sketcher::PointPos::none
                     && geoId2 != Sketcher::GeoEnum::GeoUndef) {
-                    // Prumo: dois pontos na mesma horizontal/vertical (ponto-ímã de quadrante)
+                    // Usinix: dois pontos na mesma horizontal/vertical (ponto-ímã de quadrante)
                     c->First = geoId1;
                     c->FirstPos = posId1;
                     c->Second = geoId2;

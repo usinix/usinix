@@ -4,7 +4,7 @@
 
 O conda grava nos arquivos de configuração do cv2 (cv2/config.py e cv2/config-3.X.py) o caminho absoluto do
 ambiente em que foi instalado (ex.: /home/runner/work/.../.pixi/envs/default). No computador de quem instala o
-Prumo esse caminho não existe, o cv2 não acha a própria extensão e o "import cv2" falha com "recursion is
+Usinix esse caminho não existe, o cv2 não acha a própria extensão e o "import cv2" falha com "recursion is
 detected during loading of cv2 binary extensions". Este script troca cada caminho absoluto por um caminho
 relativo à pasta do próprio cv2 (LOADER_DIR, que o carregador do OpenCV já define).
 

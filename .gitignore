@@ -71,7 +71,7 @@ files_to_translate.txt
 .pixi
 *.egg-info
 
-prumo-build/compilacao.log
+usinix-build/compilacao.log
 
 # cópias de segurança automáticas do FreeCAD
 *.FCBak

@@ -111,13 +111,13 @@ bool setEdit(App::DocumentObject* obj, PartDesign::Body* body)
 }
 
 /*!
- * \brief Prumo 3D: the body that holds everything selected in \a doc, or null when the selection is
- * empty, spans several bodies, or has something outside a body. Off with Mod/Prumo3D/AtivarCorpoDaSelecao.
+ * \brief Usinix: the body that holds everything selected in \a doc, or null when the selection is
+ * empty, spans several bodies, or has something outside a body. Off with Mod/Usinix/AtivarCorpoDaSelecao.
  */
 PartDesign::Body* bodyOfSelection(App::Document* doc)
 {
     auto hGrp = App::GetApplication().GetParameterGroupByPath(
-        "User parameter:BaseApp/Preferences/Mod/Prumo3D"
+        "User parameter:BaseApp/Preferences/Mod/Usinix"
     );
     if (!doc || !hGrp->GetBool("AtivarCorpoDaSelecao", true)) {
         return nullptr;
@@ -170,9 +170,9 @@ PartDesign::Body* getBody(
         if (assertModern) {
             activeBody = activeView->getActiveObject<PartDesign::Body*>(PDBODYKEY, topParent, subname);
 
-            // Prumo 3D: a ferramenta segue a seleção. Se tudo o que está selecionado é de um mesmo corpo
+            // Usinix: a ferramenta segue a seleção. Se tudo o que está selecionado é de um mesmo corpo
             // e ele não é o ativo, ativa esse corpo (com aviso na barra de status) em vez de recusar com
-            // "a seleção não está no corpo ativo". Preferência Mod/Prumo3D/AtivarCorpoDaSelecao.
+            // "a seleção não está no corpo ativo". Preferência Mod/Usinix/AtivarCorpoDaSelecao.
             if (messageIfNot && autoActivate) {
                 PartDesign::Body* doSelecionado = bodyOfSelection(doc);
                 if (doSelecionado && doSelecionado != activeBody) {

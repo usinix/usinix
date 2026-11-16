@@ -101,7 +101,7 @@ class SMWorkbench(Workbench):
                              "SheetMetal_UnattendedUnfold")
 
         # Create a new toolbar with commands.
-        # Prumo 3D: nomes de barra/menu vão sem traduzir; o FreeCAD traduz no contexto
+        # Usinix: nomes de barra/menu vão sem traduzir; o FreeCAD traduz no contexto
         # "Workbench" ao mostrar (passar o texto já traduzido estragava os acentos do menu)
         self.appendToolbar("Sheet Metal", self.list)
         # Create a new menu.

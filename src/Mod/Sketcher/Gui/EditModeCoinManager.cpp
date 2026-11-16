@@ -562,7 +562,7 @@ void EditModeCoinManager::drawEditMarkers(
 
 void EditModeCoinManager::drawSnapMarkers(const std::vector<Base::Vector2d>& markers, int active)
 {
-    // Prumo 3D: losangos amarelos nos pontos-ímã; o ponto capturado fica maior e azul
+    // Usinix: losangos amarelos nos pontos-ímã; o ponto capturado fica maior e azul
     auto sizeFor = [](int wanted) {
         auto sizes = Gui::Inventor::MarkerBitmaps::getSupportedSizes("DIAMOND_FILLED");
         int chosen = sizes.empty() ? wanted : sizes.front();
@@ -1060,7 +1060,7 @@ void EditModeCoinManager::createEditModeInventorNodes()
         = Gui::Inventor::MarkerBitmaps::getMarkerIndex("CIRCLE_LINE", drawingParameters.markerSize);
     editMarkersRoot->addChild(editModeScenegraphNodes.EditMarkerSet);
 
-    // Prumo 3D: snap key points ("magnets") ++++++++++++++++++++++++++++++
+    // Usinix: snap key points ("magnets") ++++++++++++++++++++++++++++++
     SoSeparator* snapMarkersRoot = new SoSeparator;
     snapMarkersRoot->setName("SnapMarkersRoot");
     editModeScenegraphNodes.EditRoot->addChild(snapMarkersRoot);
@@ -1080,7 +1080,7 @@ void EditModeCoinManager::createEditModeInventorNodes()
     editModeScenegraphNodes.SnapMarkerSet->setName("SnapMarkerSet");
     snapMarkersRoot->addChild(editModeScenegraphNodes.SnapMarkerSet);
 
-    // Prumo 3D: linhas de inferência tracejadas
+    // Usinix: linhas de inferência tracejadas
     SoSeparator* snapAlignRoot = new SoSeparator;
     snapAlignRoot->setName("SnapAlignRoot");
     editModeScenegraphNodes.EditRoot->addChild(snapAlignRoot);

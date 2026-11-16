@@ -762,7 +762,7 @@ void ViewProviderSketch::deactivateHandler()
         sketchHandler = nullptr;
     }
     if (snapManager) {
-        snapManager->clearKeyPointMarkers();  // Prumo 3D
+        snapManager->clearKeyPointMarkers();  // Usinix
         snapManager->clearAlignmentLines();
     }
     setSketchMode(STATUS_NONE);
@@ -3508,7 +3508,7 @@ bool ViewProviderSketch::setEdit(int ModNum)
         return false; // Disallow edit of a frozen sketch
     }
 
-    // Prumo 3D: todo esboço abre no modo de geometria normal. O "Alternar construção" do FreeCAD é global e
+    // Usinix: todo esboço abre no modo de geometria normal. O "Alternar construção" do FreeCAD é global e
     // ficava ligado para os esboços seguintes (retângulo saía como construção e a extrusão falhava); a linha
     // de construção tem ferramenta própria.
     if (geometryCreationMode != GeometryCreationMode::Normal) {

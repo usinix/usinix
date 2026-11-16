@@ -15,6 +15,40 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.21.0 — 16/11/2026
+
+![Aba Peça reorganizada: Vínculo num botão, Recalcular no topo, grupo Dados da peça](.github/images/novidades/1.21.0.webp)
+
+### Mudanças
+
+- **Tudo com o nome Usinix:** o nome antigo saiu do módulo, dos comandos, das preferências, das propriedades dos
+  objetos, da biblioteca de materiais e das pastas. Arquivos, preferências e atalhos de teclado das versões
+  anteriores continuam valendo: o Usinix converte sozinho ao abrir.
+- **Desta vez, atualize pelo pacote completo** (instalador, portátil ou AppImage): a atualização só do complemento
+  não serve para esta versão. Em **Ajuda → Sobre → Verificar atualizações** o Usinix oferece o pacote certo.
+
+### Aba Peça sem ferramentas repetidas
+
+- **Recalcular** foi para a barra do topo, ao lado de Medir, e vale em todas as abas.
+- **Vínculo** virou um botão grande só, com vínculo de subforma, vínculo de forma e clonar no menu da setinha.
+- **Arredondar** traz o arredondamento automático no menu; **Padrão linear** traz a matriz de furação.
+- **Sólido** traz também as primitivas soltas (caixa, cilindro, tubo... fora da peça) e **Unir** traz a booleana
+  entre peças.
+- Saíram da aba Peça o grupo Eixo, ponto, sistema (fica o **Novo plano**), a Booleana e Peça pelas guias. Verificar
+  geometria e Sólido das faces ficam só na aba Superfícies e Validar esboço, na aba Esboço.
+- **Modelo com regras** foi para a aba Componentes.
+- O último grupo da aba Peça agora se chama **Dados da peça**; na aba Usinix, **Geral**.
+
+### Faixa
+
+- **Nomes que voltam aos poucos:** ao alargar um grupo arrastando o divisor, os nomes das ferramentas voltam
+  coluna a coluna (antes só voltavam com o grupo inteiro aberto).
+
+### Correção
+
+- **Paleta de vistas:** com a folha aberta, as vistas novas entravam fora do grupo, no canto da folha, e as vistas
+  sumiam ao serem clicadas (às vezes o programa fechava).
+
 ## 1.20.0 — 15/11/2026
 
 ### Mudanças

@@ -50,14 +50,14 @@ private:
     static inline int getPreselectPoint(const ViewProviderSketch& vp);
     static inline int getPreselectCross(const ViewProviderSketch& vp);
     static inline int getPreselectCurve(const ViewProviderSketch& vp);
-    // Prumo 3D: pontos-ímã (quadrantes, pontos médios e interseções)
+    // Usinix: pontos-ímã (quadrantes, pontos médios e interseções)
     static inline bool isHandlerActive(const ViewProviderSketch& vp);
     static inline void drawSnapMarkers(
         ViewProviderSketch& vp,
         const std::vector<Base::Vector2d>& markers,
         int active
     );
-    // Prumo 3D: linhas de inferência (pares de pontos: origem e ponto alinhado)
+    // Usinix: linhas de inferência (pares de pontos: origem e ponto alinhado)
     static inline void drawSnapAlignment(ViewProviderSketch& vp, const std::vector<Base::Vector2d>& segments);
 
     friend class SnapManager;
@@ -74,7 +74,7 @@ enum class SnapType
     All = Angle | Point | Edge | Grid
 };
 
-/// Prumo 3D: tipo de ponto-ímã encontrado perto do cursor
+/// Usinix: tipo de ponto-ímã encontrado perto do cursor
 enum class KeyPointKind
 {
     None,
@@ -84,7 +84,7 @@ enum class KeyPointKind
     Intersection,  ///< cruzamento entre duas curvas
 };
 
-/// Prumo 3D: último ponto-ímã usado pelo snap (lido pelas restrições automáticas)
+/// Usinix: último ponto-ímã usado pelo snap (lido pelas restrições automáticas)
 struct KeyPointSnap
 {
     bool valid = false;
@@ -154,14 +154,14 @@ public:
 
     void setAngleSnapping(bool enable, Base::Vector2d referencepoint);
 
-    /// Prumo 3D: ponto-ímã usado no último snap (valid = false se o último snap não foi num ímã)
+    /// Usinix: ponto-ímã usado no último snap (valid = false se o último snap não foi num ímã)
     const KeyPointSnap& getLastKeyPointSnap() const
     {
         return lastKeyPointSnap;
     }
-    /// Prumo 3D: apaga os marcadores de pontos-ímã da tela
+    /// Usinix: apaga os marcadores de pontos-ímã da tela
     void clearKeyPointMarkers();
-    /// Prumo 3D: apaga as linhas de inferência da tela
+    /// Usinix: apaga as linhas de inferência da tela
     void clearAlignmentLines();
 
     struct SnapHandle
@@ -188,12 +188,12 @@ private:
     bool snapToKeyPointsRequested;
     bool snapToAlignmentRequested;
 
-    /// Prumo 3D: alinha o cursor na horizontal/vertical com pontos existentes do esboço
+    /// Usinix: alinha o cursor na horizontal/vertical com pontos existentes do esboço
     /// (linhas de inferência tracejadas). Retorna true se alinhou alguma coordenada.
     bool snapToAlignment(Base::Vector2d inputPos, Base::Vector2d& snapPos, bool showLines);
     bool alignmentLinesShown = false;
 
-    /// Prumo 3D: procura pontos-ímã perto do cursor, desenha os marcadores e devolve o mais
+    /// Usinix: procura pontos-ímã perto do cursor, desenha os marcadores e devolve o mais
     /// próximo dentro da tolerância de captura
     bool findKeyPoint(Base::Vector2d inputPos, bool showMarkers, KeyPointSnap& found);
 

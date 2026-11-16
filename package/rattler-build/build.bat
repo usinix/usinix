@@ -12,9 +12,9 @@ set "CMAKE_GENERATOR="
 set "CMAKE_GENERATOR_PLATFORM="
 
 @REM Cache de compilacao (ccache) entre versoes: o fluxo do GitHub grava a pasta do cache em
-@REM prumo_ccache_dir.txt na raiz do codigo (o rattler-build nao repassa variaveis de ambiente).
-if not exist "%SRC_DIR%\prumo_ccache_dir.txt" goto sem_ccache
-set /p CCACHE_DIR=<"%SRC_DIR%\prumo_ccache_dir.txt"
+@REM usinix_ccache_dir.txt na raiz do codigo (o rattler-build nao repassa variaveis de ambiente).
+if not exist "%SRC_DIR%\usinix_ccache_dir.txt" goto sem_ccache
+set /p CCACHE_DIR=<"%SRC_DIR%\usinix_ccache_dir.txt"
 for %%I in ("%SRC_DIR%\..") do set "CCACHE_BASEDIR=%%~fI"
 set "CCACHE_NOHASHDIR=1"
 set "CCACHE_COMPILERCHECK=content"

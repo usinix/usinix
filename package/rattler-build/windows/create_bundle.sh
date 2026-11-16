@@ -3,8 +3,8 @@
 set -e
 set -x
 
-# Usinix: PRUMO_CONDA_ENV aponta para um ambiente já compilado e instalado (pixi da raiz)
-conda_env="${PRUMO_CONDA_ENV:-$(pwd)/../.pixi/envs/default/}"
+# Usinix: USINIX_CONDA_ENV aponta para um ambiente já compilado e instalado (pixi da raiz)
+conda_env="${USINIX_CONDA_ENV:-$(pwd)/../.pixi/envs/default/}"
 
 copy_dir="FreeCAD_Windows"
 mkdir -p ${copy_dir}/bin
@@ -35,9 +35,9 @@ cp -a ${conda_env}/Library/data ${copy_dir}/data
 cp -a ${conda_env}/Library/Ext ${copy_dir}/Ext
 cp -a ${conda_env}/Library/lib ${copy_dir}/lib
 cp -a ${conda_env}/Library/Mod ${copy_dir}/Mod
-# Usinix: o módulo Prumo3D já vem em Library/Mod (instalado pelo CMake, como os outros módulos);
+# Usinix: o módulo Usinix já vem em Library/Mod (instalado pelo CMake, como os outros módulos);
 # o branding.xml (nome, pasta de dados do usuário, splash) é instalado em Library/bin
-test -f ${copy_dir}/Mod/Prumo3D/InitGui.py || { echo "erro: módulo Prumo3D ausente em Library/Mod"; exit 1; }
+test -f ${copy_dir}/Mod/Usinix/InitGui.py || { echo "erro: módulo Usinix ausente em Library/Mod"; exit 1; }
 cp -a ${conda_env}/Library/bin/branding.xml ${copy_dir}/bin/branding.xml
 # Usinix: executáveis com o nome do produto
 mv ${copy_dir}/bin/FreeCAD.exe ${copy_dir}/bin/Usinix.exe
@@ -155,8 +155,8 @@ if ! "$SIGN_DIR/bin/python.exe" -c "import cv2, numpy, networkx; print('cv2', cv
   exit 1
 fi
 
-# Usinix: PRUMO_SEM_7Z=1 pula o arquivo .7z (o 7-Zip do ambiente pixi falha no Windows)
-if [ "${PRUMO_SEM_7Z:-0}" != "1" ]; then
+# Usinix: USINIX_SEM_7Z=1 pula o arquivo .7z (o 7-Zip do ambiente pixi falha no Windows)
+if [ "${USINIX_SEM_7Z:-0}" != "1" ]; then
 7z a -t7z -mx9 -mmt=${NUMBER_OF_PROCESSORS} ${version_name}.7z ${version_name} -bb
 # create hash
 sha256sum ${version_name}.7z > ${version_name}.7z-SHA256.txt
@@ -168,7 +168,7 @@ if [ "${MAKE_INSTALLER}" == "true" ]; then
     "${nsis_cmd}" -V4 \
         -D"ExeFile=${version_name}-installer.exe" \
         -D"FILES_FREECAD=${FILES_FREECAD}" \
-        -D"PRUMO_VERSAO=${BUILD_TAG}" \
+        -D"USINIX_VERSAO=${BUILD_TAG}" \
         -X'SetCompressor /FINAL lzma' \
         ../../WindowsInstaller/FreeCAD-installer.nsi
     mv ../../WindowsInstaller/${version_name}-installer.exe .

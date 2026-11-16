@@ -35,10 +35,13 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.20.0** (15/11/2026): vasos de pressão, escadas e proteções de máquina NR-12 saem do Usinix por
-enquanto, para uma rodada maior de testes e validação (geram memória de cálculo e memorial de entrega); a aba
-Estruturas fica só com o que é de estrutura. A faixa destaca as abas de pacotes instalados
-à parte e põe as abas novas ao lado da vizinha na ordem que você gravou.
+**Versão atual: 1.21.0** (16/11/2026): tudo passa a se chamar Usinix (arquivos, preferências e atalhos antigos
+continuam valendo); aba Peça sem ferramentas repetidas, com Recalcular na barra do topo e o grupo Dados da peça;
+os nomes das ferramentas voltam coluna a coluna ao alargar um grupo; a Paleta de vistas não deixa mais vistas fora
+do grupo nem some com elas ao clicar. Desta vez, atualize pelo pacote completo.
+
+Na 1.20.0: vasos de pressão, escadas e proteções de máquina NR-12 saem do Usinix por enquanto, para uma rodada maior
+de testes e validação; a aba Estruturas fica só com o que é de estrutura.
 
 Na 1.19.2: correções pequenas e suporte a pacotes de ferramentas adicionais.
 
@@ -358,11 +361,11 @@ Código
 
 | Pasta | Conteúdo |
 |---|---|
-| [`src/Mod/Prumo3D/`](src/Mod/Prumo3D/) | Módulo da interface do Usinix, parte do programa: faixa, tradução, tela inicial, assistentes, tema, ícones e identidade (`extras/branding.xml`) |
+| [`src/Mod/Usinix/`](src/Mod/Usinix/) | Módulo da interface do Usinix, parte do programa: faixa, tradução, tela inicial, assistentes, tema, ícones e identidade (`extras/branding.xml`) |
 | [`src/Gui/PreferencePacks/Usinix Claro/`](src/Gui/PreferencePacks/) | Tema Usinix Claro, embutido como pacote de preferências |
 | [`src/Mod/SheetMetal/`](src/Mod/SheetMetal/) | Bancada de chapa metálica (SheetMetal, LGPL), embutida |
-| [`prumo-build/`](prumo-build/) | Roteiro de compilação no Windows e ferramentas que geram ícones, tema de ícones e materiais |
-| [`prumo-patches/`](prumo-patches/) | Correções aplicadas ao código do FreeCAD |
+| [`usinix-build/`](usinix-build/) | Roteiro de compilação no Windows e ferramentas que geram ícones, tema de ícones e materiais |
+| [`usinix-patches/`](usinix-patches/) | Correções aplicadas ao código do FreeCAD |
 | [`package/`](package/) | Instalador Windows e empacotamento (Windows e AppImage) |
 | [`.github/workflows/publicar.yml`](.github/workflows/publicar.yml) | Geração e publicação automática das versões |
 
@@ -377,7 +380,7 @@ máquinas do GitHub e publica os arquivos na página de versões. Tags com hífe
 `v0.1-beta`) saem como pré-lançamento. O fluxo também pode ser rodado à mão pela aba *Actions*, para
 testes.
 
-**No Windows, localmente:** o roteiro [`prumo-build/compilar.ps1`](prumo-build/compilar.ps1) confere os
+**No Windows, localmente:** o roteiro [`usinix-build/compilar.ps1`](usinix-build/compilar.ps1) confere os
 pré-requisitos e compila. É preciso:
 
 - Visual Studio 2022 com a carga de trabalho *Desenvolvimento para desktop com C++*;
@@ -385,8 +388,8 @@ pré-requisitos e compila. É preciso:
 - [pixi](https://pixi.sh);
 - pelo menos 40 GB livres em disco.
 
-Rode `prumo-build\compilar.ps1 -SomenteVerificar` para conferir o ambiente e depois sem o parâmetro para
-compilar. Detalhes em [`prumo-build/LEIA-ME.md`](prumo-build/LEIA-ME.md). Para a compilação do FreeCAD em
+Rode `usinix-build\compilar.ps1 -SomenteVerificar` para conferir o ambiente e depois sem o parâmetro para
+compilar. Detalhes em [`usinix-build/LEIA-ME.md`](usinix-build/LEIA-ME.md). Para a compilação do FreeCAD em
 geral, veja o [Manual do Desenvolvedor do FreeCAD](https://freecad.github.io/DevelopersHandbook/gettingstarted/)
 (em inglês).
 

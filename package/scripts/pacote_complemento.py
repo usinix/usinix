@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Gera Usinix_<versão>-complemento.zip: só o complemento (src/Mod/Prumo3D), para atualizar sem baixar o
+"""Gera Usinix_<versão>-complemento.zip: só o complemento (src/Mod/Usinix), para atualizar sem baixar o
 pacote inteiro. Uso: pacote_complemento.py <tag ou versão> <pasta de saída>
 
-Dentro do .zip: Prumo3D/... (com PrumoVersaoCompilada.py da versão) e Prumo3D/complemento.json com a versão,
-a base de FreeCAD e a versão mínima do pacote completo (BASE_MINIMA em PrumoComplemento.py). Ao lado, a soma
+Dentro do .zip: Usinix/... (com UsinixVersaoCompilada.py da versão) e Usinix/complemento.json com a versão,
+a base de FreeCAD e a versão mínima do pacote completo (BASE_MINIMA em UsinixComplemento.py). Ao lado, a soma
 SHA-256 no mesmo formato dos outros arquivos."""
 import hashlib
 import json
@@ -14,7 +14,7 @@ import sys
 import zipfile
 
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-MOD = os.path.join(RAIZ, "src", "Mod", "Prumo3D")
+MOD = os.path.join(RAIZ, "src", "Mod", "Usinix")
 FORA = {"__pycache__", ".pytest_cache"}
 
 
@@ -25,7 +25,7 @@ def base_freecad():
 
 
 def base_minima():
-    txt = open(os.path.join(MOD, "PrumoComplemento.py"), encoding="utf-8").read()
+    txt = open(os.path.join(MOD, "UsinixComplemento.py"), encoding="utf-8").read()
     return re.search(r'^BASE_MINIMA = "([^"]+)"', txt, re.M).group(1)
 
 
@@ -39,13 +39,13 @@ def gerar(versao, saida):
         for pasta, subpastas, arquivos in os.walk(MOD):
             subpastas[:] = sorted(d for d in subpastas if d not in FORA)
             for a in sorted(arquivos):
-                if a.endswith((".pyc", ".pyo")) or a in ("PrumoVersaoCompilada.py", "complemento.json"):
+                if a.endswith((".pyc", ".pyo")) or a in ("UsinixVersaoCompilada.py", "complemento.json"):
                     continue
                 caminho = os.path.join(pasta, a)
                 rel = os.path.relpath(caminho, MOD).replace(os.sep, "/")
-                z.write(caminho, "Prumo3D/" + rel)
-        z.writestr("Prumo3D/PrumoVersaoCompilada.py", 'VERSAO_COMPILADA = "%s"\n' % versao)
-        z.writestr("Prumo3D/complemento.json", json.dumps(manifesto, ensure_ascii=False, indent=1) + "\n")
+                z.write(caminho, "Usinix/" + rel)
+        z.writestr("Usinix/UsinixVersaoCompilada.py", 'VERSAO_COMPILADA = "%s"\n' % versao)
+        z.writestr("Usinix/complemento.json", json.dumps(manifesto, ensure_ascii=False, indent=1) + "\n")
     # o mesmo complemento.json ao lado, para o Usinix saber se o .zip serve antes de baixar
     with open(os.path.join(saida, "Usinix_%s-complemento.json" % versao), "w", encoding="utf-8") as f:
         f.write(json.dumps(manifesto, ensure_ascii=False, indent=1) + "\n")

@@ -1,0 +1,98 @@
+# Usinix — módulo de interface
+
+Módulo em Python com a interface do Usinix. Faz parte do programa: é compilado e instalado junto com os
+outros módulos (`Mod/Usinix`), sem instalação separada.
+
+## O que ele faz
+
+| Item | Como |
+|---|---|
+| Faixa de ferramentas (ribbon) | Abas Início, Esboço, Peça, Sólidos, Montagem, Desenho, Planilha e Usinix. Comandos principais com ícone grande, demais empilhados, grupos com legenda. Rótulos em português escritos para o Usinix. As barras clássicas ficam ocultas. |
+| Aba Esboço automática | Ao editar um esboço, a faixa mostra a aba Esboço e volta à anterior ao concluir. |
+| Enquadrar ao concluir o esboço | Ao sair do esboço, a vista enquadra o modelo inteiro (parâmetro `EnquadrarAoSairDoEsboco`). |
+| Tradução pt-BR completa | `translations/usinix_ptbr.qm` (tradução mais recente do repositório do FreeCAD, mais completa que a da versão 1.1.4) + dicionário `UsinixI18n.EXTRA` para o que nem o repositório traduz. Instalada com prioridade sobre a oficial. |
+| Tema "Usinix Claro" | Acento azul #003A70, pré-seleção amarela #F7BE00, vista 3D em degradê branco → #CBD5E0, menus e painéis claros. Força o esquema claro mesmo com o Windows em modo escuro. |
+| Tema de ícones "Usinix Sóbrio" | 1.582 ícones do FreeCAD recoloridos para a paleta do Usinix (azul-aço, âmbar, tijolo, sálvia, cinza frio), contornos em ardósia e degradê vertical em todo preenchimento chapado (efeito 3D). Vale para faixa, menus e árvore do modelo. Fica em `Resources/tema-icones-usinix.zip`; o módulo descompacta em `<dados do usuário>/UsinixIcones` e registra em `Bitmaps/CustomPathUsinix`. Liga/desliga na aba Usinix (vale ao reabrir). |
+| Guia ilustrado nas tarefas | Ao editar Extrusão, Cavidade, Revolução, Ranhura, Furo, Arredondar, Chanfro, Padrão linear/circular, Espelhar, Casca e Ângulo de saída, aparece no topo do painel Tarefas um desenho isométrico do que a função faz **no modo escolhido** (acompanha as trocas de modo), com legenda e instrução curta. Desenhos em `UsinixIlustra.py`, textos e regras em `UsinixGuia.py`. Desligar: parâmetro `GuiaIlustrado`. |
+| Qualidade de exibição | Anti-aliasing MSAA 8x (linhas sem serrilhado) e tesselação mais fina (desvio 0,1 %, ângulo 12°) para curvas lisas. Aplicado uma vez; ajuste em `QUALITY` no `UsinixGui.py`. |
+| Splash, título e ícone | Splash Usinix, "Usinix" no título, ícone Usinix. |
+
+## Ferramentas de projeto
+
+| Ferramenta | Módulo | Onde fica |
+|---|---|---|
+| Cotas da operação (duplo clique numa face; Shift+D) | `UsinixCotas.py` | aba Peça, menu de contexto |
+| Menu de contexto pela seleção | `UsinixContexto.py` | botão direito (vista 3D e árvore) |
+| Propriedades de massa (massa, CG, inércia) | `UsinixMassa.py` | abas Peça, Montagem, Estruturas |
+| Lista de materiais (planilha e tabela na folha) | `UsinixBOM.py` | abas Peça, Montagem, Desenho, Estruturas |
+| Folhas ABNT A0–A4 (NBR 16752:2020; NBR 10068, cancelada, só para desenhos antigos) | `UsinixFolhas.py`, `Resources/folhas/` | abas Desenho e Peça |
+| Biblioteca de perfis (W, HP, U, I, L, tubos, metalon) | `UsinixPerfis.py`, `Resources/perfis/perfis.json` | usada pela estrutura e pelo vaso |
+| Estrutura soldada (grupos, ponto de fixação, cantos com desenho de cada tratamento), trocar perfil, lista de corte | `UsinixEstrutura.py`, `UsinixIlustra.canto_svg` | aba Estruturas |
+| Tutoriais "primeira peça" e "estrutura soldada" | `UsinixTutorial.py` | abas Usinix e Estruturas, tela inicial |
+| Árvore do modelo (reabre o painel) | `UsinixGui.CmdArvore` | aba Início |
+| Tradução da faixa e dos menus (varredura 0.1 beta) | `UsinixI18n.py` | automática |
+| Nomes em português na árvore (objetos novos) | `UsinixNomes.py` | automática (desliga em `NomesEmPortugues`) |
+| Painéis de tarefa visuais (kit) | `UsinixPainel.py` | usado pelos comandos do Usinix |
+| Seleção antes ou depois do comando (booleanas e comandos Usinix) | `UsinixSelecao.py` | faixa |
+| Propriedades da peça → lista de materiais e legenda ligada | `UsinixPropriedades.py` | abas Peça, Montagem, Estruturas; botão direito |
+| Fator K, espessuras comerciais, planificar em DXF | `UsinixChapa.py` | aba Chapa |
+| Variantes da peça (P, M, G) | `UsinixVariantes.py` | aba Peça |
+| Modelos com regras (placa, flange, suporte em L, eixo) | `UsinixModelos.py` | aba Peça |
+| Verificar interferência | `UsinixInterferencia.py` | abas Montagem e Estruturas |
+| Copiar projeto (Pack and Go) | `UsinixCopiarProjeto.py` | aba Início |
+| Guia "vindo do SolidWorks / ZW3D" | `UsinixGuiaMigracao.py` | aba Usinix, tela inicial |
+| Reforço, tampa de tubo, placa de base, cordão e lista de soldas | `UsinixEstruturaExtras.py` | aba Estruturas |
+| Vaso de pressão (ASME VIII-1, UG-27/UG-32) | `UsinixVaso.py` | desligado por enquanto (sem botão) |
+| Parafusos, porcas e arruelas (ISO 4017, 4762, 4032, 7089) | `UsinixFixadores.py`, `Resources/fixadores/` | aba Estruturas |
+| Chapa metálica | bancada SheetMetal embutida (`src/Mod/SheetMetal`) | aba Chapa |
+
+Dados de normas e catálogos: cada perfil e cada fixador tem fonte e situação ("confirmado" ou "a
+conferir"); o Usinix mostra o aviso na hora da escolha. Os dados de origem e os geradores ficam em
+`usinix-build/ferramentas/` (`gerar_perfis.py`, `gerar_fixadores.py`, `gerar_folhas_abnt.py`, pasta `dados/`).
+
+Testes: `UsinixTestesFerramentas.py` (entram no comando *Testes automáticos*).
+
+## Arquivos
+
+- `InitGui.py` — ponto de entrada (carregado pelo FreeCAD)
+- `UsinixGui.py` — branding, tema, comandos Usinix
+- `UsinixRibbon.py` — a faixa de ferramentas (abas e comandos ficam na lista `TABS`)
+- `UsinixI18n.py` — tradução com prioridade e dicionário `EXTRA`
+- `UsinixPropNames.py` — nomes de propriedades e grupos do painel Dados/Vista (~500 termos, contexto `App::Property`)
+- `extras/branding.xml` — identidade do programa (nome, splash, pasta de dados)
+- `Resources/` — splash e ícones
+- `translations/usinix_ptbr.qm` — tradução compilada
+
+## Como entra no programa
+
+- `CMakeLists.txt` copia o módulo para `Mod/Usinix` (pasta de compilação e instalação) e o
+  `extras/branding.xml` para a pasta `bin` do programa. O `branding.xml` dá o nome "Usinix", a tela de
+  abertura e a pasta de dados própria (`%APPDATA%\Usinix`, `~/.local/share/Usinix`).
+- O tema "Usinix Claro" fica em `src/Gui/PreferencePacks/Usinix Claro`, entre os pacotes de preferências embutidos.
+- Opção do CMake: `BUILD_USINIX` (padrão ON).
+
+## Mudar a faixa
+
+Edite a lista `TABS` em `UsinixRibbon.py`. Cada item é `("NomeDoComando", L ou S, "Rótulo")`:
+`L` = ícone grande, `S` = pequeno; `\n` quebra o rótulo grande em duas linhas.
+Comando que não existir na versão instalada é ignorado.
+
+## Opções (Ferramentas → Editar parâmetros → BaseApp/Preferences/Mod/Usinix)
+
+- `RibbonEnabled` (padrão true) — faixa Usinix; também alternável pelo comando *Alternar faixa Usinix / barras clássicas* na aba Usinix
+- `RibbonHeight` (padrão 104) — altura da área de comandos, em px
+- `UsinixTranslations` (padrão true) — tradução Usinix
+- `RenameWindow`, `InstallSplash`, `ApplyThemeOnFirstRun` (padrão true)
+
+## Atualizar o tema de ícones
+
+`usinix-build/ferramentas/gerar_tema_icones.py <clone do FreeCAD> <pasta de saída>` gera os SVGs. Paleta e intensidade do degradê
+ficam nas funções `recolor()` e `shade()`. Depois compacte a pasta em `Resources/tema-icones-usinix.zip`.
+
+## Atualizar a tradução
+
+Com o clone do FreeCAD: `lrelease $(find . -name "*_pt-BR.ts") -qm usinix_ptbr.qm`.
+
+## Licença
+
+LGPL-2.1-or-later, a mesma do FreeCAD.

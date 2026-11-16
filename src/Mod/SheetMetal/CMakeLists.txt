@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 #
-# Prumo 3D: bancada de chapa metálica (SheetMetal, de Shai Seger e colaboradores, LGPL-2.1-or-later),
-# embutida no programa. Origem e versão em ORIGEM_PRUMO.md.
+# Usinix: bancada de chapa metálica (SheetMetal, de Shai Seger e colaboradores, LGPL-2.1-or-later),
+# embutida no programa. Origem e versão em ORIGEM_USINIX.md.
 
 file(GLOB_RECURSE SheetMetal_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS
     "*.py" "*.ui" "*.svg" "*.png" "*.qm" "*.qrc" "*.xml" "*.md" "*.gif" "*.jpg" "*.pdf" "*.json"

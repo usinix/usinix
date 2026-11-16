@@ -234,7 +234,7 @@ Base::Vector2d SnapManager::snap(Base::Vector2d inputPos, SnapType mask)
 {
     lastKeyPointSnap = KeyPointSnap();
 
-    // Prumo 3D: pontos-ímã. Os marcadores aparecem enquanto uma ferramenta de desenho está ativa;
+    // Usinix: pontos-ímã. Os marcadores aparecem enquanto uma ferramenta de desenho está ativa;
     // o ponto mais próximo captura o cursor, exceto quando um vértice já está pré-selecionado
     // (o vértice existente tem prioridade e gera a restrição de coincidência).
     const bool wantsPoints = (static_cast<int>(mask) & static_cast<int>(SnapType::Point)) != 0;
@@ -268,7 +268,7 @@ Base::Vector2d SnapManager::snap(Base::Vector2d inputPos, SnapType mask)
         lastMouseAngle = 0.0;
     }
 
-    // 2a - Prumo 3D: ponto-ímã (quadrante, ponto médio, interseção)
+    // 2a - Usinix: ponto-ímã (quadrante, ponto médio, interseção)
     if (keyPointFound) {
         const int VtId = ViewProviderSketchSnapAttorney::getPreselectPoint(viewProvider);
         const int CrsId = ViewProviderSketchSnapAttorney::getPreselectCross(viewProvider);
@@ -279,7 +279,7 @@ Base::Vector2d SnapManager::snap(Base::Vector2d inputPos, SnapType mask)
         }
     }
 
-    // 2b - Prumo 3D: linhas de inferência — alinhamento com pontos existentes, só quando nada está
+    // 2b - Usinix: linhas de inferência — alinhamento com pontos existentes, só quando nada está
     // pré-selecionado (com o cursor sobre uma curva ou ponto, valem o snap normal e as restrições)
     {
         const int VtId = ViewProviderSketchSnapAttorney::getPreselectPoint(viewProvider);
@@ -510,7 +510,7 @@ Base::Vector2d SketcherGui::SnapManager::SnapHandle::compute(SnapType mask)
     return mgr->snap(cursorPos, mask);
 }
 
-/********************** Prumo 3D: pontos-ímã (quadrantes, médios, interseções) ******************/
+/********************** Usinix: pontos-ímã (quadrantes, médios, interseções) ******************/
 
 namespace
 {
@@ -532,7 +532,7 @@ struct KeyCandidate
 
 double distanceToCurve(const Part::GeomCurve* curve, const Base::Vector2d& pos, double tol)
 {
-    // Prumo: atalhos analíticos/limites inferiores para não projetar (OCC) em cada curva do esboço
+    // Usinix: atalhos analíticos/limites inferiores para não projetar (OCC) em cada curva do esboço
     // a cada movimento do mouse; só curvas que podem estar a menos de tol seguem para a projeção.
     const double longe = std::numeric_limits<double>::max();
     if (const auto* seg = dynamic_cast<const Part::GeomLineSegment*>(curve)) {
@@ -824,7 +824,7 @@ void SnapManager::clearKeyPointMarkers()
     ViewProviderSketchSnapAttorney::drawSnapMarkers(viewProvider, {}, -1);
 }
 
-/********************** Prumo 3D: linhas de inferência (alinhamento H/V) ************************/
+/********************** Usinix: linhas de inferência (alinhamento H/V) ************************/
 
 bool SnapManager::snapToAlignment(Base::Vector2d inputPos, Base::Vector2d& snapPos, bool showLines)
 {
