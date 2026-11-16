@@ -19,8 +19,10 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 
 ### Mudanças
 
-- **Vasos de pressão, escadas e proteções de máquina NR-12** deixam de fazer parte do Usinix. Os arquivos feitos
-  nas versões anteriores com esses objetos abrem mostrando as formas, mas esses objetos não são recalculados.
+- **Vasos de pressão, escadas e proteções de máquina NR-12** saem do Usinix por enquanto: são ferramentas que
+  geram memória de cálculo e memorial de entrega, e passam por uma rodada maior de testes e validação antes de
+  voltar. Os arquivos feitos nas versões anteriores com esses objetos abrem mostrando as formas, mas esses objetos
+  não são recalculados.
 - A aba Estruturas fica só com o que é de estrutura (perfis, cantos, reforços, pisos, solda e cálculo).
 
 ### Faixa
