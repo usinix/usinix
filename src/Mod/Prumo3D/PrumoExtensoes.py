@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
-# Usinix - ponto de encaixe para pacotes que acrescentam ferramentas (ex.: Usinix Pro).
+# Usinix - ponto de encaixe para pacotes que acrescentam ferramentas.
 """Pacotes externos (uma pasta em <dados do usuário>/Mod com o próprio InitGui.py) se registram aqui:
 
     import PrumoExtensoes as X
-    X.registrar("Usinix Pro", "1.0.0", iniciar=minha_funcao, minimo="1.19.2")
+    X.registrar("Meu pacote", "1.0.0", iniciar=minha_funcao, minimo="1.19.2")
 
 `iniciar` roda uma vez, depois que os comandos do Usinix foram registrados e antes de a faixa ser montada; é o
 lugar de registrar comandos, tipos de escada (PrumoEscada.registrar_tipo), ferramentas da IA (PrumoIA.ferramenta),

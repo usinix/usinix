@@ -1360,7 +1360,7 @@ def startup():
         FreeCAD.Console.PrintWarning("Usinix: tela inicial: {}\n".format(exc))
     register_commands()
     try:
-        import PrumoExtensoes        # pacotes externos (Usinix Pro): comandos, faixa, marca dos relatórios
+        import PrumoExtensoes        # pacotes externos: comandos, faixa, marca dos relatórios
         PrumoExtensoes.iniciar_todas()
     except Exception as exc:
         FreeCAD.Console.PrintWarning("Usinix: pacotes externos: {}\n".format(exc))

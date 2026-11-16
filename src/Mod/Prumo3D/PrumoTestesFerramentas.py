@@ -12394,7 +12394,7 @@ class T85SoldaRugosidadeAjuste(unittest.TestCase):
         ruins = []
         for cls in todas(P.PainelTarefa):
             if not cls.__module__.startswith("Prumo"):
-                continue        # painéis de pacotes externos (Usinix Pro) têm os testes deles
+                continue        # painéis de pacotes externos têm os testes deles
             for n in internos & set(vars(cls)):
                 ruins.append("%s.%s.%s" % (cls.__module__, cls.__name__, n))
         self.assertEqual(sorted(set(ruins) - de_proposito), [])
@@ -14332,7 +14332,7 @@ class T98CliqueSempreResponde(unittest.TestCase):
             return
         from PySide import QtGui
         b = R.BarraAbas()
-        for i, (tid, rot) in enumerate((("a", "Comum"), ("b", "Pro"))):
+        for i, (tid, rot) in enumerate((("a", "Comum"), ("b", "Extra"))):
             b.addTab(rot)
             b.setTabData(i, tid)
         b.destaques.add("b")
@@ -18608,8 +18608,7 @@ class T142PreviaDosComponentes(unittest.TestCase):
 
 
 class T145PacotesExternos(unittest.TestCase):
-    """1.19.2: ponto de encaixe para pacotes externos (Usinix Pro): registro, faixa e marca dos relatórios e das
-    folhas (os tipos de escada são testados no Pro, junto com a escada)."""
+    """1.19.2: ponto de encaixe para pacotes externos: registro, faixa e marca dos relatórios e das folhas."""
 
     def setUp(self):
         self.doc = novo_doc("PrumoTestePacotes")

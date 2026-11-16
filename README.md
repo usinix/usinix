@@ -35,9 +35,9 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.20.0** (15/11/2026): vasos de pressão, escadas e proteções de máquina NR-12 saem do Usinix
-público e passam para o **Usinix Pro**, um pacote à parte com abas próprias por área (os arquivos feitos nas
-versões anteriores abrem com o pacote instalado). A faixa ganha abas destacadas para os pacotes.
+**Versão atual: 1.20.0** (15/11/2026): vasos de pressão, escadas e proteções de máquina NR-12 deixam de fazer
+parte do Usinix; a aba Estruturas fica só com o que é de estrutura. A faixa destaca as abas de pacotes instalados
+à parte e põe as abas novas ao lado da vizinha na ordem que você gravou.
 
 Na 1.19.2: correções pequenas e suporte a pacotes de ferramentas adicionais.
 

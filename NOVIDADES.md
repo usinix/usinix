@@ -17,17 +17,16 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 -->
 ## 1.20.0 — 15/11/2026
 
-### Usinix Pro
+### Mudanças
 
-- **Vasos de pressão** (formulário, memória de cálculo, memorial NR-13, teste de pressão e desenho), **escadas** e
-  **proteções de máquina NR-12** saem do Usinix público e passam para o **Usinix Pro**, um pacote instalado à
-  parte, com uma aba para cada área. Os arquivos com vaso, escada ou proteção feitos nas versões anteriores abrem
-  normalmente com o Usinix Pro instalado.
+- **Vasos de pressão, escadas e proteções de máquina NR-12** deixam de fazer parte do Usinix. Os arquivos feitos
+  nas versões anteriores com esses objetos abrem mostrando as formas, mas esses objetos não são recalculados.
 - A aba Estruturas fica só com o que é de estrutura (perfis, cantos, reforços, pisos, solda e cálculo).
 
 ### Faixa
 
-- **Abas de pacotes em destaque:** as abas que vêm de um pacote aparecem com o cabeçalho azul e o filete amarelo.
+- **Abas de pacotes em destaque:** as abas acrescentadas por pacotes instalados à parte aparecem com o cabeçalho
+  azul e o filete amarelo.
 - **Aba nova no lugar certo:** quem arrastou as abas para outra ordem recebe as abas novas ao lado da vizinha de
   sempre, não no fim da faixa.
 - Botão de comando de pacote sem barra nem menu aparece na faixa (a aba do pacote saía vazia).

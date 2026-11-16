@@ -587,7 +587,7 @@ def _cmd_actions(name):
     except Exception:
         acts = []
     if not acts:
-        # comandos Python sem barra nem menu (os do Usinix e os de pacotes externos, ex.: Usinix Pro) só têm ação
+        # comandos Python sem barra nem menu (os do Usinix e os de pacotes externos) só têm ação
         # depois de a bancada usá-los: sem ação o botão some da faixa
         acts = [_own_action(name, cmd)]
     for a in acts:
@@ -1192,7 +1192,7 @@ class AlcaAltura(QtWidgets.QWidget):
 
 
 class BarraAbas(QtWidgets.QTabBar):
-    """Barra de abas da faixa: as abas marcadas com "destaque" (as de pacotes, ex.: Usinix Pro) saem com o cabeçalho
+    """Barra de abas da faixa: as abas marcadas com "destaque" (as de pacotes externos) saem com o cabeçalho
     azul, o nome em branco e o filete amarelo em cima; o conteúdo da aba é igual ao das outras."""
 
     AZUL, AZUL_CLARO, AMARELO = "#003A70", "#0B4F8F", "#F7BE00"

@@ -35,8 +35,6 @@ Clique em **Mais informações → Executar assim mesmo**. Confira o arquivo pel
   mostram as formas, mas esses objetos não são recalculados lá.
 - Alguns perfis e tubos estão marcados **"a conferir"** (fonte secundária): o Usinix avisa na escolha
   do perfil. Confira no catálogo do fabricante antes de usar em projeto.
-- Vasos de pressão: reforço de aberturas, pressão externa, vento, sismo e cargas nos suportes ainda
-  não são calculados (o memorial avisa); o enquadramento na NR-13 fica com o responsável técnico.
 - Estruturas: grande deslocabilidade só é avisada (pede análise com não linearidade de material); a
   ancoragem dos chumbadores no concreto não é verificada; a classificação de deslocabilidade usa os
   deslocamentos horizontais nó a nó, não andar a andar.

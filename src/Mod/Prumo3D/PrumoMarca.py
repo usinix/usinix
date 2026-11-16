@@ -2,7 +2,7 @@
 # Usinix - perfil de marca dos relatórios e das folhas (logo, nome, cores, rodapé).
 """Marca usada nos relatórios em PDF (memorial NR-13, análise estrutural, simulação) e nas folhas de desenho.
 
-Sem pacote externo, é a do Usinix. Um pacote (ex.: Usinix Pro) troca com definir(provedor), em que o provedor tem
+Sem pacote externo, é a do Usinix. Um pacote troca com definir(provedor), em que o provedor tem
 perfil() → dict com as chaves de PADRAO (só as que mudam) e, se quiser, modelo_folha(caminho) → caminho de uma
 cópia do modelo de folha com a logo da empresa.
 """
