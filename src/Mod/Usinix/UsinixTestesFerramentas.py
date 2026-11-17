@@ -19007,3 +19007,91 @@ class T147SemONomeAntigo(unittest.TestCase):
         libs = {m.LibraryName for m in (Materials.MaterialManager().getMaterial(u)
                                          for u in list(Materials.MaterialManager().Materials)[:400])}
         self.assertNotIn("Prumo", libs)
+
+
+class T148ArredondarEncontroDePecas(unittest.TestCase):
+    """1.21.1: "Não consegui fazer um arredondamento entre uma estrutura metálica e uma peça na estrutura" —
+    o Arredondar do FreeCAD só trabalha numa peça. Com duas peças que se encostam, o Usinix une as duas e
+    arredonda o encontro (raio de concordância)."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteEncontro")
+
+    def tearDown(self):
+        if FreeCAD.GuiUp:
+            try:
+                if FreeCADGui.Control.activeDialog():
+                    FreeCADGui.Control.closeDialog()
+            except Exception:
+                pass
+            FreeCADGui.Selection.clearSelection()
+        fechar(self.doc)
+
+    def _barra_e_chapa(self, folga=0.0):
+        import UsinixEstrutura
+        sk = esboco_linhas(self.doc, [((0, 0), (1000, 0))], "XY")
+        est = UsinixEstrutura.criar(self.doc, sk, "W 150 x 13,0")
+        self.doc.recompute()
+        barra = UsinixEstrutura.barras_de(est)[0]
+        bb = barra.Shape.BoundBox
+        chapa = self.doc.addObject("Part::Box", "Chapa")
+        chapa.Length, chapa.Width, chapa.Height = 200.0, 60.0, 12.0
+        chapa.Placement.Base = FreeCAD.Vector(bb.Center.x - 100.0, bb.Center.y - 30.0, bb.ZMax + folga)
+        self.doc.recompute()
+        return barra, chapa
+
+    def test_une_e_arredonda_o_encontro(self):
+        import UsinixArredondar as A
+        barra, chapa = self._barra_e_chapa()
+        prev = A.previa_juncao([barra, chapa])
+        self.assertEqual(prev, 4, "os quatro lados da chapa apoiada na mesa")
+        v0 = barra.Shape.Volume + chapa.Shape.Volume
+        f, n = A.unir_e_arredondar([barra, chapa], 5.0)
+        self.assertEqual(n, prev)
+        self.assertTrue(f.Shape.isValid())
+        self.assertEqual(len(f.Shape.Solids), 1, "uma peça só")
+        # o raio de concordância acrescenta material no canto côncavo: (1 − π/4)·R² por mm de aresta
+        ganho = (1 - math.pi / 4) * 25.0 * 2 * (200.0 + 60.0)
+        self.assertAlmostEqual(f.Shape.Volume - v0, ganho, delta=ganho * 0.05)
+        self.assertFalse(barra.Visibility or chapa.Visibility, "as peças originais ficam guardadas na união")
+        self.assertEqual(f.Base.TypeId, "Part::MultiFuse")
+
+    def test_pecas_soltas_e_raio_grande(self):
+        import UsinixArredondar as A
+        barra, chapa = self._barra_e_chapa(folga=5.0)
+        n0 = len(self.doc.Objects)
+        with self.assertRaises(ValueError) as cm:
+            A.unir_e_arredondar([barra, chapa], 3.0)
+        self.assertIn("não se encostam", str(cm.exception))
+        self.assertEqual(len(self.doc.Objects), n0, "nada sobra no documento")
+        self.assertTrue(barra.Visibility and chapa.Visibility)
+        chapa.Placement.Base.z -= 5.0
+        self.doc.recompute()
+        with self.assertRaises(ValueError) as cm:
+            A.unir_e_arredondar([barra, chapa], 500.0)
+        self.assertIn("raio menor", str(cm.exception))
+        self.assertEqual(len(self.doc.Objects), n0)
+
+    def test_clique_em_arredondar_com_duas_pecas_abre_o_encontro(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixArredondar as A
+        barra, chapa = self._barra_e_chapa()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(barra, "Edge1")
+        self.assertFalse(A.desviar_para_juncao("PartDesign_Fillet"), "uma peça: Arredondar normal")
+        FreeCADGui.Selection.addSelection(chapa, "Edge1")
+        self.assertFalse(A.desviar_para_juncao("PartDesign_Chamfer"))
+        self.assertTrue(A.desviar_para_juncao("PartDesign_Fillet"))
+        FreeCADGui.updateGui()
+        import UsinixPainel
+        painel = UsinixPainel._ATIVO["painel"]
+        self.assertIsInstance(painel, A.PainelArredondar)
+        self.assertTrue(painel.juncao())
+        self.assertIsNone(painel.pendencia())
+        self.assertFalse(painel.tipo.isEnabled(), "no encontro não se escolhe o tipo de aresta")
+        self.assertIn("4 aresta", painel.contagem.text())
+        painel.raio.setValue(4.0)
+        objs = painel.executar()
+        self.assertTrue(objs[0].Shape.isValid())
+        self.assertIn("encontro", objs[0].Label)

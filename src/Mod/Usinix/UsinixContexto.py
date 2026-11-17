@@ -71,6 +71,9 @@ class CmdAcao:
         return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
+        import UsinixArredondar
+        if UsinixArredondar.desviar_para_juncao(self.cmd):
+            return
         if not _garantir_comando(self.cmd, self.bancada):
             FreeCAD.Console.PrintWarning("Usinix: comando %s indisponível\n" % self.cmd)
             return

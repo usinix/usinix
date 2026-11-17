@@ -904,7 +904,10 @@ class RibbonButton(QtWidgets.QToolButton):
         nome = self.nome_comando(a)
         rotulo = self._label.replace("\n", " ") if (self._label and len(self._actions) == 1) else None
         import UsinixAvisoClique as AV
-        if _pedir_selecao(nome):
+        import UsinixArredondar
+        if UsinixArredondar.desviar_para_juncao(nome):
+            pass
+        elif _pedir_selecao(nome):
             pass
         elif a is not None and a.isEnabled():
             AV.executar(nome, a.trigger, rotulo)
