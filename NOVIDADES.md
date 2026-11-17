@@ -15,6 +15,17 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.21.1 — 17/11/2026
+
+### Correções
+
+- **Arredondar o encontro entre duas peças:** dava para arredondar só arestas de uma peça, então não havia como pôr
+  um raio de concordância entre uma barra da estrutura e uma chapa apoiada nela. Agora, com arestas ou faces das duas
+  peças selecionadas, o **Arredondar** (na faixa ou no menu do botão direito) une as peças e arredonda só o encontro
+  entre elas. As peças originais ficam guardadas dentro da união. Também dá para escolher duas ou mais peças direto
+  no **Arredondamento automático**. Se as peças não se encostam ou o raio não cabe, o Usinix avisa e não deixa
+  nada pela metade.
+
 ## 1.21.0 — 16/11/2026
 
 ![Aba Peça reorganizada: Vínculo num botão, Recalcular no topo, grupo Dados da peça](.github/images/novidades/1.21.0.webp)

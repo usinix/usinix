@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.21.0** (16/11/2026): tudo passa a se chamar Usinix (arquivos, preferências e atalhos antigos
+**Versão atual: 1.21.1** (17/11/2026): o Arredondar passa a arredondar o encontro entre duas peças (uma barra da
+estrutura e uma chapa, por exemplo): une as peças e põe o raio de concordância só onde elas se tocam.
+
+Na 1.21.0: tudo passa a se chamar Usinix (arquivos, preferências e atalhos antigos
 continuam valendo); aba Peça sem ferramentas repetidas, com Recalcular na barra do topo e o grupo Dados da peça;
 os nomes das ferramentas voltam coluna a coluna ao alargar um grupo; a Paleta de vistas não deixa mais vistas fora
 do grupo nem some com elas ao clicar. Desta vez, atualize pelo pacote completo.
