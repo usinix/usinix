@@ -13277,7 +13277,8 @@ class T96BarraDeVistas(unittest.TestCase):
             barra.botoes["Std_ViewFront"].click()
             import time
             fim = time.time() + 3
-            while abs(abs(v.getCameraOrientation().Q[0]) - 0.7071) > 1e-3 and time.time() < fim:
+            # (tolerância menor que a da conferência: a animação da câmera ainda pode estar chegando)
+            while abs(abs(v.getCameraOrientation().Q[0]) - 0.7071) > 1e-4 and time.time() < fim:
                 QtWidgets.QApplication.processEvents()
                 time.sleep(0.02)
             r = v.getCameraOrientation()
@@ -19095,3 +19096,139 @@ class T148ArredondarEncontroDePecas(unittest.TestCase):
         objs = painel.executar()
         self.assertTrue(objs[0].Shape.isValid())
         self.assertIn("encontro", objs[0].Label)
+
+
+class T149AparenciaEfeitosETexturas(unittest.TestCase):
+    """1.22.0: "vamos fazer os dois agora. melhorando o aparencia..." — o pacote enxuto do ShowRoom na Aparência:
+    textura de material e brilho na peça, sombra no chão e realce de cantos no documento (desligados por
+    padrão), com o motor em UsinixCenaFX e o crédito ao ShowRoom."""
+
+    def setUp(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixCena
+        if not UsinixCena.disponivel():
+            self.skipTest("sem sombreadores nesta vista")
+        self.doc = novo_doc("UsinixTesteCena")
+        self.caixa = self.doc.addObject("Part::Box", "Caixa")
+        self.doc.recompute()
+        FreeCADGui.updateGui()
+
+    def tearDown(self):
+        if getattr(self, "doc", None) is not None:
+            fechar(self.doc)
+
+    def _esperar(self, s=0.5):
+        import time
+        t = time.time()
+        while time.time() - t < s:
+            FreeCADGui.updateGui()
+            time.sleep(0.02)
+
+    def _nos(self, doc):
+        """(tem sombra no chão, tem realce de cantos) na cena da primeira vista do documento."""
+        from UsinixCenaFX import ambient_occlusion, shadow_catcher, view_rig, view_utils
+        parts = view_utils.SceneParts(view_utils.views_of(doc)[0])
+        outer = view_rig._outer_parent(parts, view_rig._shadow_wrapper(parts))
+        return (view_utils.find_child(outer, shadow_catcher.ROOT_NAME) is not None,
+                view_utils.find_child(outer, ambient_occlusion.ROOT_NAME) is not None)
+
+    def test_efeitos_do_documento(self):
+        import UsinixCena as C
+        from UsinixCenaFX import config, view_rig
+        C.instalar()
+        self.assertEqual(C.estado(self.doc), {"sombra": False, "realce": False})
+        self.assertFalse(config.em_uso(self.doc), "documento sem efeito não é acompanhado")
+        view_rig._pending.clear()
+        self.doc.addObject("Part::Box", "Outra")
+        self.doc.recompute()
+        self.assertFalse(view_rig._pending, "criar peça num documento sem efeitos não agenda nada")
+        self.assertEqual(self._nos(self.doc), (False, False))
+        n = len(self.doc.Objects)
+        C.definir(self.doc, sombra=False)                   # desligar o que já está desligado não cria nada
+        self.assertEqual(len(self.doc.Objects), n)
+        self.assertEqual(C.definir(self.doc, sombra=True), {"sombra": True, "realce": False})
+        cfg = config.getSceneFolder(self.doc)
+        self.assertEqual(cfg.TypeId, "App::FeaturePython")
+        self.assertNotIn("Proxy", [p for p in cfg.PropertiesList if getattr(cfg, p, None) is not None],
+                         "sem classe Python: o arquivo abre em qualquer FreeCAD")
+        self.assertFalse(cfg.ViewObject.ShowInTree)
+        self._esperar(0.8)
+        self.assertEqual(self._nos(self.doc), (True, False))
+        C.definir(self.doc, realce=True)
+        self._esperar(0.8)
+        self.assertEqual(self._nos(self.doc), (True, True))
+        # gravado no arquivo: reabre com os efeitos
+        pasta = tempfile.mkdtemp()
+        try:
+            arq = os.path.join(pasta, "cena.FCStd")
+            self.doc.saveAs(arq)
+            fechar(self.doc)
+            self.doc = FreeCAD.openDocument(arq)
+            self._esperar(1.0)
+            self.assertEqual(C.estado(self.doc), {"sombra": True, "realce": True})
+            self.assertEqual(self._nos(self.doc), (True, True))
+        finally:
+            shutil.rmtree(pasta, ignore_errors=True)
+        C.definir(self.doc, sombra=False, realce=False)
+        self._esperar(0.8)
+        self.assertEqual(self._nos(self.doc), (False, False))
+
+    def test_textura_brilho_e_painel(self):
+        import UsinixCena as C
+        import UsinixInspetor as I
+        from UsinixCenaFX import textures, view_utils
+        for nome, arq in C.TEXTURAS:
+            self.assertTrue(os.path.isfile(os.path.join(C.PASTA_TEXTURAS, arq)), nome)
+        self.assertEqual(C.textura_de(self.caixa), "")
+        C.aplicar_textura(self.caixa, "Aço escovado")
+        self._esperar(0.5)
+        self.assertEqual(C.textura_de(self.caixa), "Aço escovado")
+        self.assertAlmostEqual(C.escala_de(self.caixa), C.ESCALA_MATERIAL)
+        self.assertIsNotNone(view_utils.find_child(self.caixa.ViewObject.RootNode, textures.NODE_NAME))
+        self.assertTrue(hasattr(self.caixa.ViewObject, "DiffuseColor"), "a vista da peça continua a do Part")
+        C.tirar_textura(self.caixa)
+        self._esperar(0.5)
+        self.assertEqual(C.textura_de(self.caixa), "")
+        self.assertNotIn("TextureImage", self.caixa.PropertiesList)
+        self.assertIsNone(view_utils.find_child(self.caixa.ViewObject.RootNode, textures.NODE_NAME))
+        with self.assertRaises(ValueError):
+            C.aplicar_textura(self.caixa, "Não existe")
+        # painel Aparência: Material (textura, tamanho, brilho) e Vista (sombra e realce)
+        ap = I.Aparencia()
+        ap.montar([self.caixa])
+        for k in ("Textura", "Brilho", "Efeito_sombra", "Efeito_realce"):
+            self.assertIn(k, ap.controles)
+        self.assertNotIn("TexturaEscala", ap.controles)
+        itens = [ap.controles["Textura"].itemText(i) for i in range(ap.controles["Textura"].count())]
+        self.assertEqual(itens, [I.SEM_TEXTURA] + [n for n, _a in C.TEXTURAS] + [C.OUTRA_IMAGEM])
+        ap._textura("Madeira")
+        self._esperar(0.3)
+        self.assertEqual(C.textura_de(self.caixa), "Madeira")
+        self.assertEqual(ap.controles["Textura"].currentText(), "Madeira")
+        self.assertIn("TexturaEscala", ap.controles)
+        ap._escala_textura(120.0)
+        self.assertAlmostEqual(C.escala_de(self.caixa), 120.0)
+        ap._textura(I.SEM_TEXTURA)
+        self._esperar(0.3)
+        self.assertEqual(C.textura_de(self.caixa), "")
+        cor = cor_do_teste(self.caixa)
+        ap._brilho(80)
+        self.assertEqual(C.brilho_de(self.caixa.ViewObject), 80)
+        self.assertEqual(cor_do_teste(self.caixa), cor, "o brilho não mexe na cor")
+        ap.controles["Efeito_sombra"].setChecked(True)
+        self.assertTrue(C.estado(self.doc)["sombra"])
+        ap.controles["Efeito_sombra"].setChecked(False)
+        self.assertFalse(C.estado(self.doc)["sombra"])
+        # sem nada selecionado, o cartão da Vista continua lá (vale para o documento)
+        ap.montar([])
+        self.assertIn("Efeito_realce", ap.controles)
+        # crédito e licença do motor
+        base = os.path.dirname(C.PASTA_TEXTURAS)
+        self.assertIn("ShowRoom", open(os.path.join(base, "__init__.py"), encoding="utf-8").read())
+        self.assertTrue(os.path.isfile(os.path.join(base, "LICENSE-ShowRoom")))
+
+
+def cor_do_teste(obj):
+    m = obj.ViewObject.ShapeAppearance[0]
+    return tuple(round(x, 3) for x in m.DiffuseColor[:3])

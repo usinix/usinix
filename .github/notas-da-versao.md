@@ -7,7 +7,7 @@
 | Linux (64 bits) | `Usinix_…-Linux-….AppImage` | Marque como executável (`chmod +x`) e abra. Em algumas distribuições é preciso instalar o pacote `libfuse2`. |
 | Já tem o Usinix 1.1 ou mais novo | `Usinix_…-complemento.zip` | Não precisa baixar à mão: em **Ajuda → Sobre → Verificar atualizações**, o Usinix baixa só este arquivo (poucos MB) e a versão nova vale ao abrir de novo. |
 
-Quem já tem a **1.21.0** pode atualizar só pelo complemento. Quem vem de uma versão anterior à 1.21.0 baixa o pacote
+Quem já tem a **1.21.0** ou mais nova pode atualizar só pelo complemento. Quem vem de uma versão anterior à 1.21.0 baixa o pacote
 completo (o Usinix oferece o certo em **Ajuda → Sobre → Verificar atualizações**).
 
 Cada arquivo tem um `-SHA256.txt` com o código de verificação.

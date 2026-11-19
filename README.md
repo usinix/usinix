@@ -35,8 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.21.1** (17/11/2026): o Arredondar passa a arredondar o encontro entre duas peças (uma barra da
-estrutura e uma chapa, por exemplo): une as peças e põe o raio de concordância só onde elas se tocam.
+**Versão atual: 1.22.0** (19/11/2026): a Aparência ganhou textura de material e brilho nas peças, e sombra no chão e
+realce de cantos na vista 3D.
+
+Na 1.21.1: o Arredondar passa a arredondar o encontro entre duas peças (uma barra da estrutura e uma chapa, por
+exemplo): une as peças e põe o raio de concordância só onde elas se tocam.
 
 Na 1.21.0: tudo passa a se chamar Usinix (arquivos, preferências e atalhos antigos
 continuam valendo); aba Peça sem ferramentas repetidas, com Recalcular na barra do topo e o grupo Dados da peça;
@@ -443,3 +446,7 @@ Créditos
 O Usinix existe graças ao trabalho de milhares de pessoas da comunidade do
 [FreeCAD](https://www.freecad.org), que desenvolvem e mantêm o programa. Se o FreeCAD é útil para
 você, considere [apoiar o projeto original](https://wiki.freecad.org/Donate).
+
+A sombra no chão, o realce de cantos e as texturas da Aparência usam o motor do
+[ShowRoom](https://github.com/oficinerobotica/ShowRoom), de OficineRobotica (LGPL-2.1 ou posterior), que nasceu do
+Display Tools (MIT). Os avisos de licença estão em `src/Mod/Usinix/UsinixCenaFX`.

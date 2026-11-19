@@ -627,6 +627,9 @@ def pintar(vo, rgb):
     return False
 
 
+SEM_TEXTURA = "Sem textura"
+
+
 class Aparencia(QtWidgets.QWidget):
     """Conteúdo da aba Aparência: vale para tudo o que estiver selecionado."""
 
@@ -692,6 +695,7 @@ class Aparencia(QtWidgets.QWidget):
             self.cab.setVisible(False)
             self.col.addWidget(UI.Dica("Selecione o que quer pintar, deixar transparente ou mudar o jeito de "
                                        "mostrar."))
+            self._cartao_vista()
             self.col.addStretch(1)
             return
         o = self.objs[0]
@@ -733,6 +737,8 @@ class Aparencia(QtWidgets.QWidget):
             hl.addStretch(1)
             c.widget(linha)
             self.col.addWidget(c)
+
+        self._cartao_material(vo, tem)
 
         if tem("Transparency"):
             c = UI.Cartao("Transparência", "olho")
@@ -782,6 +788,8 @@ class Aparencia(QtWidgets.QWidget):
         if not c.vazio():
             self.col.addWidget(c)
 
+        self._cartao_vista()
+
         av = QtWidgets.QToolButton()
         av.setObjectName("UsinixAvancado")
         av.setText("Avançado (antiga aba Vista)")
@@ -790,6 +798,139 @@ class Aparencia(QtWidgets.QWidget):
         av.clicked.connect(self._avancado)
         self.col.addWidget(av)
         self.col.addStretch(1)
+
+    # ---- material: textura e brilho (motor do ShowRoom, em UsinixCenaFX)
+    def _cartao_material(self, vo, tem):
+        import UsinixCena
+        if not (tem("ShapeAppearance") and any(hasattr(o, "Shape") for o in self.objs)):
+            return
+        c = UI.Cartao("Material", "aparencia")
+        o = self.objs[0]
+        atual = UsinixCena.textura_de(o)
+        nomes = [SEM_TEXTURA] + [n for n, _a in UsinixCena.TEXTURAS]
+        if atual and atual not in nomes:
+            nomes.append(atual)
+        nomes.append(UsinixCena.OUTRA_IMAGEM)
+        combo = QtWidgets.QComboBox()
+        combo.addItems(nomes)
+        combo.setCurrentText(atual or SEM_TEXTURA)
+        combo.setToolTip("Textura do material na vista 3D (fica guardada no documento). A cor da peça continua "
+                         "valendo nos desenhos.")
+        combo.activated.connect(lambda _i, cb=combo: self._textura(cb.currentText()))
+        c.linha("Textura", combo)
+        self.controles["Textura"] = combo
+        if atual:
+            esc = UI.CampoNumero() if hasattr(UI, "CampoNumero") else QtWidgets.QDoubleSpinBox()
+            esc.setRange(1.0, 100000.0)
+            esc.setDecimals(0)
+            esc.setSuffix(" mm")
+            esc.setValue(UsinixCena.escala_de(o) or 50.0)
+            esc.setToolTip("Tamanho de uma repetição da imagem.")
+            esc.editingFinished.connect(lambda e=esc: self._escala_textura(e.value()))
+            c.linha("Tamanho", esc)
+            self.controles["TexturaEscala"] = esc
+        b = UsinixCena.brilho_de(vo)
+        if b is not None:
+            s = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+            s.setObjectName("UsinixDeslizar")
+            s.setRange(0, 100)
+            s.setValue(b)
+            s.setToolTip("Brilho do material: fosco à esquerda, polido à direita.")
+            s.sliderReleased.connect(lambda ss=s: self._brilho(ss.value()))
+            s.valueChanged.connect(lambda x, ss=s: (not ss.isSliderDown()) and self._brilho(x))
+            c.linha("Brilho", s)
+            s.setMinimumWidth(150)
+            self.controles["Brilho"] = s
+        self.col.addWidget(c)
+
+    def _textura(self, nome):
+        import UsinixCena
+        if not self.objs:
+            return
+        caminho = nome
+        if nome == UsinixCena.OUTRA_IMAGEM:
+            caminho, _f = QtWidgets.QFileDialog.getOpenFileName(self, "Imagem da textura", "",
+                                                               "Imagens (*.png *.jpg *.jpeg *.bmp)")
+            if not caminho:
+                objs = list(self.objs)
+                QtCore.QTimer.singleShot(0, lambda: self.montar(objs))
+                return
+        doc = self.objs[0].Document
+        doc.openTransaction("Textura")
+        feitos = []
+        for o in self.objs:
+            try:
+                dono = UsinixCena.dono_da_textura(o)
+                if dono in feitos or not hasattr(o, "Shape"):
+                    continue
+                feitos.append(dono)
+                if nome == SEM_TEXTURA:
+                    UsinixCena.tirar_textura(o)
+                else:
+                    UsinixCena.aplicar_textura(o, caminho)
+            except Exception as exc:
+                FreeCAD.Console.PrintWarning("Usinix: textura: {}\n".format(exc))
+        doc.commitTransaction()
+        objs = list(self.objs)
+        QtCore.QTimer.singleShot(0, lambda: self.montar(objs))
+
+    def _escala_textura(self, valor):
+        import UsinixCena
+        if not self.objs:
+            return
+        doc = self.objs[0].Document
+        doc.openTransaction("Tamanho da textura")
+        for o in self.objs:
+            try:
+                UsinixCena.definir_escala(o, valor)
+            except Exception as exc:
+                FreeCAD.Console.PrintWarning("Usinix: textura: {}\n".format(exc))
+        doc.commitTransaction()
+
+    def _brilho(self, pct):
+        import UsinixCena
+        doc = self.objs[0].Document if self.objs else None
+        if doc is None:
+            return
+        doc.openTransaction("Brilho")
+        for vo in self._vos():
+            try:
+                if "ShapeAppearance" in vo.PropertiesList:
+                    UsinixCena.definir_brilho(vo, pct)
+            except Exception as exc:
+                FreeCAD.Console.PrintWarning("Usinix: brilho: {}\n".format(exc))
+        doc.commitTransaction()
+
+    # ---- vista: sombra no chão e realce de cantos, do documento inteiro
+    def _cartao_vista(self):
+        import UsinixCena
+        doc = FreeCAD.ActiveDocument
+        if doc is None or not UsinixCena.disponivel():
+            return
+        c = UI.Cartao("Vista (documento inteiro)", "exibicao_arestas")
+        est = UsinixCena.estado(doc)
+        for chave, rotulo, dica in (
+                ("sombra", "Sombra no chão", "Sombra suave do modelo num chão invisível, no ponto mais baixo."),
+                ("realce", "Realce de cantos", "Escurece cantos, furos e encostos: a forma fica mais fácil de ler. "
+                                               "Pesa na vista em montagens grandes.")):
+            sw = UI.Interruptor(est[chave], dica=dica)
+            sw.toggled.connect(lambda on, k=chave: self._efeito(k, bool(on)))
+            c.linha(rotulo, sw)
+            self.controles["Efeito_" + chave] = sw
+        self.col.addWidget(c)
+
+    def _efeito(self, chave, ligado):
+        import UsinixCena
+        doc = FreeCAD.ActiveDocument
+        if doc is None:
+            return
+        doc.openTransaction("Efeitos da vista")
+        try:
+            UsinixCena.definir(doc, **{chave: ligado})
+            doc.commitTransaction()
+        except Exception as exc:
+            doc.abortTransaction()
+            FreeCAD.Console.PrintWarning("Usinix: efeitos da vista: {}\n".format(exc))
 
     def _amostra(self, nome, hexcor, atual):
         b = QtWidgets.QToolButton()

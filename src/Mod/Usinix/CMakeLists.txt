@@ -7,9 +7,11 @@ file(GLOB Usinix_SRCS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS "
 list(APPEND Usinix_SRCS package.xml LICENSE LEIA-ME.md)
 SOURCE_GROUP("" FILES ${Usinix_SRCS})
 
+# UsinixCenaFX: efeitos da vista e texturas (motor do ShowRoom, LGPL-2.1-or-later; ver o __init__.py dele)
 set(Usinix_DIRS
     Resources
     translations
+    UsinixCenaFX
 )
 
 ADD_CUSTOM_TARGET(Usinix ALL

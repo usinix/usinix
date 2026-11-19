@@ -15,6 +15,23 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.22.0 — 19/11/2026
+
+![Estrutura soldada antes e depois: textura de aço escovado, sombra no chão e realce de cantos, com o painel Aparência](.github/images/novidades/1.22.0.webp)
+
+### Novidades
+
+- **Aparência com material e efeitos de vista.** O painel Aparência ganhou dois cartões:
+  - **Material:** textura na peça (aço escovado, concreto, madeira, fibra de carbono, plástico texturizado ou uma
+    imagem sua), com o tamanho da repetição, e o **brilho** do material, de fosco a polido. A textura fica guardada
+    dentro do arquivo e vale só na vista 3D: a cor da peça continua a mesma nos desenhos.
+  - **Vista (documento inteiro):** **Sombra no chão**, a sombra suave do modelo num chão invisível, e **Realce de
+    cantos**, que escurece cantos, furos e encostos e deixa a forma mais fácil de ler. Os dois vêm desligados e
+    ficam gravados em cada arquivo. O realce pesa na vista em montagens grandes; a imagem salva pelo programa
+    sai sem os efeitos (para registrá-los, use a captura de tela).
+- Os efeitos e as texturas usam o motor do complemento [ShowRoom](https://github.com/oficinerobotica/ShowRoom),
+  de OficineRobotica (LGPL-2.1), incorporado com o crédito.
+
 ## 1.21.1 — 17/11/2026
 
 ### Correções

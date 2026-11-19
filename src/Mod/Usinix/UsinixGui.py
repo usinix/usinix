@@ -1072,6 +1072,11 @@ def _start_ribbon():
 
 def _start_ferramentas():
     """Menu de contexto pela seleção e duplo clique para as cotas da operação."""
+    try:
+        import UsinixCena
+        UsinixCena.instalar()        # texturas e efeitos gravados nos arquivos aparecem ao abrir
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: efeitos da vista: {}\n".format(exc))
     for modulo in ("UsinixContexto", "UsinixCotas", "UsinixGrade", "UsinixAnotacao"):
         try:
             __import__(modulo).install()
