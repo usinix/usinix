@@ -507,8 +507,11 @@ def _comando(ds, no_inicio):
         atual = aba_atual()
         if atual in (ARVORE, PROPRIEDADES, APARENCIA) and not _saida_do_comando():
             _estado["antes"] = atual
-    if not ativa and not no_inicio and tar.isVisible() and not tar.isFloating():
-        tar.hide()        # sem comando não há aba de comando (nem a que o FreeCAD deixa aberta ao montar)
+    if not ativa and tar.isVisible():
+        # sem comando não há painel de comando: nem a aba que o FreeCAD deixa aberta ao montar, nem o painel
+        # que ele reabre sozinho com a tela inicial na frente (ao terminar de carregar a bancada, às vezes
+        # depois de muitos segundos), nem um painel solto vazio
+        tar.hide()
     if ativa == _estado["ativa"]:
         return
     if no_inicio:

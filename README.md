@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.22.0** (19/11/2026): a Aparência ganhou textura de material e brilho nas peças, e sombra no chão e
+**Versão atual: 1.22.1** (20/11/2026): o painel "Comando" não aparece mais vazio ao abrir o programa; ele só
+aparece com um comando aberto.
+
+Na 1.22.0 (19/11/2026): a Aparência ganhou textura de material e brilho nas peças, e sombra no chão e
 realce de cantos na vista 3D.
 
 Na 1.21.1: o Arredondar passa a arredondar o encontro entre duas peças (uma barra da estrutura e uma chapa, por

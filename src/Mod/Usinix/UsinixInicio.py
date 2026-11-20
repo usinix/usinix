@@ -543,8 +543,13 @@ def _on_subwindow(sub):
         if newly:
             _set_hidden_names(hidden + newly)
     elif hidden:
+        try:
+            comando = bool(FreeCADGui.Control.activeDialog())
+        except Exception:
+            comando = False
         for d in docks:
-            if d.objectName() in hidden:
+            # o painel de tarefas só volta com um comando aberto: vazio, ele aparecia sozinho como "Comando"
+            if d.objectName() in hidden and (d.objectName() != "Tasks" or comando):
                 d.show()
         _set_hidden_names([])
 

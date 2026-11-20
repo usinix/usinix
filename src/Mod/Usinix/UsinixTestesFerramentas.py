@@ -7540,6 +7540,48 @@ class T55PainelLateral(unittest.TestCase):
         self.assertNotIn(sk.Label, abas)
         self.assertEqual(self._atual(), "Propriedades", "não voltou para a aba de antes")
 
+    def test_comando_vazio_nunca_aparece(self):
+        """O painel de comando sem comando aberto não aparece: nem com a tela inicial na frente (o FreeCAD o
+        reabre ao terminar de carregar a bancada, às vezes depois de muitos segundos), nem solto, nem quando a
+        tela inicial sai da frente e devolve os painéis que tinha escondido."""
+        import UsinixInicio as I
+        from PySide import QtCore
+        self._assentar()
+        tar = self.P.docks().get(self.P.TAREFA)
+        self.assertIsNotNone(tar)
+        self.assertFalse(FreeCADGui.Control.activeDialog())
+        mw = FreeCADGui.getMainWindow()
+        # 1) com a tela inicial na frente, passado o tempo de restauração do arranjo
+        tar.show()
+        self.P.organizar(no_inicio=True)
+        self.assertFalse(tar.isVisible(), "o painel de comando vazio ficou à vista com a tela inicial na frente")
+        # 2) solto
+        tar.setFloating(True)
+        tar.show()
+        self.P.organizar()
+        self.assertFalse(tar.isVisible(), "o painel de comando vazio ficou à vista solto")
+        tar.setFloating(False)
+        mw.addDockWidget(QtCore.Qt.LeftDockWidgetArea, tar)
+        # 3) a tela inicial sai da frente e devolve o que escondeu: Tarefas só volta com comando aberto
+        antes = I._hidden_names()
+        try:
+            I._side["no_inicio"] = False
+            I._set_hidden_names(["Tasks", "Tree view"])
+            I._on_subwindow(None)
+            self.assertFalse(tar.isVisible())
+            self.assertTrue(self.P.docks()[self.P.ARVORE].isVisible())
+        finally:
+            I._set_hidden_names(antes)
+        # com comando aberto a aba volta normalmente
+        sk = self.doc.addObject("Sketcher::SketchObject", "Esboco")
+        self.doc.recompute()
+        FreeCADGui.ActiveDocument.setEdit(sk.Name)
+        self._assentar()
+        self.assertTrue(tar.isVisible())
+        FreeCADGui.ActiveDocument.resetEdit()
+        self._assentar()
+        self.assertFalse(tar.isVisible())
+
     def test_abas_compactas_quando_falta_espaco(self):
         from PySide import QtWidgets
         self._assentar()

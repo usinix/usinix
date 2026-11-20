@@ -15,6 +15,15 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.22.1 — 20/11/2026
+
+### Correções
+
+- **Painel "Comando" vazio ao abrir o programa:** em alguns computadores, com a tela inicial na frente, o painel de
+  comando aparecia sozinho à esquerda, vazio. Isso acontecia quando o programa demorava a terminar de carregar e
+  reabria o painel depois que a tela inicial já tinha escondido os painéis. Agora o painel de comando só aparece com
+  um comando aberto (um esboço, uma extrusão, um assistente) e some quando ele termina.
+
 ## 1.22.0 — 19/11/2026
 
 ![Estrutura soldada antes e depois: textura de aço escovado, sombra no chão e realce de cantos, com o painel Aparência](.github/images/novidades/1.22.0.webp)
