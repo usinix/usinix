@@ -952,6 +952,7 @@ def register_commands():
                              ("UsinixAnaliseVista", lambda m: FreeCADGui.addCommand("Usinix_AnaliseEstrutura",
                                                                                   m.CmdAnaliseEstrutura())),
                              ("UsinixFEMBancada", lambda m: m.registrar_comandos()),
+                             ("UsinixValidacao", lambda m: m.registrar_comandos()),
                              ("UsinixRegua", lambda m: (
                                  FreeCADGui.addCommand("Usinix_ReguaHistorico", m.CmdRegua()),
                                  FreeCADGui.getMainWindow().workbenchActivated.connect(m.ao_trocar_bancada),

@@ -404,7 +404,7 @@ TABS = [
                       ("Usinix_TutorialEstrutura", L, "Tutorial\nestrutura"),
                       ("Usinix_GuiaMigracao", L, "Vindo do\nSolidWorks")]),
         ("Inteligência artificial", [("Usinix_ConectarIA", L, "Conectar\nIA")]),
-        ("Qualidade", [("Usinix_Testes", L, "Testes\nautomáticos")]),
+        ("Qualidade", [("Usinix_Testes", L, "Testes\nautomáticos"), ("Usinix_Validacao", L, "Validação\ndo cálculo")]),
     ]},
 ]
 

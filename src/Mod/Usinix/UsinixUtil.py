@@ -87,6 +87,18 @@ GRUPOS_AUXILIARES = ("DadosDasFolhas", "Interferencias")
 _TIPOS_FORA = ("App::Origin", "Spreadsheet::Sheet", "App::TextDocument")
 
 
+def rotulo_unico(doc, base):
+    """Rótulo livre no documento sem mexer no texto: "M10 × 35", depois "M10 × 35 (2)", "(3)"...
+    O FreeCAD, sozinho, troca o número do fim ("M10 × 35" vira "M10 × 001"), o que muda a medida."""
+    usados = {o.Label for o in doc.Objects}
+    if base not in usados:
+        return base
+    n = 2
+    while "%s (%d)" % (base, n) in usados:
+        n += 1
+    return "%s (%d)" % (base, n)
+
+
 def auxiliar(obj):
     """Objeto que não é peça: grupos de apoio (e o que está neles), folhas, simulação, planilhas e textos."""
     try:

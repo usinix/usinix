@@ -262,6 +262,14 @@ def escrever_dxf(caminho, contorno, dobras=(), furos=(), textos=()):
     return caminho
 
 
+def _nota_piso(obj, com_furos=False):
+    try:
+        import UsinixPiso
+        return UsinixPiso.nota_dxf(obj, com_furos)
+    except Exception:
+        return None
+
+
 def exportar_dxf(obj, caminho=None, material=None, face=None, texto=None):
     """Planifica a chapa e grava o DXF (contorno, furos, dobras e, se dado, o texto de identificação).
     Retorna (caminho, face plana, info)."""
@@ -278,10 +286,13 @@ def exportar_dxf(obj, caminho=None, material=None, face=None, texto=None):
         caminho = os.path.join(pasta, "%s_planificada.dxf" % obj.Label.replace(" ", "_"))
     externas, internas = separar_furos(plana)
     textos = []
+    bb = plana.BoundBox
+    alt = max(2.5, min(10.0, bb.YLength * 0.06))
     if texto:
-        bb = plana.BoundBox
-        alt = max(2.5, min(10.0, bb.YLength * 0.06))
         textos = [(bb.XMin, bb.YMin - 2.0 * alt, alt, texto)]
+    nota = _nota_piso(obj, bool(internas))
+    if nota:
+        textos.append((bb.XMin, bb.YMin - (2.0 + 1.6 * len(textos)) * alt, alt, nota))
     escrever_dxf(caminho, externas, linhas, internas, textos)
     t, r = espessura_raio(obj)
     info = {"material": material, "largura": plana.BoundBox.XLength, "altura": plana.BoundBox.YLength,

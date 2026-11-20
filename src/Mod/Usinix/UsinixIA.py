@@ -570,6 +570,33 @@ def f_folhas_barras(estrutura, formato="A3"):
                        for p, b, q in feitas]}
 
 
+@ferramenta("fixador", "Parafuso, porca ou arruela num furo existente, como o painel Peças padronizadas: o "
+            "fixador vai para o furo, apoiado na face, com o corpo entrando no material. peca e aresta: o objeto e "
+            "a aresta circular do furo (ex.: Edge12); tipo: sextavado, allen, porca ou arruela; rosca: M8, M10... "
+            "(sem rosca, a maior que passa no furo; em furo roscado, informe a rosca); comprimento em mm.",
+            {"peca": {"type": "string"}, "aresta": {"type": "string"},
+             "tipo": {"type": "string", "enum": ["sextavado", "allen", "porca", "arruela"]},
+             "rosca": {"type": "string"}, "comprimento": {"type": "number"},
+             "material": {"type": "string", "description": "classe e acabamento, ex.: aço classe 8.8, zincado"}},
+            ["peca", "aresta", "tipo"])
+def f_fixador(peca, aresta, tipo, rosca=None, comprimento=0.0, material=""):
+    import UsinixFixadores as F
+    doc = _doc()
+    o = _obj(doc, peca)
+    pl, diam = F.posicao_no_furo(o, aresta)
+    if pl is None:
+        raise ValueError("a aresta %s de %s não é a borda circular de um furo" % (aresta, o.Label))
+    m = rosca or F.diametro_para_furo(diam)
+    if m not in F.diametros(tipo):
+        raise ValueError("rosca %s não existe para %s; opções: %s" % (m, F.TIPOS[tipo], ", ".join(F.diametros(tipo))))
+    if F.tem_comprimento(tipo) and not comprimento:
+        raise ValueError("informe o comprimento do parafuso (mm)")
+    f = F.criar(doc, tipo, m, float(comprimento or 0.0), pl, material or "")
+    return {"objeto": f.Name, "rotulo": f.Label, "denominacao": f.Denominacao,
+            "furo_mm": round(float(diam or 0.0), 2),
+            "posicao_mm": [round(c, 2) for c in (f.Placement.Base.x, f.Placement.Base.y, f.Placement.Base.z)]}
+
+
 # a folha feita pela IA não sai como verificada nem aprovada: esses campos ficam para quem revisar
 SEM_REVISAO = {"verificado": "", "aprovado": ""}
 
@@ -680,6 +707,23 @@ def f_python(codigo):
         return {"resultado": repr(r)}
 
 
+def _refazer_formas(doc):
+    """Depois de desfazer uma ferramenta que falhou: as propriedades voltam, mas a forma calculada no meio
+    do erro pode ter ficado (peça "corrompida"). Marca e recalcula o que ficou inválido ou pendente."""
+    try:
+        sujos = [o for o in doc.Objects
+                 if "Invalid" in (o.State or []) or "Touched" in (o.State or []) or o.isError()]
+        for o in sujos:
+            try:
+                o.touch()
+            except Exception:
+                pass
+        if sujos:
+            doc.recompute()
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix IA: recálculo depois do desfazer: %s\n" % exc)
+
+
 def executar(nome, argumentos):
     """Roda a ferramenta (na linha da interface), numa transação quando muda o documento."""
     t = FERRAMENTAS.get(nome)
@@ -687,15 +731,21 @@ def executar(nome, argumentos):
         raise ValueError("ferramenta desconhecida: %s" % nome)
     argumentos = dict(argumentos or {})
     doc = FreeCAD.ActiveDocument if t["muda"] else None
+    nome_doc = doc.Name if doc is not None else None
     if doc is not None:
         doc.openTransaction("IA: %s" % nome)
+
+    def aberto():
+        # a ferramenta pode ter fechado o documento (executar_python com closeDocument)
+        return nome_doc is not None and nome_doc in FreeCAD.listDocuments()
     try:
         r = t["funcao"](**argumentos)
     except Exception:
-        if doc is not None:
+        if aberto():
             doc.abortTransaction()
+            _refazer_formas(doc)
         raise
-    if doc is not None:
+    if aberto():
         doc.commitTransaction()
     _estado["chamadas"] += 1
     _estado["ultima"] = nome

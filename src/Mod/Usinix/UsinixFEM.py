@@ -577,7 +577,17 @@ def avaliar(est):
     if not res:
         r["resultado"] = (VAZIO, "Aparece depois do cálculo", [])
     else:
-        r["resultado"] = (OK, resumo_resultado(est), [])
+        msgs = []
+        conv = avaliar_convergencia(linhas_convergencia(est)) if tipo == "static" else None
+        if conv is not None and not conv[0] and conv[2] is not None:
+            # deslocamento converge cedo; a tensão de pico num canto vivo ou no engaste não converge
+            # (singularidade): o FS pela tensão máxima depende da malha
+            msgs.append((AVISO, "A tensão máxima não convergiu (variou {} entre as duas malhas mais finas; o "
+                         "limite é {} %). Ela está provavelmente num canto vivo ou na borda da fixação, onde a "
+                         "tensão cresce a cada refino: leia a tensão um pouco longe do apoio (Detalhe ou "
+                         "zona de interesse) antes de usar o fator de segurança.".format(
+                             fmt(conv[2], 1, "%"), fmt(LIMITE_CONVERGENCIA, 0))))
+        r["resultado"] = (AVISO if msgs else OK, resumo_resultado(est), msgs)
     # 8 relatório
     r["relatorio"] = (OK if est.get("UsinixRelatorioPDF") else VAZIO,
                       os.path.basename(est.get("UsinixRelatorioPDF")) if est.get("UsinixRelatorioPDF")

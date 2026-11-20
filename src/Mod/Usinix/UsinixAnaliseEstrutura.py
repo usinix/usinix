@@ -68,6 +68,58 @@ LIMITES_FLECHA = {"Cobertura (L/250)": 250.0, "Piso (L/350)": 350.0}
 LIMITE_PILAR = 300.0      # deslocamento horizontal relativo das pontas do pilar: H/300
 
 
+# Limites de bom senso para avisar carga digitada em N no lugar de kN (só avisa; não muda o cálculo)
+LIMITE_CARGA_KN = 500.0          # carga em nó ou pontual (kN)
+LIMITE_CARGA_KNM = 100.0         # carga distribuída (kN/m)
+
+
+def normalizar_carga(carga):
+    """Cópia da carga com os nomes internos. Unidades: pontual e em nó em kN, distribuída em kN/m
+    ("valor_kN"/"valor2_kN" são aceitos como sinônimos de "valor"/"valor2"). A barra pode vir como
+    "barra" (numeração da tela, a partir de 1) ou "linha" (índice interno, a partir de 0)."""
+    c = dict(carga)
+    for alias, nome in (("valor_kN", "valor"), ("valor2_kN", "valor2"), ("valor_kNm", "valor"),
+                        ("valor2_kNm", "valor2")):
+        if alias in c:
+            c[nome] = c.pop(alias)
+    if "barra" in c and "linha" not in c:
+        try:
+            c["linha"] = int(c.pop("barra")) - 1
+        except (TypeError, ValueError):
+            pass
+    if "linha" in c and "alvo" not in c:
+        c["alvo"] = "barra"
+    return c
+
+
+def normalizar_casos(casos):
+    res = []
+    for c in casos or []:
+        c2 = dict(c)
+        c2["cargas"] = [normalizar_carga(x) for x in c.get("cargas", [])]
+        res.append(c2)
+    return res
+
+
+def cargas_suspeitas(casos):
+    """Textos de aviso para cargas acima do bom senso (provável valor em N no lugar de kN)."""
+    res = []
+    for c in normalizar_casos(casos):
+        for carga in c.get("cargas", []):
+            try:
+                v = max(abs(float(carga.get("valor", 0.0))), abs(float(carga.get("valor2", 0.0) or 0.0)))
+            except (TypeError, ValueError):
+                continue
+            dist = carga.get("alvo") == "barra" and carga.get("tipo") in ("distribuida", "trapezoidal")
+            lim, un = (LIMITE_CARGA_KNM, "kN/m") if dist else (LIMITE_CARGA_KN, "kN")
+            if v > lim:
+                onde = ("barra %d" % (int(carga["linha"]) + 1)) if carga.get("alvo") == "barra" else "nó"
+                res.append("carga de %s %s no caso \"%s\" (%s) parece alta: as cargas são em kN (pontual e "
+                           "em nó) e kN/m (distribuída), não em N. Confira o valor"
+                           % (("%.0f" % v).replace(".", ","), un, c.get("nome", ""), onde))
+    return res
+
+
 def caso_padrao():
     return {"nome": "Peso próprio", "tipo": TIPO_PESO, "peso_proprio": True, "cargas": []}
 
@@ -165,7 +217,11 @@ def combinacoes(casos):
 def montar_modelo(est, casos, apoios, liberacoes=None):
     """(Modelo, [Caso do UsinixPortico], mapa) a partir da estrutura e dos dados da análise.
 
-    mapa: {"barras": {índice da linha: [(índice do elemento, x inicial mm)]}, "nos": {chave: nó}}."""
+    mapa: {"barras": {índice da linha: [(índice do elemento, x inicial mm)]}, "nos": {chave: nó}}.
+
+    Cargas: pontual e em nó em kN, distribuída em kN/m, posições em mm; barra por "linha" (a partir de 0)
+    ou "barra" (numeração da tela, a partir de 1) — ver normalizar_carga."""
+    casos = normalizar_casos(casos)
     import numpy as np
     import UsinixEstrutura as E
     import UsinixPortico as PT
@@ -362,6 +418,7 @@ def frequencias(calc, casos, n=6):
     permanentes verticais (distribuídas nas barras e nos nós, convertidas em massa)."""
     import numpy as np
     import UsinixPortico as PT
+    casos = normalizar_casos(casos)
     m = calc.modelo
     extra = {}
     g = 9806.65                               # mm/s²
@@ -486,6 +543,7 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
     import UsinixNBR8800 as N
     calc = Calculo()
     calc.material = (nome_material, fy, fu)
+    casos = normalizar_casos(casos)
     m, lista, mapa = montar_modelo(est, casos, apoios, liberacoes)
     calc.modelo, calc.mapa = m, mapa
     calc.combinacoes = combinacoes(casos)
@@ -529,6 +587,20 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
                           "(vertical)\" na outra: eles seguram o giro da viga no próprio eixo e o deslocamento de lado")
         calc.resultados = {}
         return calc
+    for txt in cargas_suspeitas(casos):
+        calc.avisos.append("ATENÇÃO: " + txt + ".")
+    try:
+        import UsinixEstrutura as E
+        novas = E.linhas_sem_barra_desenhada(est)
+    except Exception:
+        novas = []
+    if novas:
+        calc.avisos.append("ATENÇÃO: o esqueleto mudou e a estrutura não foi atualizada: %s sem barra no modelo "
+                           "(calculada%s com o perfil padrão da estrutura). Use \"Atualizar estrutura\" para criar "
+                           "as barras e conferir os perfis"
+                           % ((("a linha %d" % (novas[0] + 1)) if len(novas) == 1 else
+                               ("as linhas " + ", ".join(str(i + 1) for i in novas))),
+                              "" if len(novas) == 1 else "s"))
     if nome_material.startswith("ASTM A36 (padrão: material não informado"):
         calc.avisos.append("Material não informado: verificado como ASTM A36 (fy 250 MPa, fu 400 MPa). "
                            "Confira o aço real das barras.")
@@ -767,8 +839,10 @@ class Analise:
         add("App::PropertyString", "Material", "Análise", "Material do aço (vazio = o da estrutura)", "")
         add("App::PropertyStringList", "Apoios", "Análise", "Apoios: 'x;y;z=Tipo' (mm)", [])
         add("App::PropertyStringList", "Liberacoes", "Análise", "Rótulas nas pontas das barras: 'linha=Tipo' "
-            "(linha a partir de 0)", [])
-        add("App::PropertyStringList", "Casos", "Análise", "Casos de carga (JSON)",
+            "(linha a partir de 0: linha 0 = barra 1 da tela) ou 'B5=Tipo' (barra 5 da tela)", [])
+        add("App::PropertyStringList", "Casos", "Análise", "Casos de carga (JSON). Cargas: pontual e em nó em kN, "
+            "distribuída em kN/m, posições em mm; barra por 'linha' (a partir de 0) ou 'barra' (como na tela, "
+            "a partir de 1)",
             [json.dumps(caso_padrao(), ensure_ascii=False)])
         if "LimiteFlecha" not in obj.PropertiesList:
             obj.addProperty("App::PropertyEnumeration", "LimiteFlecha", "Análise", "Limite de flecha das vigas")
@@ -822,8 +896,12 @@ class Analise:
         for linha in getattr(obj, "Liberacoes", []) or []:
             k, _s, tipo = linha.partition("=")
             if tipo in LIBERACOES:
+                k = k.strip()
                 try:
-                    res[int(k)] = tipo
+                    if k[:1] in ("B", "b"):
+                        res[int(k[1:].strip()) - 1] = tipo      # numeração da tela (a partir de 1)
+                    else:
+                        res[int(k)] = tipo
                 except ValueError:
                     pass
         return res

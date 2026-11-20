@@ -328,6 +328,7 @@ ARRANJOS = {
     "3vistas_iso": ("Frontal, superior, lateral e isométrica", ("Front", "Top", "Left"), True),
     "frontal_lateral_iso": ("Frontal, lateral e isométrica", ("Front", "Left"), True),
     "frontal_superior": ("Frontal e superior", ("Front", "Top"), False),
+    "frontal_lateral": ("Frontal e lateral", ("Front", "Left"), False),
     "frontal_iso": ("Frontal e isométrica", ("Front",), True),
     "so_iso": ("Só a isométrica", (), True),
 }
@@ -378,17 +379,36 @@ def _medidas_arranjo(bb, projecoes=("Front", "Top", "Left"), iso=True):
     return larg, alt, iw, ih, col, lin
 
 
+def _cabe_ao_lado(bb, e, larg_util, alt_util, projecoes, iso):
+    """Arranjo normal: a isométrica à direita do grupo de projeção."""
+    larg, alt, iw, ih, col, lin = _medidas_arranjo(bb, projecoes, iso)
+    # 1º diedro: frontal (X×Z) + laterais (Y×Z) lado a lado; superior/inferior (X×Y) embaixo/em cima
+    L = (larg + iw) * e + max(col - 1, 0) * ESPACO_VISTAS + (ESPACO_VISTAS if iso and larg else 0)
+    A = max(alt * e + max(lin - 1, 0) * ESPACO_VISTAS, ih * e)
+    return L <= larg_util and A <= alt_util
+
+
+def _cabe_no_canto(bb, e, larg_util, alt_util, projecoes, iso):
+    """Frontal, superior e lateral com a isométrica no canto vazio (embaixo da lateral, ao lado da
+    superior), como se faz à mão no A4 em pé."""
+    if not iso or set(projecoes) != {"Front", "Top", "Left"}:
+        return False
+    larg, alt, iw, ih, _col, _lin = _medidas_arranjo(bb, projecoes, iso)
+    gl = larg * e + ESPACO_VISTAS                       # frontal + lateral
+    ga = alt * e + ESPACO_VISTAS                        # frontal + superior
+    sobra_l = larg_util - bb.XLength * e - ESPACO_VISTAS  # à direita da superior
+    sobra_a = alt_util - bb.ZLength * e - ESPACO_VISTAS   # embaixo da lateral
+    return gl <= larg_util and ga <= alt_util and iw * e <= sobra_l and ih * e <= sobra_a
+
+
 def escala_que_cabe(objs, larg_util, alt_util, projecoes=("Front", "Top", "Left"), iso=True):
-    """Maior escala normalizada em que as vistas do arranjo cabem lado a lado."""
+    """Maior escala normalizada em que as vistas do arranjo cabem (isométrica ao lado ou no canto vazio)."""
     bb = _caixa(objs)
     if bb is None:
         return 1.0
-    larg, alt, iw, ih, col, lin = _medidas_arranjo(bb, projecoes, iso)
     for e in ESCALAS_NORMAIS:
-        # 1º diedro: frontal (X×Z) + laterais (Y×Z) lado a lado; superior/inferior (X×Y) embaixo/em cima
-        L = (larg + iw) * e + max(col - 1, 0) * ESPACO_VISTAS + (ESPACO_VISTAS if iso and larg else 0)
-        A = max(alt * e + max(lin - 1, 0) * ESPACO_VISTAS, ih * e)
-        if L <= larg_util and A <= alt_util:
+        if _cabe_ao_lado(bb, e, larg_util, alt_util, projecoes, iso) or \
+                _cabe_no_canto(bb, e, larg_util, alt_util, projecoes, iso):
             return e
     return ESCALAS_NORMAIS[-1]
 
@@ -410,6 +430,8 @@ def posicionar(page, fontes, grupo=None, iso=None, escala=None):
     e = escala or escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, com_iso)
     page.Scale = e
     bb = _caixa(fontes)
+    canto = bool(bb is not None and com_iso and not _cabe_ao_lado(bb, e, larg - 30, alt - 20 - 60, projecoes, com_iso)
+                 and _cabe_no_canto(bb, e, larg - 30, alt - 20 - 60, projecoes, com_iso))
     topo = 28.0                               # do alto da folha até o alto das vistas
     direita_grupo = 20.0
     if grupo is not None:
@@ -417,6 +439,8 @@ def posicionar(page, fontes, grupo=None, iso=None, escala=None):
             lg, _ag, iw, _ih, col, _lin = _medidas_arranjo(bb, projecoes, com_iso)
             fx, fy, fz = bb.XLength * e, bb.YLength * e, bb.ZLength * e
             total = (lg + iw) * e + max(col - 1, 0) * ESPACO_VISTAS + (ESPACO_VISTAS if com_iso else 0)
+            if canto:                 # a isométrica não ocupa largura ao lado: o grupo usa a folha toda
+                total = max(lg * e + ESPACO_VISTAS, bb.XLength * e + ESPACO_VISTAS + iw * e)
             x0 = 20.0 + max(10.0, ((larg - 30.0) - total) / 2.0)
             # 1º diedro: a lateral direita fica à esquerda da frontal; a posterior, na ponta
             esq = 0.0
@@ -432,6 +456,8 @@ def posicionar(page, fontes, grupo=None, iso=None, escala=None):
             topo_grupo = (y_min + y_max) / 2.0 + altura / 2.0
             if topo_grupo > y_max or topo_grupo - altura < y_min:
                 topo_grupo = alt - topo
+            if canto:                 # no alto, para a isométrica caber embaixo da lateral
+                topo_grupo = y_max
             grupo.Y = topo_grupo - acima - fz / 2.0
             direita_grupo = x0 + (lg * e) + max(col - (2 if com_iso else 1), 0) * ESPACO_VISTAS
         else:
@@ -445,6 +471,16 @@ def posicionar(page, fontes, grupo=None, iso=None, escala=None):
             if grupo is None:          # só a isométrica: no meio da área útil, acima da legenda
                 iso.X = 20.0 + (larg - 30.0) / 2.0
                 iso.Y = 70.0 + (alt - 80.0) / 2.0
+            elif grupo is not None and canto:
+                # no canto vazio: à direita da superior, embaixo da lateral
+                gx = float(getattr(grupo.X, "Value", grupo.X))
+                gy = float(getattr(grupo.Y, "Value", grupo.Y))
+                x_esq = gx + bb.XLength * e / 2.0 + ESPACO_VISTAS
+                x_dir = larg - 10.0
+                y_cima = gy - bb.ZLength * e / 2.0 - ESPACO_VISTAS
+                y_baixo = _faixa_vertical(page, alt)[0]
+                iso.X = max(x_esq + iw / 2.0, min((x_esq + x_dir) / 2.0, x_dir - iw / 2.0))
+                iso.Y = min(y_cima - ih / 2.0, max((y_cima + y_baixo) / 2.0, y_baixo + ih / 2.0))
             else:                      # à direita das vistas, no alto (longe da legenda)
                 iso.X = min(larg - 20.0 - iw / 2.0, direita_grupo + 2 * ESPACO_VISTAS + iw / 2.0)
                 iso.Y = alt - topo - ih / 2.0

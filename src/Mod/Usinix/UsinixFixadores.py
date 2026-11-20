@@ -406,7 +406,8 @@ def criar(doc, tipo, m, comp=0.0, placement=None, material=""):
         except Exception:
             pass
     doc.recompute()
-    o.Label = denominacao(tipo, m, comp)
+    import UsinixUtil
+    o.Label = UsinixUtil.rotulo_unico(doc, denominacao(tipo, m, comp))
     if propria:
         doc.commitTransaction()
     return o

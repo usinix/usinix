@@ -955,6 +955,12 @@ def soldas_de_topo(res):
     return n
 
 
+def mm_corte(v):
+    """Comprimento de corte em mm inteiro, igual na lista de corte, no isométrico e nas listas: arredonda
+    para o décimo antes (tira o ruído da soma de trechos) e depois meio para cima."""
+    return int(math.floor(round(float(v), 1) + 0.5))
+
+
 def lista_de_corte(pecas, L):
     """Por diâmetro: peças cortadas, barras usadas (aproveitamento pelo maior primeiro) e emendas."""
     barra = L["barra"]
@@ -1595,7 +1601,7 @@ class Tubulacao:
             r = lc[d]
             barras += r["barras"]
             total += r["total"]
-            pcs = ", ".join(("%.0f" % p) for p in sorted(r["pecas"], reverse=True))
+            pcs = ", ".join(("%d" % mm_corte(p)) for p in sorted(r["pecas"], reverse=True))
             linhas.append("Tubo %s: %d barra(s) de %.0f m — peças (mm): %s%s" % (
                 CAT.rotulo(L, d) if L.get("nps") else "%d mm" % d, r["barras"], L["barra"] / 1000.0, pcs,
                 ("; %d emenda(s) %s" % (r["emendas"], TEXTO_EMENDA.get(L.get("emenda", "bolsa"))))
@@ -1771,14 +1777,29 @@ def ajustar_dependentes(esboco):
 
 
 def criar(caminho, dn=25, lid=CAT.PADRAO, tampar=False, doc=None, ajustar=True):
+    """Tubulação ao longo de `caminho`. dn: número (25, 100) ou texto ('DN 50 (2")'). Diâmetro ou linha
+    fora do catálogo: ValueError antes de criar qualquer objeto."""
     doc = doc or caminho.Document
+    if not isinstance(lid, dict) and lid not in CAT.LINHAS:
+        raise ValueError("linha de tubos desconhecida: %s. Linhas: %s" % (lid, ", ".join(sorted(CAT.LINHAS))))
+    L = CAT.linha(lid)
+    if not isinstance(dn, (int, float)):
+        dn = CAT.dn_do_texto(dn)
+    dn = int(round(dn))
+    if dn not in L["diametros"]:
+        raise ValueError("o diâmetro %s não existe na linha %s. Diâmetros da linha: %s"
+                         % (dn, L["nome"], ", ".join(CAT.rotulo(L, d) for d in L["diametros"])))
     obj = doc.addObject("Part::FeaturePython", "Tubulacao")
-    obj.Label = "Tubulação"
-    Tubulacao(obj)
-    obj.Caminho = caminho
-    obj.Linha = lid
-    obj.Diametro = _dn_txt(dn, CAT.linha(lid))
-    obj.TamparPontas = tampar
+    try:
+        obj.Label = "Tubulação"
+        Tubulacao(obj)
+        obj.Caminho = caminho
+        obj.Linha = L["id"] if isinstance(lid, dict) else lid
+        obj.Diametro = _dn_txt(dn, L)
+        obj.TamparPontas = tampar
+    except Exception:
+        doc.removeObject(obj.Name)        # sem objeto órfão
+        raise
     if ajustar:
         try:
             mud = ajustar_tracado(obj)

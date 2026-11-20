@@ -1,0 +1,24 @@
+---
+# Biblioteca de materiais do Usinix
+General:
+  UUID: "64663d6a-fa9e-5674-bb96-f8d8eb3852cd"
+  Author: "Usinix"
+  License: "CC-BY-4.0"
+  Name: "Bronze SAE 65 (C90700)"
+  Description: "Bronze ao estanho para engrenagens e buchas (UNS C90700). LR 276 MPa e LE 172 MPa mínimos da ASTM B505 (fundição contínua); densidade 8770 kg/m³ e E 103 GPa da ficha do fabricante. Fonte da conferência: Wieland Concast (ficha técnica) e ASTM B505. Poisson 0,34 típico (a checar)."
+Models:
+  Father:
+    UUID: '9cdda8b6-b606-4778-8f13-3934d8668e67'
+    Father: "Metal"
+  MaterialStandard:
+    UUID: '1e2c0088-904a-4537-925f-64064c07d700'
+    KindOfMaterial: "Bronze ao estanho"
+    MaterialNumber: "C90700"
+    StandardCode: "ASTM B505"
+  LinearElastic:
+    UUID: '7b561d1d-fb9b-44f6-9da9-56a4f74d7536'
+    Density: "8770 kg/m^3"
+    PoissonRatio: "0.34"
+    YoungsModulus: "103400 MPa"
+    UltimateTensileStrength: "276 MPa"
+    YieldStrength: "172 MPa"

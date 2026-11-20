@@ -15,6 +15,61 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.24.0 — 20/11/2026
+
+![Folha de um eixo torneado com as cotas automáticas de diâmetro e comprimento](.github/images/novidades/1.24.0.webp)
+
+### Novo
+
+- **Validação do cálculo (aba Usinix › Qualidade):** o Usinix resolve casos clássicos de solução conhecida e
+  compara com a fórmula da resistência dos materiais: viga em balanço, biapoiada e biengastada, coluna em 2ª
+  ordem (P-Δ), frequência natural de viga, barra tracionada e viga em balanço em elementos finitos sólidos
+  (estática e frequência). Cada caso é montado do zero e calculado com o mesmo motor das bancadas. O relatório
+  em PDF traz, para cada caso, o modelo, a fórmula, o valor de referência, o valor do Usinix, a diferença e a
+  tolerância, junto com as versões do Usinix, do FreeCAD e do CalculiX, para anexar à documentação técnica.
+
+### Correções
+
+- **Cotas automáticas em peça torneada:** eixo, bucha, anel e polia recebiam "altura" e "profundidade" de caixa, e
+  o chanfro virava diâmetro. Agora a peça de revolução é cotada como se faz à mão: o diâmetro de cada trecho na
+  vista longitudinal, o comprimento total ao longo do eixo e, na vista do círculo, o diâmetro maior, o furo
+  central e a furação. Chanfros e degraus não viram furo.
+- **Escala da folha:** a frontal, a superior e a lateral podem deixar a isométrica no canto vazio, embaixo da
+  lateral. Com isso, peças que saíam em 1:5 cabem em 1:2. Entrou o arranjo "Frontal e lateral", sem a
+  isométrica, para peças compridas.
+- **Lista de materiais na folha:** a coluna se alarga conforme o texto, e o texto não invade mais a coluna do
+  lado. Texto muito longo é abreviado na folha; a planilha e o Excel trazem o texto inteiro.
+- **Balões:** não ficam mais um em cima do outro quando várias peças estão do mesmo lado da montagem.
+- **Legenda da montagem:** a massa acompanha a troca de material de uma peça que está em outro arquivo.
+- **Parafusos, porcas e arruelas:** com vários iguais no documento, o nome "M10 × 35" virava "M10 × 001" e
+  mudava a medida na lista e nos balões. Agora os repetidos ficam "M10 × 35 (2)". O mesmo vale para as cotas.
+- **Interferência:** parafuso num furo roscado (corpo M10 num furo de broca 8,5) não aparece mais como
+  interferência. Com "mostrar contatos", aparece como rosca engatada.
+- **Biblioteca de materiais:** entraram os bronzes SAE 65 (C90700) e SAE 660 (C93200), para buchas e mancais.
+- **Conectar IA:** a lista de materiais da IA vê a montagem que está numa folha. Nova ferramenta `fixador`
+  coloca parafuso, porca ou arruela num furo existente. Código que fecha o documento ativo não dá mais erro
+  no fim.
+- **Contraventamento só de tração:** um X com as duas diagonais comprimidas só pelo peso (sem carga lateral) não
+  é mais tratado como mecanismo.
+- **Simulação (MEF):** quando a tensão máxima não converge entre as duas malhas mais finas, o resultado sai com
+  aviso, e não mais "ok". O aviso sugere ler a tensão um pouco longe do apoio.
+- **Cargas da análise de barras:** a unidade está escrita na propriedade: kN na carga pontual e na carga em nó,
+  kN/m na carga distribuída. Os campos `valor_kN` e `barra` (com a numeração da tela, a partir de 1) também são
+  aceitos. Carga acima do bom senso (por exemplo, digitada em N) gera aviso no cálculo. Nas rótulas, "B5"
+  indica a barra 5 da tela.
+- **Esqueleto alterado:** se o esboço ganhou linhas e a estrutura não foi atualizada, o cálculo avisa quais
+  linhas estão sem barra.
+- **Tubulação:** um diâmetro que não existe na linha dá uma mensagem com os diâmetros disponíveis e não deixa
+  mais um objeto vazio no documento. A lista de corte e a tabela do isométrico usam o mesmo arredondamento.
+- **DXF do piso:** a chapa perfurada, expandida ou xadrez sai com um texto dizendo que vem pronta de fábrica e
+  que só o contorno vai para o corte.
+- **Aços estruturais da biblioteca:** módulo de elasticidade de 200 GPa, o mesmo da análise de barras. Antes era
+  203 GPa, e o mesmo aço dava rigidez diferente na simulação e na análise de barras.
+- **Componentes da biblioteca** (compressor, motor, extintor...) entram na lista de materiais sem massa calculada,
+  com a observação "ver catálogo do fabricante". O sólido é só representativo.
+- **Conectar IA:** quando uma ferramenta falha e é desfeita, as peças afetadas são recalculadas e não ficam com
+  a forma do erro.
+
 ## 1.23.0 — 20/11/2026
 
 ![Bancada Simulação com os ícones novos e o painel Relatório da análise ao lado de uma grade de vigas calculada](.github/images/novidades/1.23.0.webp)

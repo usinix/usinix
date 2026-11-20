@@ -35,8 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.23.0** (20/11/2026): relatório completo, em PDF, de uma análise feita à mão na bancada
-Simulação, com aviso de resultado desatualizado, conferência do equilíbrio e verificação; bancada Simulação no
+**Versão atual: 1.24.0** (20/11/2026): validação do cálculo por casos clássicos de solução conhecida, com
+relatório em PDF; cotas automáticas de peça torneada por diâmetros, escala maior na folha, tabela da lista de
+materiais sem texto vazando, balões sem sobrepor, rosca fora da interferência e bronzes na biblioteca.
+
+Na 1.23.0: relatório completo, em PDF, de uma análise feita à mão na bancada Simulação; bancada Simulação no
 tema Usinix; aviso de tração em barra com furos no cálculo por barras; correções na conexão com IA.
 
 Na 1.22.2: o tamanho do texto das cotas definido nas preferências passa a valer também nos desenhos abertos.

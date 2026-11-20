@@ -225,7 +225,7 @@ def _cota(page, vista, tipo, a, b, rotulo, lado, afasta=8.0):
     `afasta`, a quantos mm de papel do contorno."""
     doc = vista.Document
     d = doc.addObject("TechDraw::DrawViewDimension", "Cota")
-    d.Label = rotulo
+    d.Label = UsinixUtil.rotulo_unico(page.Document, rotulo)
     d.Type = tipo
     d.MeasureType = "Projected"
     d.References2D = [(vista, a[0]), (vista, b[0])]
@@ -244,6 +244,146 @@ def _cota(page, vista, tipo, a, b, rotulo, lado, afasta=8.0):
     return d
 
 
+def revolucao(objs):
+    """Peça torneada (eixo, bucha, anel, polia): (eixo 3D, diâmetros externos, diâmetros internos), ou None.
+
+    É torneada quando as faces cilíndricas e cônicas são todas coaxiais e o eixo é paralelo a X, Y ou Z."""
+    import Part
+    pecas = UsinixUtil.pecas(objs)
+    if len(pecas) != 1:
+        return None
+    sh = pecas[0][1]
+    cil = [f for f in sh.Faces if isinstance(f.Surface, Part.Cylinder)]
+    curvas = [f for f in sh.Faces if not isinstance(f.Surface, Part.Plane)]
+    if not cil:
+        return None
+    ref = max(cil, key=lambda f: f.Area).Surface
+    eixo = FreeCAD.Vector(ref.Axis).normalize()
+    if max(abs(eixo.x), abs(eixo.y), abs(eixo.z)) < 0.999:
+        return None
+    centro = FreeCAD.Vector(ref.Center)
+
+    def coaxial(surf):
+        a = FreeCAD.Vector(getattr(surf, "Axis", FreeCAD.Vector()))
+        if a.Length < 1e-9 or abs(abs(a.normalize().dot(eixo)) - 1.0) > 1e-6:
+            return False
+        c = FreeCAD.Vector(getattr(surf, "Center", getattr(surf, "Apex", centro)))
+        d = c - centro
+        return (d - eixo * d.dot(eixo)).Length < 1e-3
+    revol = tuple(c for c in (getattr(Part, "Cylinder", None), getattr(Part, "Cone", None),
+                              getattr(Part, "Toroid", None)) if c is not None)
+    fora = [f for f in curvas if not isinstance(f.Surface, revol)
+            or not coaxial(f.Surface)]
+    # rasgos de chaveta, furos radiais e roscas cosméticas são poucos: a peça segue sendo torneada
+    if sum(f.Area for f in fora) > 0.15 * sum(f.Area for f in curvas):
+        return None
+    ext, inn = [], []
+    for f in cil:
+        if not coaxial(f.Surface):
+            continue
+        d = round(2.0 * f.Surface.Radius, 3)
+        u0, u1, v0, v1 = f.ParameterRange
+        p = f.valueAt((u0 + u1) / 2.0, (v0 + v1) / 2.0)
+        n = f.normalAt((u0 + u1) / 2.0, (v0 + v1) / 2.0)
+        rad = p - centro
+        rad = rad - eixo * rad.dot(eixo)
+        (ext if n.dot(rad) > 0 else inn).append(d)
+    if not ext:
+        return None
+    # o contorno da peça, de lado, tem de ser o do maior diâmetro (chapa com um furo não é torneada)
+    bb = sh.BoundBox
+    lados = [L for L, k in ((bb.XLength, 0), (bb.YLength, 1), (bb.ZLength, 2)) if abs(eixo[k]) < 0.5]
+    if any(abs(L - max(ext)) > 0.03 * max(ext) + 0.5 for L in lados):
+        return None
+    return eixo, sorted(set(ext), reverse=True), sorted(set(inn), reverse=True)
+
+
+def _alinhado(vista, eixo):
+    """'circulo' se a vista olha ao longo do eixo; 'x' ou 'y' se o eixo aparece deitado naquela direção."""
+    d = FreeCAD.Vector(vista.Direction).normalize()
+    if abs(abs(d.dot(eixo)) - 1.0) < 1e-6:
+        return "circulo"
+    xd = FreeCAD.Vector(getattr(vista, "XDirection", FreeCAD.Vector(1, 0, 0)))
+    if xd.Length < 1e-9:
+        xd = FreeCAD.Vector(1, 0, 0)
+    return "x" if abs(abs(xd.normalize().dot(eixo)) - 1.0) < 1e-6 else "y"
+
+
+def cotas_de_revolucao(page, por_tipo, rev):
+    """Peça torneada: diâmetros na vista longitudinal (⌀ de cada trecho, entre as geratrizes), comprimento
+    total ao longo do eixo e o diâmetro maior na vista em que o círculo aparece."""
+    eixo, ext, inn = rev
+    criadas = []
+    longitudinal = circular = None
+    for tipo in ("Front", "Top", "Left", "Right", "Bottom", "Rear"):
+        v = por_tipo.get(tipo)
+        if v is None:
+            continue
+        a = _alinhado(v, eixo)
+        if a == "circulo":
+            circular = circular or v
+        elif longitudinal is None:
+            longitudinal = (v, a)
+    if longitudinal is not None:
+        v, a = longitudinal
+        vs = _vertices(v)
+        k_ax, k_pp = (1, 2) if a == "x" else (2, 1)
+        ex = _extremos(v, "x" if a == "x" else "y")
+        if ex:
+            criadas.append(_cota(page, v, "DistanceX" if a == "x" else "DistanceY", ex[0], ex[1],
+                                 "Comprimento total", "cima" if a == "x" else "esq"))
+        if vs:
+            c = (min(t[k_pp] for t in vs) + max(t[k_pp] for t in vs)) / 2.0
+            for i, d in enumerate(ext[:6]):
+                cima = [t for t in vs if abs(t[k_pp] - (c + d / 2.0)) < 1e-3]
+                baixo = [t for t in vs if abs(t[k_pp] - (c - d / 2.0)) < 1e-3]
+                par = None
+                for t in cima:
+                    b = min(baixo, key=lambda u: abs(u[k_ax] - t[k_ax]), default=None)
+                    if b is not None and abs(b[k_ax] - t[k_ax]) < 1e-3:
+                        par = (b, t)
+                        break
+                if par is None:
+                    continue
+                cota = _cota(page, v, "DistanceY" if a == "x" else "DistanceX", par[0], par[1],
+                             "Ø %s" % UsinixUtil.fmt_dim(d), "dir" if a == "x" else "baixo", 9.0 + 9.0 * i)
+                cota.FormatSpec = "⌀" + _numero(d)
+                # o texto fica na altura do trecho que ele mede (não empilha no meio da vista)
+                try:
+                    e = float(v.getScale())
+                except Exception:
+                    e = 1.0
+                # no meio do trecho daquele diâmetro (entre as pontas da geratriz)
+                ao_longo = [t[k_ax] for t in cima]
+                meio = (min(ao_longo) + max(ao_longo)) / 2.0
+                if a == "x":
+                    cota.X = meio * e
+                else:
+                    cota.Y = meio * e
+                cota.recompute()
+                criadas.append(cota)
+    if circular is not None and ext:
+        circ = [c for c in circulos_do_corte(circular) if c[3] and abs(2 * c[1] - ext[0]) < 1e-2]
+        if circ:
+            nome, r, (cx, cy), _i = circ[0]
+            d = page.Document.addObject("TechDraw::DrawViewDimension", "Cota")
+            d.Type = "Diameter"
+            d.MeasureType = "Projected"
+            d.References2D = [(circular, nome)]
+            d.FormatSpec = "⌀" + _numero(2 * r)
+            d.Label = UsinixUtil.rotulo_unico(page.Document, "Ø %s" % UsinixUtil.fmt_dim(2 * r))
+            page.addView(d)
+            try:
+                e = float(circular.getScale())
+            except Exception:
+                e = 1.0
+            ang = math.radians(45)
+            d.X, d.Y = cx * e + (r * e + 8.0) * math.cos(ang), cy * e + (r * e + 8.0) * math.sin(ang)
+            d.recompute()
+            criadas.append(d)
+    return criadas, circular
+
+
 def cotas_gerais(page, objs, furos=False):
     """Comprimento e altura totais na frontal; profundidade na lateral (ou na superior). Com furos=True,
     também a furação de cada vista (ver cotas_de_furos).
@@ -257,6 +397,25 @@ def cotas_gerais(page, objs, furos=False):
     if frente is None:
         raise ValueError("Falta a vista frontal.")
     criadas = []
+    try:
+        rev = revolucao(objs)
+    except Exception:
+        rev = None
+    if rev is not None:
+        # peça torneada: diâmetros e comprimento, não "altura/profundidade" de caixa
+        c, circular = cotas_de_revolucao(page, por_tipo, rev)
+        criadas.extend(c)
+        if furos:
+            for tipo in ("Front", "Top", "Left", "Right", "Bottom", "Rear"):
+                v = por_tipo.get(tipo)
+                if v is None or v is circular:
+                    continue        # na vista do círculo, os círculos concêntricos são degraus e chanfros
+                criadas.extend(cotas_de_furos(page, v))
+            if circular is not None:
+                criadas.extend(_furos_internos(page, circular, rev))
+        page.Document.recompute()
+        arrumar_arvore([d.References2D[0][0] for d in criadas if d.References2D])
+        return criadas
     # o lado livre de cada vista no 1º diedro: em cima da frontal só há a inferior; à esquerda, a lateral direita
     ex = _extremos(frente, "x")
     if ex:
@@ -319,6 +478,53 @@ def furos_da_vista(vista):
     return sorted(grupos.items(), key=lambda t: -t[0])
 
 
+def _furos_internos(page, vista, rev):
+    """Na vista do círculo de uma peça torneada: o furo central (diâmetro interno) e os furos fora do
+    centro (furação de flange, de polia), sem confundir chanfro e degrau com furo."""
+    _eixo, ext, inn = rev
+    criadas = []
+    try:
+        e = float(vista.getScale())
+    except Exception:
+        e = 1.0
+    circ = [c for c in circulos_do_corte(vista) if c[3]]
+    if not circ:
+        return criadas
+    grande = max(circ, key=lambda c: c[1])
+    cx0, cy0 = grande[2]
+    feitos = set()
+    fora = {}
+    for nome, r, (cx, cy), _i in circ:
+        d = round(2 * r, 3)
+        if math.hypot(cx - cx0, cy - cy0) >= 1e-3:
+            fora.setdefault(d, []).append((nome, r, cx, cy))      # furação fora do centro
+            continue
+        if not any(abs(d - x) < 1e-2 for x in inn) or d in feitos:
+            continue                  # concêntrico e não é furo: degrau ou chanfro
+        feitos.add(d)
+        criadas.append(_diametro(page, vista, nome, r, cx, cy, e, -135))
+    for k, (d, lst) in enumerate(sorted(fora.items(), key=lambda t: -t[0])):
+        nome, r, cx, cy = max(lst, key=lambda t: t[2] + t[3])
+        criadas.append(_diametro(page, vista, nome, r, cx, cy, e, 45 + 25 * k, len(lst)))
+    return criadas
+
+
+def _diametro(page, vista, nome, r, cx, cy, e, angulo, n=1):
+    d = 2 * r
+    c = page.Document.addObject("TechDraw::DrawViewDimension", "Cota")
+    c.Type = "Diameter"
+    c.MeasureType = "Projected"
+    c.References2D = [(vista, nome)]
+    c.FormatSpec = ("%d× " % n if n > 1 else "") + "⌀" + _numero(d)
+    txt = UsinixUtil.fmt_dim(d)
+    c.Label = UsinixUtil.rotulo_unico(page.Document, ("%d× Ø %s" % (n, txt)) if n > 1 else "Ø %s" % txt)
+    page.addView(c)
+    ang = math.radians(angulo)
+    c.X, c.Y = cx * e + (r * e + 8.0) * math.cos(ang), cy * e + (r * e + 8.0) * math.sin(ang)
+    c.recompute()
+    return c
+
+
 def _vertice_em(vs, x, y, tol=1e-3):
     for t in vs:
         if abs(t[1] - x) < tol and abs(t[2] - y) < tol:
@@ -357,7 +563,7 @@ def cotas_de_furos(page, vista, max_posicoes=6):
         n = len(furos)
         d.FormatSpec = ("%d× " % n if n > 1 else "") + "⌀" + _numero(diam)
         txt = UsinixUtil.fmt_dim(diam)
-        d.Label = ("%d× Ø %s" % (n, txt)) if n > 1 else "Ø %s" % txt
+        d.Label = UsinixUtil.rotulo_unico(page.Document, ("%d× Ø %s" % (n, txt)) if n > 1 else "Ø %s" % txt)
         page.addView(d)
         ang = math.radians(45 + 25 * k)
         dist = diam / 2.0 * e + 8.0
@@ -553,7 +759,7 @@ def cotas_do_corte(page, vista, limite_circulos=12):
         d.Type = "Diameter" if inteiro else "Radius"
         d.MeasureType = "Projected"
         d.References2D = [(vista, nome)]
-        d.Label = ("Ø %s" if inteiro else "R %s") % UsinixUtil.fmt(2 * raio if inteiro else raio, 1)
+        d.Label = UsinixUtil.rotulo_unico(page.Document, ("Ø %s" if inteiro else "R %s") % UsinixUtil.fmt(2 * raio if inteiro else raio, 1))
         page.addView(d)
         ang = math.radians(45 + 30 * k)
         dist = raio * e + 6.0

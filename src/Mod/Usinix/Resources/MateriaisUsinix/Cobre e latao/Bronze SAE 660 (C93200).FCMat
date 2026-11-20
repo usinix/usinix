@@ -1,0 +1,24 @@
+---
+# Biblioteca de materiais do Usinix
+General:
+  UUID: "f0786371-740f-545f-885b-0fd9c7ef4a5e"
+  Author: "Usinix"
+  License: "CC-BY-4.0"
+  Name: "Bronze SAE 660 (C93200)"
+  Description: "Bronze para mancais e buchas (UNS C93200). LR 241 MPa e LE 138 MPa mínimos da ASTM B505 (fundição contínua); densidade 8910 kg/m³ e E 100 GPa da ficha do fabricante. Fonte da conferência: Wieland Concast (ficha técnica) e ASTM B505. Poisson 0,34 típico (a checar)."
+Models:
+  Father:
+    UUID: '9cdda8b6-b606-4778-8f13-3934d8668e67'
+    Father: "Metal"
+  MaterialStandard:
+    UUID: '1e2c0088-904a-4537-925f-64064c07d700'
+    KindOfMaterial: "Bronze para mancais"
+    MaterialNumber: "C93200"
+    StandardCode: "ASTM B505"
+  LinearElastic:
+    UUID: '7b561d1d-fb9b-44f6-9da9-56a4f74d7536'
+    Density: "8910 kg/m^3"
+    PoissonRatio: "0.34"
+    YoungsModulus: "100000 MPa"
+    UltimateTensileStrength: "241 MPa"
+    YieldStrength: "138 MPa"

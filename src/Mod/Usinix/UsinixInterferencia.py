@@ -15,19 +15,57 @@ NOME_GRUPO = "Interferencias"
 
 
 class Interferencia:
-    def __init__(self, a, b, volume, forma, distancia=0.0):
+    def __init__(self, a, b, volume, forma, distancia=0.0, rosca=False):
         self.a, self.b = a, b
         self.volume = volume
         self.forma = forma
         self.distancia = distancia      # > 0: não se tocam, mas estão mais perto que a folga pedida
+        self.rosca = rosca              # parafuso em furo roscado: o "volume comum" é a rosca, não é erro
 
     @property
     def texto(self):
+        if self.rosca:
+            return "%s × %s: rosca engatada (%s mm³, não é interferência)" % (
+                self.a.Label, self.b.Label, UsinixUtil.fmt(self.volume, 1))
         if self.volume > 0:
             return "%s × %s: %s mm³" % (self.a.Label, self.b.Label, UsinixUtil.fmt(self.volume, 1))
         if self.distancia > 0:
             return "%s × %s: folga de %s mm" % (self.a.Label, self.b.Label, UsinixUtil.fmt(self.distancia, 2))
         return "%s × %s: só encostam" % (self.a.Label, self.b.Label)
+
+
+def _fixador(o):
+    """Parafuso (com rosca externa) por trás do objeto ou do vínculo: (diâmetro nominal, passo, comprimento)."""
+    try:
+        b = o.getLinkedObject(True) if hasattr(o, "getLinkedObject") else o
+    except Exception:
+        b = o
+    if not ("Norma" in b.PropertiesList and "Diametro" in b.PropertiesList and "Tipo" in b.PropertiesList):
+        return None
+    if str(b.Tipo) in ("porca", "arruela"):
+        return None
+    try:
+        import UsinixFixadores as F
+        d = float(str(b.Diametro).upper().lstrip("M").replace(",", "."))
+        p = float(F.passo(b.Diametro, b.Tipo) or 0.0)
+        comp = float(b.Comprimento.Value)
+    except Exception:
+        return None
+    return (d, p, comp) if p > 0 and comp > 0 else None
+
+
+def _so_rosca(oa, ob, vol):
+    """O volume comum cabe na rosca do parafuso (entre o diâmetro nominal e o da broca, d − p, no
+    comprimento todo): é parafuso num furo roscado, não interferência."""
+    import math
+    for o in (oa, ob):
+        f = _fixador(o)
+        if f:
+            d, p, comp = f
+            limite = math.pi / 4.0 * (d * d - (d - p) ** 2) * comp
+            if vol <= 1.05 * limite:
+                return True
+    return False
 
 
 def verificar(objs, tolerancia=TOLERANCIA_MM3, contatos=False, folga=0.0):
@@ -51,7 +89,10 @@ def verificar(objs, tolerancia=TOLERANCIA_MM3, contatos=False, folga=0.0):
                 vol = comum.Volume if comum.Solids else 0.0
             except Exception:
                 continue
-            if vol > tolerancia:
+            if vol > tolerancia and _so_rosca(oa, ob, vol):
+                if contatos:
+                    res.append(Interferencia(oa, ob, vol, None, rosca=True))
+            elif vol > tolerancia:
                 res.append(Interferencia(oa, ob, vol, comum))
             elif contatos or folga > 0:
                 try:
@@ -64,7 +105,8 @@ def verificar(objs, tolerancia=TOLERANCIA_MM3, contatos=False, folga=0.0):
                 elif d < folga:
                     res.append(Interferencia(oa, ob, 0.0, None, d))
     # interferências (maior volume primeiro), depois as folgas (menor primeiro), depois os contatos
-    res.sort(key=lambda x: (0, -x.volume) if x.volume > 0 else ((1, x.distancia) if x.distancia > 0 else (2, 0)))
+    res.sort(key=lambda x: (2, 0) if x.rosca else ((0, -x.volume) if x.volume > 0 else
+                                                    ((1, x.distancia) if x.distancia > 0 else (2, 0))))
     return res
 
 
@@ -154,7 +196,7 @@ def PainelInterferencia():
             self.resultado = verificar(self._alvos(), self.tol.value(), self.contatos.isChecked(),
                                        self.folga.value())
             self.lista.clear()
-            n = len([x for x in self.resultado if x.volume > 0])
+            n = len([x for x in self.resultado if x.volume > 0 and not x.rosca])
             nf = len([x for x in self.resultado if x.distancia > 0])
             for it in self.resultado:
                 self.lista.addItem(it.texto)

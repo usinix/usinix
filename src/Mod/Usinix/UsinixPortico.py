@@ -25,6 +25,9 @@ G_GRAV = 9.80665e-3          # N/kg → peso em N por kg (1 kgf = 9,80665 N); ma
 GAUSS4 = [(-0.8611363115940526, 0.3478548451374538), (-0.3399810435848563, 0.6521451548625461),
           (0.3399810435848563, 0.6521451548625461), (0.8611363115940526, 0.3478548451374538)]
 
+# fração da rigidez que fica numa barra só de tração comprimida (ver montar, em resolver)
+RESTO_TRACAO = 1e-6
+
 # graus locais de cada ponta: 0-2 deslocamentos, 3 torção, 4-5 flexão (giro em y e z)
 ROTULA_I = (4, 5)
 ROTULA_J = (10, 11)
@@ -462,8 +465,14 @@ class Modelo:
             for nb, (R, L, T, k, fe, _d, _p, idx, lib) in enumerate(info):
                 k2, f2, rec = _condensar(k + kgs[nb], fe, lib)
                 if not ativos[nb]:
-                    # barra só de tração comprimida: fora do modelo (o peso dela ainda vai aos nós)
-                    k2 = np.zeros((12, 12))
+                    # barra só de tração comprimida: sai do modelo (o peso dela ainda vai aos nós). Fica um resto
+                    # de rigidez (RESTO_TRACAO) para não deixar a estrutura instável quando as duas diagonais de um
+                    # X comprimem juntas (só carga vertical: o encurtamento dos pilares comprime as duas) e nenhuma
+                    # carga lateral as estica; com carga lateral, a diagonal tracionada volta inteira.
+                    K[np.ix_(idx, idx)] += T.T @ (k2 * RESTO_TRACAO) @ T
+                    F[idx] -= T.T @ f2
+                    cond.append((np.zeros((12, 12)), f2, rec))     # esforço da barra fora: só o peso
+                    continue
                 K[np.ix_(idx, idx)] += T.T @ k2 @ T
                 F[idx] -= T.T @ f2
                 cond.append((k2, f2, rec))

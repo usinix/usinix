@@ -121,21 +121,29 @@ def _espalhar(angulos, minimo):
         return r
     ordem = sorted(range(n), key=lambda i: angulos[i])
     a = [angulos[i] for i in ordem]
-    for _ in range(200):
-        mexeu = False
-        for i in range(n):
-            j = (i + 1) % n
-            gap = (a[j] - a[i]) % (2 * math.pi)
-            if gap < minimo - 1e-9:
-                falta = (minimo - gap) / 2.0
-                a[i] -= falta
-                a[j] += falta
-                mexeu = True
-        if not mexeu:
-            break
+    # começa na maior folga entre vizinhos (o círculo "abre" ali) e empurra cada um para a frente até ficar
+    # a `minimo` do anterior; depois desloca o conjunto para a média voltar à dos ângulos pedidos
+    folgas = [((a[(k + 1) % n] - a[k]) % (2 * math.pi), k) for k in range(n)]
+    _f, k0 = max(folgas)
+    seq = [a[(k0 + 1 + k) % n] for k in range(n)]
+    for k in range(1, n):
+        while seq[k] < seq[k - 1]:
+            seq[k] += 2 * math.pi
+    pedidos = list(seq)
+    for k in range(1, n):
+        seq[k] = max(seq[k], seq[k - 1] + minimo)
+    desvio = sum(p - q for p, q in zip(pedidos, seq)) / n
+    folga_fim = 2 * math.pi - (seq[-1] - seq[0])          # entre o último e o primeiro (já ≥ mínimo)
+    if folga_fim >= minimo:
+        seq = [x + desvio for x in seq]
+    else:
+        # passou da volta: volta empurrando de trás para a frente, com o último a `minimo` do primeiro
+        seq[-1] = seq[0] + 2 * math.pi - minimo
+        for k in range(n - 2, 0, -1):
+            seq[k] = min(seq[k], seq[k + 1] - minimo)
     r = [0.0] * n
-    for k, i in enumerate(ordem):
-        r[i] = a[k]
+    for k in range(n):
+        r[ordem[(k0 + 1 + k) % n]] = seq[k]
     return r
 
 
@@ -194,7 +202,8 @@ def criar_baloes(page, vista=None, objs=None):
         o, _sh = por_item[n]
         a = ancoras[n]
         b = doc.addObject("TechDraw::DrawViewBalloon", "Balao")
-        b.addProperty("App::PropertyLinkGlobal", PROP, "Usinix", "Peça que o balão numera (item da lista de materiais)")
+        # XLink: a peça pode estar noutro arquivo (submontagem vinculada)
+        b.addProperty("App::PropertyXLink", PROP, "Usinix", "Peça que o balão numera (item da lista de materiais)")
         setattr(b, PROP, o)
         b.SourceView = vista
         b.Text = str(n)

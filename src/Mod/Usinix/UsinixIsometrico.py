@@ -497,7 +497,7 @@ def _desenhar_tabelas(S, info, titulo, x0, y, larg, tam):
             ("Corte (mm)", 26.0, "middle"), ("Trecho", larg - 90.0, "middle")]
     linhas = []
     for t in info["tubos"]:
-        linhas.append((t["id"], str(t["item"] or "—"), CAT.rotulo(L, t["dn"]), _fmt(t["corte"], 0),
+        linhas.append((t["id"], str(t["item"] or "—"), CAT.rotulo(L, t["dn"]), "%d" % __import__("UsinixTubulacao").mm_corte(t["corte"]),
                        str(t["trecho"])))
     tabela("LISTA DE CORTE", cols, linhas)
     notas = ["Linha: %s." % L["nome"]]

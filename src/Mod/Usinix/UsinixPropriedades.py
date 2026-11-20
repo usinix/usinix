@@ -135,13 +135,29 @@ def folhas_ligadas(doc):
     return [p for p in doc.Objects if p.TypeId == "TechDraw::DrawPage" and "UsinixPeca" in p.PropertiesList]
 
 
+def _contem(alvo, obj):
+    """A peça da folha é `obj` ou o contém, inclusive por vínculo para outro arquivo (montagem com as
+    peças em arquivos separados)."""
+    if alvo is None:
+        return False
+    if alvo is obj:
+        return True
+    dentro = getattr(alvo, "OutListRecursive", []) or []
+    if obj in dentro:
+        return True
+    for o in dentro:
+        try:
+            lig = o.getLinkedObject(True) if o.TypeId == "App::Link" else None
+        except Exception:
+            lig = None
+        if lig is not None and lig is not o and lig.Document is not alvo.Document:
+            if lig is obj or obj in (getattr(lig, "OutListRecursive", []) or []):
+                return True
+    return False
+
+
 def folhas_da_peca(obj, folhas=None):
-    res = []
-    for p in (folhas_ligadas(obj.Document) if folhas is None else folhas):
-        alvo = p.UsinixPeca
-        if alvo is obj or (alvo is not None and obj in getattr(alvo, "OutListRecursive", [])):
-            res.append(p)
-    return res
+    return [p for p in (folhas_ligadas(obj.Document) if folhas is None else folhas) if _contem(p.UsinixPeca, obj)]
 
 
 class Observador:
@@ -192,7 +208,11 @@ class Observador:
             doc = obj.Document
             if doc.Restoring:
                 return
-            ligadas = self._folhas(doc)
+            ligadas = list(self._folhas(doc))
+            # montagem num arquivo, peças em outros: as folhas da montagem também acompanham a peça
+            for d in FreeCAD.listDocuments().values():
+                if d is not doc and not d.Restoring:
+                    ligadas += [p for p in self._folhas(d) if p not in ligadas]
             if not ligadas:      # caso comum: nenhuma folha ligada, sai sem percorrer o documento
                 return
             folhas = folhas_da_peca(obj, ligadas)
@@ -200,7 +220,7 @@ class Observador:
             self._cache.pop(getattr(getattr(obj, "Document", None), "Name", ""), None)
             return
         for p in folhas:
-            chave = (doc.Name, p.Name)
+            chave = (p.Document.Name, p.Name)
             if chave in self._pendentes:
                 continue
             self._pendentes.add(chave)

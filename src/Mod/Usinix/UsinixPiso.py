@@ -513,6 +513,29 @@ def e_piso(obj):
     return obj is not None and isinstance(getattr(obj, "Proxy", None), PisoChapa)
 
 
+def nota_dxf(obj, com_furos=False):
+    """Texto para o DXF de corte de um piso: a chapa é comprada perfurada/expandida/xadrez e o DXF leva só
+    o contorno (o padrão não vai para o corte). None se não for piso."""
+    try:
+        import UsinixUtil as U
+        base = obj
+        while base is not None and not e_piso(base) and getattr(base, "TypeId", "") == "App::Link":
+            base = base.LinkedObject
+        if not e_piso(base):
+            return None
+        tipo = base.TipoPiso
+        if tipo == "Chapa perfurada":
+            return ("CHAPA COMPRADA PERFURADA (furo %s mm, passo %s mm, %s): cortar so o contorno, %s"
+                    % (U.fmt_dim(base.DiametroFuro.Value), U.fmt_dim(base.Passo.Value),
+                                       base.Arranjo,
+                                       "furos no DXF so de referencia" if com_furos else "furacao nao desenhada"))
+        if tipo == "Chapa expandida":
+            return "CHAPA EXPANDIDA %s COMPRADA PRONTA: cortar so o contorno, malha nao desenhada" % base.Malha
+        return "CHAPA XADREZ %s: cortar so o contorno" % base.Xadrez
+    except Exception:
+        return None
+
+
 # ============================================================================ interface
 try:
     import FreeCADGui

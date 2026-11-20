@@ -327,11 +327,13 @@ def _capa(p, W, H, k, est):
                QtCore.Qt.TextWordWrap, tit)
     p.setPen(QtGui.QColor(INK))
     p.setFont(_fonte(5.0 * k, QtGui.QFont.DemiBold))
-    p.drawText(QtCore.QRectF(MARGEM_MM * k, 112 * k, W, 12 * k), "Relatório técnico de simulação")
+    p.drawText(QtCore.QRectF(MARGEM_MM * k, 112 * k, W, 12 * k),
+               est.get("UsinixRelSubtitulo", "") or "Relatório técnico de simulação")
     linhas = [("Peça analisada", est.get("UsinixRelPeca", "") or (est.peca.Label if est.peca else "—")),
               ("Cliente", est.get("UsinixRelCliente", "") or "—"),
               ("Equipamento / projeto", est.get("UsinixRelProjeto", "") or "—"),
-              ("Tipo de análise", "Estática linear" if est.tipo == "static" else "Frequências naturais"),
+              ("Tipo de análise", est.get("UsinixRelTipo", "") or
+               ("Estática linear" if est.tipo == "static" else "Frequências naturais")),
               ("Data", time.strftime("%d/%m/%Y")),
               ("Responsável técnico", est.get("UsinixRelResp", "") or mc["responsavel"] or "—"),
               ("CREA", est.get("UsinixRelCrea", "") or mc["registro"] or "—"),
@@ -353,7 +355,8 @@ def _capa(p, W, H, k, est):
 def _cabecalho(p, W, k, est):
     p.setPen(QtGui.QColor(NAVY))
     p.setFont(_fonte(3.2 * k, QtGui.QFont.DemiBold))
-    tit = "Relatório de simulação · " + (est.get("UsinixRelPeca", "") or (est.peca.Label if est.peca else ""))
+    tit = (est.get("UsinixRelCabecalho", "") or "Relatório de simulação") + " · " + \
+        (est.get("UsinixRelPeca", "") or (est.peca.Label if est.peca else ""))
     p.drawText(QtCore.QRectF(MARGEM_MM * k, 8 * k, W - 60 * k, 6 * k), QtCore.Qt.AlignVCenter, tit)
     p.setPen(QtGui.QColor(INK2))
     p.setFont(_fonte(3.0 * k))

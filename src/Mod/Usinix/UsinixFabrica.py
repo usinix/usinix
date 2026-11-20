@@ -160,7 +160,11 @@ def exportar_dxf_lote(objs, pasta, prefixo=""):
         alt = max(2.5, min(10.0, bb.YLength * 0.06))
         nome = "%s_esp%smm_q%d.dxf" % (_nome_arquivo(marca), UsinixUtil.fmt_dim(t).replace(",", "-"), qtd)
         caminho = os.path.join(pasta, nome)
-        UsinixChapa.escrever_dxf(caminho, externas, dobras, internas, [(bb.XMin, bb.YMin - 2.0 * alt, alt, texto)])
+        textos = [(bb.XMin, bb.YMin - 2.0 * alt, alt, texto)]
+        nota = UsinixChapa._nota_piso(obj, bool(internas))
+        if nota:
+            textos.append((bb.XMin, bb.YMin - 3.6 * alt, alt, nota))
+        UsinixChapa.escrever_dxf(caminho, externas, dobras, internas, textos)
         feitos.append((caminho, obj, qtd, t))
     return feitos
 

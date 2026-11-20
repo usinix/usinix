@@ -96,7 +96,7 @@ class T01Modulos(unittest.TestCase):
     def test_importa_modulos(self):
         for nome in ("UsinixGui", "UsinixEstilo", "UsinixRibbon", "UsinixI18n", "UsinixInicio", "UsinixGuia",
                      "UsinixSobre", "UsinixFEM", "UsinixFEMRelatorio", "UsinixUtil", "UsinixCotas", "UsinixMassa",
-                     "UsinixBOM", "UsinixContexto", "UsinixFolhas", "UsinixPerfis", "UsinixEstrutura", "UsinixVaso",
+                     "UsinixBOM", "UsinixContexto", "UsinixFolhas", "UsinixPerfis", "UsinixEstrutura", "UsinixValidacao",
                      "UsinixFixadores", "UsinixEstruturaExtras", "UsinixVersao", "UsinixNomes", "UsinixPainel", "UsinixSelecao", "UsinixPropriedades", "UsinixChapa", "UsinixVariantes", "UsinixCopiarProjeto", "UsinixInterferencia", "UsinixModelos", "UsinixGuiaMigracao",
                      "UsinixSecao", "UsinixPortico", "UsinixNBR8800", "UsinixAnaliseEstrutura", "UsinixAnaliseVista",
                      "UsinixAnaliseRelatorio", "UsinixDetalheFEM", "UsinixVideo",
@@ -280,7 +280,7 @@ class T05Materiais(unittest.TestCase):
         d = next((x for x in lst if x["nome"] == "ASTM A36"), None)
         self.assertIsNotNone(d, "ASTM A36 não encontrado na biblioteca")
         p = F.props_mat(d["props"])
-        self.assertAlmostEqual(p["E"], 203000.0, delta=1.0)
+        self.assertAlmostEqual(p["E"], 200000.0, delta=1.0)
         self.assertAlmostEqual(p["Sy"], 250.0, delta=0.5)
         self.assertAlmostEqual(p["rho"], 7850.0, delta=1.0)
         self.assertAlmostEqual(p["nu"], 0.3, delta=1e-6)
@@ -356,16 +356,16 @@ class T05Materiais(unittest.TestCase):
 class T05bMateriaisUsinix(unittest.TestCase):
     """Biblioteca Usinix: mínimos de especificação conferidos (ver tools/gerar_materiais.py)."""
     ESPERADO = {  # nome: (Sy, Su, E)
-        "ASTM A36": (250, 400, 203000), "NBR 7007 MR250": (250, 400, 203000),
-        "NBR 7007 AR350": (350, 450, 203000), "ASTM A572 Gr 50": (345, 450, 203000),
-        "ASTM A283 Gr C": (205, 380, 203000), "ASTM A285 Gr C (SA-285 C)": (205, 380, 203000),
+        "ASTM A36": (250, 400, 200000), "NBR 7007 MR250": (250, 400, 200000),
+        "NBR 7007 AR350": (350, 450, 200000), "ASTM A572 Gr 50": (345, 450, 200000),
+        "ASTM A283 Gr C": (205, 380, 200000), "ASTM A285 Gr C (SA-285 C)": (205, 380, 203000),
         "ASTM A516 Gr 60 (SA-516 60)": (220, 415, 203000), "ASTM A516 Gr 70 (SA-516 70)": (260, 485, 203000),
         "ASTM A515 Gr 70 (SA-515 70)": (260, 485, 203000), "ASTM A106 Gr B (SA-106 B)": (240, 415, 203000),
         "ASTM A53 Gr B (SA-53 B)": (240, 415, 203000), "ASTM A105 (SA-105)": (250, 485, 203000),
-        "ASTM A500 Gr B (tubo redondo)": (290, 400, 203000), "AISI 304 (A240)": (205, 515, 195000),
+        "ASTM A500 Gr B (tubo redondo)": (290, 400, 200000), "AISI 304 (A240)": (205, 515, 195000),
         "AISI 304L (A240)": (170, 485, 195000), "AISI 316 (A240)": (205, 515, 195000),
-        "Alumínio 6061-T6 (B209)": (240, 290, 69000), "NBR 7007 AR350 COR": (350, 485, 203000),
-        "NBR 6648 CG250": (250, 400, 203000), "NBR 6650 CFQ250": (250, 400, 203000),
+        "Alumínio 6061-T6 (B209)": (240, 290, 69000), "NBR 7007 AR350 COR": (350, 485, 200000),
+        "NBR 6648 CG250": (250, 400, 200000), "NBR 6650 CFQ250": (250, 400, 200000),
         "AISI 316L (A240)": (170, 485, 195000),
         "AISI 430 (A240)": (205, 450, 200000),
         "Alumínio 1100-H14": (95, 110, 69000),

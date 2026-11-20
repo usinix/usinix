@@ -11616,7 +11616,7 @@ class T81DesenhoVistasProntas(unittest.TestCase):
 
     def test_cada_arranjo_poe_as_vistas_certas_dentro_da_folha(self):
         esperado = {"3vistas_iso": ["Front", "Top", "Left", "Iso"], "frontal_lateral_iso": ["Front", "Left", "Iso"],
-                    "frontal_superior": ["Front", "Top"], "frontal_iso": ["Front", "Iso"], "so_iso": ["Iso"]}
+                    "frontal_superior": ["Front", "Top"], "frontal_lateral": ["Front", "Left"], "frontal_iso": ["Front", "Iso"], "so_iso": ["Iso"]}
         self.assertEqual(set(esperado), set(self.F.ARRANJOS))
         for arr, vistas in esperado.items():
             p = self.F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [self.peca], arranjo=arr)
@@ -19582,7 +19582,7 @@ class T151RelatorioMEFDaBancadaEIA(unittest.TestCase):
 
 
 class T152SimulacaoNoTemaUsinix(unittest.TestCase):
-    """1.23.1: bancada Simulação no tema Usinix — ícones redesenhados na faixa e na árvore, símbolos de apoio
+    """1.23.0: bancada Simulação no tema Usinix — ícones redesenhados na faixa e na árvore, símbolos de apoio
     em azul e de carga em âmbar, e sem a escala de cores vazia depois de calcular."""
 
     def setUp(self):
@@ -19812,3 +19812,431 @@ class T153AchadosDaBateriaDeTestes(unittest.TestCase):
                                                   "qtd": 2, "passo": 80}, por_parafusos=True)
         self.assertEqual(r[0]["parafusos"], 4)
         self.assertNotIn("aviso", r[0])
+
+
+class T154MontagemDaBateria(unittest.TestCase):
+    """1.24.0: achados da montagem eixo-polia (T08) — cota de peça torneada, lista com a montagem na folha,
+    legenda que acompanha peça em outro arquivo, balões sem sobrepor, escala no A4 em pé, texto da tabela na
+    célula, bronze na biblioteca, IA que fecha o documento, rótulo de fixador, rosca na interferência e
+    fixador pela IA."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteMontagem8")
+
+    def tearDown(self):
+        try:
+            if FreeCAD.GuiUp and FreeCADGui.Control.activeDialog():
+                FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        try:
+            if self.doc.Name in FreeCAD.listDocuments():
+                fechar(self.doc)
+        except ReferenceError:
+            pass                           # o teste fechou o documento
+
+    def _eixo(self):
+        import Part
+        a = Part.makeCylinder(20, 120, FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(1, 0, 0))
+        b = Part.makeCylinder(12.5, 80, FreeCAD.Vector(120, 0, 0), FreeCAD.Vector(1, 0, 0))
+        f = a.fuse(b).removeSplitter()
+        f = f.makeChamfer(1.0, [e for e in f.Edges if hasattr(e.Curve, "Radius") and abs(e.Curve.Radius - 12.5) < 1e-6
+                                 and abs(e.Vertexes[0].Point.x - 200) < 1e-6])
+        o = self.doc.addObject("Part::Feature", "Eixo")
+        o.Shape = f
+        self.doc.recompute()
+        return o
+
+    def test_peca_torneada_cotada_por_diametros(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import UsinixFolhas as F
+        import UsinixVistas as V
+        eixo = self._eixo()
+        rev = V.revolucao([eixo])
+        self.assertIsNotNone(rev)
+        self.assertEqual(rev[1][:2], [40.0, 25.0])
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [eixo], arranjo="3vistas_iso")
+        g = V.grupo_da_peca(p, [eixo])
+        self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+        cotas = V.cotas_gerais(p, [eixo], furos=True)
+        self.doc.recompute()
+        rot = {d.Label: round(d.getRawValue(), 2) for d in cotas}
+        self.assertEqual(rot.get("Comprimento total"), 200.0, rot)
+        self.assertEqual(rot.get("Ø 40"), 40.0, rot)
+        self.assertEqual(rot.get("Ø 25"), 25.0, rot)
+        self.assertNotIn("Altura total", rot)
+        self.assertFalse([k for k in rot if k.startswith("Ø 23")], rot)      # o chanfro não vira diâmetro
+
+    def test_chapa_com_furo_nao_e_torneada(self):
+        import UsinixVistas as V
+        b = self.doc.addObject("Part::Box", "B")
+        c = self.doc.addObject("Part::Cylinder", "C")
+        c.Radius = 5
+        c.Placement.Base = FreeCAD.Vector(5, 5, 0)
+        cut = self.doc.addObject("Part::Cut", "Chapa")
+        cut.Base, cut.Tool = b, c
+        self.doc.recompute()
+        self.assertIsNone(V.revolucao([cut]))
+
+    def test_lista_da_ia_com_a_montagem_na_folha(self):
+        import UsinixIA
+        parte = self.doc.addObject("App::Part", "Conjunto")
+        for k in range(3):
+            bx = self.doc.addObject("Part::Box", "Peca%d" % k)
+            bx.Placement.Base = FreeCAD.Vector(20 * k, 0, 0)
+            parte.addObject(bx)
+        pg = self.doc.addObject("TechDraw::DrawPage", "Folha")
+        pg.Template = self.doc.addObject("TechDraw::DrawSVGTemplate", "Modelo")
+        v = self.doc.addObject("TechDraw::DrawViewPart", "Vista")
+        pg.addView(v)
+        v.Source = [parte]
+        self.doc.recompute()
+        FreeCAD.setActiveDocument(self.doc.Name)
+        linhas = UsinixIA.f_bom()
+        self.assertEqual(sum(l["qtd"] for l in linhas), 3, linhas)
+
+    def test_balao_espalhado_sem_sobrepor(self):
+        import math
+        import UsinixBaloes as B
+        ang = [0.30, 0.31, 0.32, 0.33, 2.0, 2.01]
+        m = 0.5
+        r = sorted(x % (2 * math.pi) for x in B._espalhar(ang, m))
+        gaps = [(r[(k + 1) % len(r)] - r[k]) % (2 * math.pi) for k in range(len(r))]
+        self.assertGreaterEqual(min(gaps), m - 1e-9)
+
+    def test_escala_maior_no_a4_em_pe(self):
+        import UsinixFolhas as F
+        b = self.doc.addObject("Part::Box", "Mancal")
+        b.Length, b.Width, b.Height = 120, 60, 125
+        self.doc.recompute()
+        e = F.escala_que_cabe([b], 210 - 30, 297 - 20 - 60, ("Front", "Top", "Left"), True)
+        self.assertEqual(e, 0.5)                   # antes saía 1:5
+
+    def test_tabela_da_lista_alarga_a_coluna(self):
+        import UsinixBOM
+        ln = UsinixBOM.Linha(("x",), "Bucha", "Ferro fundido cinzento FC 250 (classe especial)", "Ø40 × 60", 1.0, "")
+        ln.qtd = 1
+        sh = UsinixBOM.gravar_planilha(self.doc, [ln])
+        self.assertGreaterEqual(sh.getColumnWidth("E"), int(len(UsinixBOM._corta(ln.material, 4)) *
+                                                            UsinixBOM.PX_CARACTERE))
+        self.assertGreater(sh.getColumnWidth("E"), UsinixBOM.LARGURAS[4])
+
+    def test_bronze_na_biblioteca(self):
+        import UsinixFEM
+        d = UsinixFEM.achar_material("Bronze SAE 65 (C90700)")
+        self.assertIsNotNone(d)
+        self.assertEqual(UsinixFEM.props_mat(d["props"]).get("Sy"), 172.0)
+
+    def test_ia_fecha_o_documento_sem_erro(self):
+        import UsinixIA
+        FreeCAD.setActiveDocument(self.doc.Name)
+        nome = self.doc.Name
+        g = FreeCAD.ParamGet(UsinixIA.PARAM)
+        antes = g.GetBool("IAPermitirCodigo", False)
+        g.SetBool("IAPermitirCodigo", True)
+        try:
+            UsinixIA.executar("executar_python", {"codigo": "FreeCAD.closeDocument(%r)" % nome})
+        finally:
+            g.SetBool("IAPermitirCodigo", antes)
+        self.assertNotIn(nome, FreeCAD.listDocuments())
+
+    def test_rotulo_do_fixador_sem_trocar_a_medida(self):
+        import UsinixFixadores as F
+        fs = [F.criar(self.doc, "sextavado", "M10", 35) for _ in range(3)]
+        rots = [f.Label for f in fs]
+        self.assertTrue(all("M10 × 35" in r for r in rots), rots)
+        self.assertEqual(len(set(rots)), 3)
+        a = [F.criar(self.doc, "arruela", "M10") for _ in range(2)]
+        self.assertTrue(all("M10" in x.Label and "M001" not in x.Label for x in a), [x.Label for x in a])
+
+    def test_rosca_nao_e_interferencia(self):
+        import Part
+        import UsinixFixadores as F
+        import UsinixInterferencia as I
+        bloco = self.doc.addObject("Part::Feature", "Bloco")
+        furo = Part.makeCylinder(4.25, 30, FreeCAD.Vector(20, 20, 0))          # broca 8,5 para M10
+        bloco.Shape = Part.makeBox(40, 40, 30).cut(furo)
+        self.doc.recompute()
+        aresta = [i + 1 for i, e in enumerate(bloco.Shape.Edges)
+                  if hasattr(e.Curve, "Radius") and abs(e.Curve.Radius - 4.25) < 1e-6 and e.Vertexes[0].Point.z > 29][0]
+        pl, _d = F.posicao_no_furo(bloco, "Edge%d" % aresta)
+        p = F.criar(self.doc, "sextavado", "M10", 25, pl)
+        self.doc.recompute()
+        res = I.verificar([bloco, p])
+        self.assertFalse([r for r in res if r.volume > 0 and not r.rosca], [r.texto for r in res])
+        res = I.verificar([bloco, p], contatos=True)
+        self.assertTrue(any(r.rosca for r in res))
+        # parafuso grosso demais no furo (M10 num furo de 5 mm) continua sendo interferência
+        bloco.Shape = Part.makeBox(40, 40, 30).cut(Part.makeCylinder(2.5, 30, FreeCAD.Vector(20, 20, 0)))
+        self.doc.recompute()
+        self.assertTrue([r for r in I.verificar([bloco, p]) if not r.rosca])
+
+    def test_fixador_pela_ia(self):
+        import Part
+        import UsinixIA
+        bloco = self.doc.addObject("Part::Feature", "Bloco")
+        bloco.Shape = Part.makeBox(40, 40, 10).cut(Part.makeCylinder(5.5, 10, FreeCAD.Vector(20, 20, 0)))
+        self.doc.recompute()
+        aresta = [i + 1 for i, e in enumerate(bloco.Shape.Edges)
+                  if hasattr(e.Curve, "Radius") and abs(e.Curve.Radius - 5.5) < 1e-6 and e.Vertexes[0].Point.z > 9][0]
+        FreeCAD.setActiveDocument(self.doc.Name)
+        r = UsinixIA.executar("fixador", {"peca": "Bloco", "aresta": "Edge%d" % aresta, "tipo": "sextavado",
+                                          "comprimento": 30})
+        self.assertIn("M10", r["denominacao"])
+        self.assertAlmostEqual(r["furo_mm"], 11.0, places=1)
+
+
+class T155ValidacaoDoCalculo(unittest.TestCase):
+    """1.24.0: validação do cálculo por casos clássicos de solução conhecida — cada motor (barras e sólidos)
+    tem de reproduzir a fórmula dentro da tolerância do caso, e o relatório sai em PDF."""
+
+    def test_motor_de_barras_reproduz_as_formulas(self):
+        import UsinixValidacao as V
+        res = V.rodar([c["id"] for c in V.CASOS if c["motor"] == "barras"])
+        for r in res:
+            self.assertEqual(r.erro, "", "%s: %s" % (r.caso["id"], r.erro))
+            self.assertTrue(r.ok, "%s: Usinix %.4f × referência %.4f (%.2f %%)" % (
+                r.caso["id"], r.usinix, r.referencia, r.diferenca))
+
+    def test_motor_de_solidos_reproduz_as_formulas(self):
+        import UsinixValidacao as V
+        if V._sem_calculix():
+            self.skipTest("sem CalculiX")
+        antes = set(FreeCAD.listDocuments())
+        res = V.rodar([c["id"] for c in V.CASOS if c["motor"] == "sólidos"])
+        self.assertEqual(set(FreeCAD.listDocuments()), antes, "o documento temporário fica aberto")
+        for r in res:
+            self.assertEqual(r.erro, "", "%s: %s" % (r.caso["id"], r.erro))
+            self.assertTrue(r.ok, "%s: Usinix %.4f × referência %.4f (%.2f %%)" % (
+                r.caso["id"], r.usinix, r.referencia, r.diferenca))
+
+    def test_caso_fora_da_tolerancia_reprova(self):
+        import UsinixValidacao as V
+        c = dict(V.CASOS[0])
+        self.assertFalse(V.Resultado(c, 1.10, 1.0).ok)
+        self.assertTrue(V.Resultado(c, 1.004, 1.0).ok)
+        self.assertFalse(V.Resultado(c, erro="sem CalculiX").ok)
+
+    def test_relatorio_em_pdf(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixValidacao as V
+        res = V.rodar(["B1", "B2", "B5"])
+        caminho = os.path.join(tempfile.mkdtemp(), "validacao.pdf")
+        V.gerar_pdf(res, caminho)
+        with open(caminho, "rb") as fh:
+            self.assertEqual(fh.read(5), b"%PDF-")
+        html = V.corpo_html(res, {"usinix": "x", "freecad": "y", "calculix": "z"})
+        self.assertIn("3 de 3", html)
+        self.assertIn("P·L³", html)
+
+    def test_comando_na_aba_usinix(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixValidacao as V
+        V.registrar_comandos()
+        self.assertIn("Usinix_Validacao", FreeCADGui.listCommands())
+        import UsinixRibbon
+        aba = [t for t in UsinixRibbon.TABS if t["id"] == "usinix"][0]
+        cmds = [c for _t, itens in aba["panels"] for c, _s, _r in itens]
+        self.assertIn("Usinix_Validacao", cmds)
+
+
+class T156AchadosDaSegundaBateria(unittest.TestCase):
+    """1.24.0: achados da segunda bateria de 20/11/2026 — X só de tração comprimido pela gravidade, aviso de
+    tensão sem convergir, unidade e numeração das cargas, esqueleto alterado sem atualizar, DN fora da linha
+    sem objeto órfão, corte da tubulação igual no isométrico, nota do DXF do piso, módulo de elasticidade
+    igual no MEF e nas barras, componente da biblioteca sem massa e balão com vínculo externo."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteAchados2")
+
+    def tearDown(self):
+        try:
+            if self.doc.Name in FreeCAD.listDocuments():
+                fechar(self.doc)
+        except ReferenceError:
+            pass
+
+    def test_x_so_de_tracao_comprimido_pela_gravidade_nao_e_mecanismo(self):
+        import UsinixPortico as PT
+        m = PT.Modelo()
+        s = PT.Secao(2860.0, 2029e4, 142e4, 6.0e4)
+        sb = PT.Secao(300.0, 1e3, 1e3, 1e2)
+        n = [m.no(p) for p in ((0, 0, 0), (3000, 0, 0), (0, 0, 3000), (3000, 0, 3000))]
+        for i, j in ((0, 2), (1, 3), (2, 3)):
+            m.barras.append(PT.Barra(n[i], n[j], s, (0, 1, 0), liberados=PT.TRELICA))
+        m.barras.append(PT.Barra(n[0], n[3], sb, (0, 1, 0), liberados=PT.TRELICA, so_tracao=True))
+        m.barras.append(PT.Barra(n[1], n[2], sb, (0, 1, 0), liberados=PT.TRELICA, so_tracao=True))
+        m.apoios[n[0]] = [1, 1, 1, 0, 0, 0]
+        m.apoios[n[1]] = [1, 1, 1, 0, 0, 0]
+        m.apoios[n[2]] = [0, 1, 0, 0, 0, 0]
+        m.apoios[n[3]] = [0, 1, 0, 0, 0, 0]
+        c = PT.Caso("G")
+        for k in (2, 3):
+            c.nos.append((n[k], [0, 0, -50.0], [0, 0, 0]))
+        r = m.resolver(c)                                    # antes: matriz singular (mecanismo)
+        self.assertEqual(r.ativos[3:], [False, False])
+        for k in (2, 3):
+            self.assertLess(abs(r.u[6 * n[k] + 2]), 1.0)     # só o encurtamento dos pilares
+            self.assertLess(abs(r.u[6 * n[k]]), 1.0)
+        # com carga lateral, a diagonal tracionada volta inteira (resultado do teste antigo)
+        c2 = PT.Caso("H")
+        c2.nos.append((n[2], [10.0, 0, 0], [0, 0, 0]))
+        r2 = m.resolver(c2)
+        self.assertEqual(r2.ativos[3:], [True, False])
+        self.assertAlmostEqual(r2.esforcos(3, 0.0)["N"], 10000.0 * math.sqrt(2.0), delta=1.0)
+
+    def test_tensao_sem_convergir_gera_aviso(self):
+        import json
+        import UsinixFEM as F
+        a = T151RelatorioMEFDaBancadaEIA._grade(self)
+        est = F.Estudo(analise=a)
+        ok, erro, _dt = F.calcular(est)
+        if not ok and ("ccx" in (erro or "").lower() or "calculix" in (erro or "").lower()):
+            self.skipTest("sem CalculiX: %s" % erro)
+        self.assertTrue(ok, erro)
+        est.put("UsinixConvergencia", json.dumps([{"n": 1000, "svm": 100.0, "u": 1.0},
+                                                  {"n": 4000, "svm": 106.7, "u": 1.00015}]))
+        nivel, _resumo, msgs = F.avaliar(est)["resultado"]
+        self.assertNotEqual(nivel, F.OK)
+        self.assertTrue(any("não convergiu" in m for _n, m in msgs), msgs)
+        est.put("UsinixConvergencia", json.dumps([{"n": 1000, "svm": 100.0, "u": 1.0},
+                                                  {"n": 4000, "svm": 100.5, "u": 1.0001}]))
+        self.assertEqual(F.avaliar(est)["resultado"][0], F.OK)
+
+    def test_cargas_com_unidade_explicita_e_barra_da_tela(self):
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        sk = esboco_linhas(self.doc, [((0, 0), (4000, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A36")
+        ap = {A._chave_no((0, 0, 0)): "Apoio simples (garfo)", A._chave_no((4000, 0, 0)): "Rolete com garfo (vertical)"}
+
+        def caso(carga):
+            return [{"nome": "Q", "tipo": "Sobrecarga (sem predominância de equipamentos)", "cargas": [carga]}]
+        base = A.calcular(est, caso({"alvo": "barra", "linha": 0, "tipo": "distribuida", "valor": 5.0}), ap)
+        self.assertIsNone(base.erro, base.erro)
+        f0 = base.flechas[0][0]
+        # "valor_kN" e "barra" (numeração da tela) dão o mesmo resultado
+        outro = A.calcular(est, caso({"barra": 1, "tipo": "distribuida", "valor_kN": 5.0}), ap)
+        self.assertIsNone(outro.erro, outro.erro)
+        self.assertAlmostEqual(outro.flechas[0][0], f0, places=6)
+        self.assertFalse(any("parece alta" in a for a in outro.avisos), outro.avisos)
+        # 10 000 "achando que era N": aviso de bom senso
+        alto = A.calcular(est, caso({"alvo": "barra", "linha": 0, "tipo": "pontual", "posicao": 2000.0,
+                                     "valor": 10000.0}), ap)
+        self.assertTrue(any("parece alta" in a and "kN" in a for a in alto.avisos), alto.avisos)
+        # rótula pela numeração da tela
+        an = A.criar(self.doc, est)
+        an.Liberacoes = ["B1=Rótula nas duas pontas"]
+        self.assertEqual(an.Proxy.liberacoes(an), {0: "Rótula nas duas pontas"})
+        self.assertIn("kN/m", an.getDocumentationOfProperty("Casos"))
+
+    def test_esqueleto_alterado_avisa_no_calculo(self):
+        import Part
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        sk = esboco_linhas(self.doc, [((0, 0), (3000, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A36")
+        sk.addGeometry(Part.LineSegment(FreeCAD.Vector(3000, 0, 0), FreeCAD.Vector(6000, 0, 0)))
+        self.doc.recompute()
+        self.assertEqual(E.linhas_sem_barra_desenhada(est), [1])
+        ap = {A._chave_no((0, 0, 0)): "Engaste"}
+        calc = A.calcular(est, [A.caso_padrao()], ap)
+        self.assertTrue(any("esqueleto mudou" in a and "linha 2" in a for a in calc.avisos), calc.avisos)
+        E.atualizar(est)
+        self.assertEqual(E.linhas_sem_barra_desenhada(est), [])
+        calc = A.calcular(est, [A.caso_padrao()], ap)
+        self.assertFalse(any("esqueleto mudou" in a for a in calc.avisos), calc.avisos)
+
+    def test_dn_fora_da_linha_nao_deixa_objeto(self):
+        import Part
+        import UsinixTubulacao as T
+        import UsinixCatalogoTubos as CAT
+        V = FreeCAD.Vector
+        cam = self.doc.addObject("Part::Feature", "Caminho")
+        cam.Shape = Part.makePolygon([V(0, 0, 0), V(1500, 0, 0), V(1500, 1500, 0)])
+        antes = len(self.doc.Objects)
+        with self.assertRaises(ValueError) as cm:
+            T.criar(cam, 80, CAT.PADRAO)
+        self.assertIn("Diâmetros da linha", str(cm.exception))
+        self.assertEqual(len(self.doc.Objects), antes)
+        with self.assertRaises(ValueError):
+            T.criar(cam, 25, "linha-que-nao-existe")
+        self.assertEqual(len(self.doc.Objects), antes)
+        o = T.criar(cam, 'DN 80 (3")', "aco-topo-sch40")      # texto do diâmetro também vale
+        self.assertTrue(T.e_tubulacao(o))
+
+    def test_corte_igual_na_lista_e_no_isometrico(self):
+        import re
+        import Part
+        import UsinixTubulacao as T
+        import UsinixIsometrico as I
+        self.assertEqual(T.mm_corte(1271.4), 1271)
+        self.assertEqual(T.mm_corte(1271.5), 1272)
+        self.assertEqual(T.mm_corte(635.7 + 635.7), 1271)        # soma com ruído de ponto flutuante
+        V = FreeCAD.Vector
+        cam = self.doc.addObject("Part::Feature", "Caminho")
+        cam.Shape = Part.makePolygon([V(0, 0, 0), V(1500.3, 0, 0), V(1500.3, 1500.6, 0), V(1500.3, 1500.6, 1800.5)])
+        o = T.criar(cam, 80, "aco-topo-sch40")
+        lista = sorted(int(x) for x in re.findall(r"\d+", o.ListaCorte[0].split("peças (mm):")[1]))
+        d = I.dados(o)
+        iso = sorted(T.mm_corte(t["corte"]) for t in d["tubos"])
+        self.assertEqual(lista, iso)
+
+    def test_dxf_do_piso_perfurado_diz_que_a_chapa_vem_perfurada(self):
+        import UsinixPiso
+        sk = esboco_linhas(self.doc, [((0, 0), (600, 0)), ((600, 0), (600, 400)), ((600, 400), (0, 400)),
+                                      ((0, 400), (0, 0))])
+        p = UsinixPiso.criar(sk, tipo="Chapa perfurada", doc=self.doc, FurosReais=False)
+        self.doc.recompute()
+        nota = UsinixPiso.nota_dxf(p)
+        self.assertIn("PERFURADA", nota)
+        self.assertIn("contorno", nota)
+        self.assertIsNone(UsinixPiso.nota_dxf(sk))
+        import tempfile
+        import UsinixFabrica
+        feitos = UsinixFabrica.exportar_dxf_lote([p], tempfile.mkdtemp())
+        if not feitos:
+            self.skipTest("o piso não entrou no lote de DXF")
+        with open(feitos[0][0], encoding="latin-1", errors="replace") as fh:
+            self.assertIn("PERFURADA", fh.read())
+
+    def test_modulo_de_elasticidade_igual_no_mef_e_nas_barras(self):
+        import UsinixFEM as F
+        import UsinixNBR8800 as N
+        for nome in ("ASTM A36", "ASTM A572 Gr 50", "NBR 7007 MR250"):
+            d = F.achar_material(nome)
+            self.assertIsNotNone(d, nome)
+            self.assertAlmostEqual(F.props_mat(d["props"])["E"], N.E_ACO, delta=1.0, msg=nome)
+
+    def test_componente_da_biblioteca_sem_massa(self):
+        import UsinixComponentes as C
+        import UsinixBOM
+        o = C.inserir(self.doc, "compressor_pistao", "200")
+        linhas = UsinixBOM.coletar([o])
+        self.assertEqual(len(linhas), 1)
+        ln = linhas[0]
+        self.assertIsNone(ln.massa, ln.massa)
+        self.assertIsNone(ln.massa_total)
+        self.assertIn("catálogo", ln.obs)
+
+    def test_balao_vincula_peca_de_outro_arquivo(self):
+        import UsinixBaloes
+        import Part
+        cx = self.doc.addObject("Part::Feature", "Caixa")
+        cx.Shape = Part.makeBox(50, 30, 20)
+        pg = self.doc.addObject("TechDraw::DrawPage", "Folha")
+        tpl = self.doc.addObject("TechDraw::DrawSVGTemplate", "Modelo")
+        pg.Template = tpl
+        v = self.doc.addObject("TechDraw::DrawViewPart", "Vista")
+        pg.addView(v)
+        v.Source = [cx]
+        self.doc.recompute()
+        bs = UsinixBaloes.criar_baloes(pg, v, [cx])
+        self.assertTrue(bs)
+        b = bs[0][0]
+        self.assertEqual(b.getTypeIdOfProperty(UsinixBaloes.PROP), "App::PropertyXLink")

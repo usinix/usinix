@@ -158,6 +158,12 @@ def _chave_geometrica(base, sh, geometricas, propria):
     return propria
 
 
+def _e_componente(base):
+    """Componente da biblioteca (aba Componentes): modelo e tamanho de catálogo."""
+    return all(p in base.PropertiesList for p in ("Modelo", "Tamanho", "Categoria", "Nome")) and \
+        type(getattr(base, "Proxy", None)).__name__ == "Componente"
+
+
 def coletar(objs, densidade_padrao=None, mapa=None):
     """Linhas da lista de materiais para os objetos (abre montagens, partes e grupos).
 
@@ -256,6 +262,13 @@ def coletar(objs, densidade_padrao=None, mapa=None):
                 nome_mat, definido = (mat_txt, True) if mat_txt else ("—", True)
                 massa = sum(s.Volume for s in sh.Solids) * densidade_padrao * 1e-9 / _vezes(base)
                 obs = "" if mat_txt else "material a definir"
+            if _e_componente(base):
+                # componente da biblioteca (compressor, extintor, motor...): o sólido é representativo, por
+                # dentro é maciço; a massa pela densidade do aço sairia absurda. Fica sem massa.
+                den = "%s %s" % (_prop(base, "Nome") or base.Label, _prop(base, "Tamanho") or "")
+                nome_mat, definido = ("—", True)
+                massa = None
+                obs = "massa: ver catálogo do fabricante"
             if chave[0] == "padrao":
                 mat_txt = _prop(base, "Material")
                 nome_mat, definido = (mat_txt or "—", True)
@@ -294,6 +307,18 @@ def _vezes(base):
         return 1
 
 
+# largura média de um caractere na tabela (texto de 2,5 mm numa linha de 5 mm = cerca de 8,5 px da planilha)
+PX_CARACTERE = 8.5
+# máximo de caracteres por coluna na tabela da folha (o texto inteiro fica no Excel e na planilha exportada)
+LIMITE_CARACTERES = {3: 60, 4: 34, 5: 34, 8: 40}
+
+
+def _corta(texto, coluna):
+    t = str(texto or "")
+    n = LIMITE_CARACTERES.get(coluna)
+    return t if not n or len(t) <= n else t[:n - 1].rstrip() + "…"
+
+
 def gravar_planilha(doc, linhas, titulo="Lista de materiais"):
     """Cria ou atualiza a planilha da lista de materiais. Retorna a planilha."""
     sheet = doc.getObject(NOME_PLANILHA)
@@ -311,18 +336,18 @@ def gravar_planilha(doc, linhas, titulo="Lista de materiais"):
     sheet.setForeground("A1:%s1" % ULTIMA, (1.0, 1.0, 1.0))
     sheet.setAlignment("A1:%s1" % ULTIMA, "center|vcenter")
     total = 0.0
+    maior = [0] * len(COLUNAS)          # o cabeçalho já cabe nas larguras padrão
     for n, ln in enumerate(linhas, 1):
         r = n + 1
-        sheet.set("A%d" % r, str(n))
-        sheet.set("B%d" % r, str(ln.qtd))
-        sheet.set("C%d" % r, "'" + (ln.codigo or ""))
-        sheet.set("D%d" % r, "'" + ln.denominacao)
-        sheet.set("E%d" % r, "'" + ln.material)
-        sheet.set("F%d" % r, "'" + ln.dimensoes)
-        sheet.set("G%d" % r, "'" + fmt(ln.massa, 3))
-        sheet.set("H%d" % r, "'" + fmt(ln.massa_total, 3))
-        sheet.set("I%d" % r, "'" + ln.obs)
+        textos = [str(n), str(ln.qtd), ln.codigo or "", _corta(ln.denominacao, 3), _corta(ln.material, 4),
+                  _corta(ln.dimensoes, 5), fmt(ln.massa, 3), fmt(ln.massa_total, 3), _corta(ln.obs, 8)]
+        for i, t in enumerate(textos):
+            sheet.set("%s%d" % (cols[i], r), ("'" + t) if i >= 2 else t)
+            maior[i] = max(maior[i], len(t))
         total += ln.massa_total or 0.0
+    # largura pelo texto mais longo de cada coluna: na folha, o texto não pode invadir a coluna do lado
+    for i, (larg, n_car) in enumerate(zip(LARGURAS, maior)):
+        sheet.setColumnWidth(cols[i], max(larg, int(n_car * PX_CARACTERE + 14)))
     r = len(linhas) + 2
     sheet.set("G%d" % r, "Total")
     sheet.set("H%d" % r, "'" + fmt(total, 3))

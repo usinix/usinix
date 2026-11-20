@@ -1328,6 +1328,17 @@ def sincronizar_barras(est):
     return novas, apagadas
 
 
+def linhas_sem_barra_desenhada(est):
+    """Índices das linhas do esqueleto que deviam ter barra e ainda não têm (esqueleto mudou e a
+    estrutura não foi atualizada)."""
+    try:
+        n = len(arestas(est.Esqueleto))
+    except Exception:
+        return []
+    quer = {i for i in range(n) if i not in sem_barra(est)}
+    return sorted(quer - {b.Indice for b in barras_de(est)})
+
+
 def atualizar(est):
     """Cria barras para linhas novas do esqueleto e apaga as que sobraram."""
     doc = est.Document
