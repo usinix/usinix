@@ -75,6 +75,97 @@ def aplicar_estilo_desenho(forcar=False):
     return True
 
 
+# ---------------------------------------------------------------- tamanho do texto das cotas
+COTAS_PATH = "User parameter:BaseApp/Preferences/Mod/TechDraw/Dimensions"
+ROTULOS_PATH = "User parameter:BaseApp/Preferences/Mod/TechDraw/Labels"
+TEXTO_PADRAO_FREECAD = 5.0          # mm: o TechDraw usa 5 quando a preferência nunca foi gravada
+
+
+def texto_cotas():
+    """Tamanho do texto das cotas novas (mm): Preferências › Desenho técnico › Dimensões › Tamanho da fonte.
+    O "Tamanho do rótulo" da aba Geral é outro: vale só para o nome das vistas."""
+    return FreeCAD.ParamGet(COTAS_PATH).GetFloat("FontSize", TEXTO_PADRAO_FREECAD)
+
+
+def texto_rotulos():
+    return FreeCAD.ParamGet(ROTULOS_PATH).GetFloat("LabelSize", TEXTO_PADRAO_FREECAD)
+
+
+def cotas_abertas():
+    """As cotas de todos os documentos abertos (com a parte visual carregada)."""
+    out = []
+    for doc in FreeCAD.listDocuments().values():
+        for o in doc.Objects:
+            if o.isDerivedFrom("TechDraw::DrawViewDimension") and getattr(o, "ViewObject", None) is not None \
+                    and "Fontsize" in o.ViewObject.PropertiesList:
+                out.append(o)
+    return out
+
+
+def _mm(q):
+    return float(getattr(q, "Value", q))
+
+
+def aplicar_texto_cotas(novo, antigo=None):
+    """Leva o tamanho novo às cotas já feitas. Com `antigo`, só as que estavam nele (o padrão anterior): uma cota
+    que a pessoa mudou à mão fica como está. Devolve quantas mudaram."""
+    n = 0
+    docs = set()
+    for c in cotas_abertas():
+        atual = _mm(c.ViewObject.Fontsize)
+        if abs(atual - novo) < 1e-6 or (antigo is not None and abs(atual - antigo) > 1e-6):
+            continue
+        c.ViewObject.Fontsize = novo
+        n += 1
+        docs.add(c.Document)
+    for d in docs:
+        d.recompute()
+    return n
+
+
+def definir_texto_cotas(mm):
+    """Grava o padrão das cotas; as cotas que estavam no padrão anterior acompanham (pelo observador)."""
+    FreeCAD.ParamGet(COTAS_PATH).SetFloat("FontSize", float(mm))
+
+
+class _ObservadorTextoCotas:
+    """Mudou o tamanho do texto das cotas nas preferências (na janela do Usinix ou na do FreeCAD): as cotas abertas
+    que estavam no tamanho padrão anterior passam para o novo. Antes, só as cotas criadas depois mudavam, e quem
+    trocava o padrão via o desenho aberto continuar igual."""
+
+    def __init__(self):
+        self.valor = texto_cotas()
+
+    def onChange(self, grp, nome):
+        if nome != "FontSize":
+            return
+        try:
+            novo = texto_cotas()
+            antigo, self.valor = self.valor, novo
+            if abs(novo - antigo) > 1e-6:
+                n = aplicar_texto_cotas(novo, antigo)
+                if n:
+                    FreeCAD.Console.PrintMessage(
+                        "Usinix: texto das cotas: %d cota(s) passaram de %s para %s mm.\n"
+                        % (n, ("%g" % antigo).replace(".", ","), ("%g" % novo).replace(".", ",")))
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: texto das cotas: %s\n" % exc)
+
+
+_obs_texto = {}
+
+
+def acompanhar_texto_cotas():
+    """Liga o observador uma vez por sessão."""
+    if _obs_texto.get("obs") is not None:
+        return _obs_texto["obs"]
+    obs = _ObservadorTextoCotas()
+    grp = FreeCAD.ParamGet(COTAS_PATH)
+    grp.Attach(obs)
+    _obs_texto.update(obs=obs, grp=grp)
+    return obs
+
+
 def aplicar_preferencias(forcar=False):
     """Faz do modelo ABNT A3 (NBR 16752) o padrão do Desenho técnico.
 

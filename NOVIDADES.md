@@ -15,6 +15,17 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.22.2 — 20/11/2026
+
+### Correções
+
+- **Tamanho do texto das cotas:** mudar o padrão nas preferências não mudava as cotas do desenho aberto, só as feitas
+  depois, e o desenho continuava com 5 mm. Agora as cotas que estão no tamanho padrão acompanham a mudança na hora,
+  também nos desenhos abertos; uma cota que você mudou à mão fica como está.
+- **Preferências › Desenho técnico:** cartão novo com os dois tamanhos lado a lado, **Texto das cotas** e **Texto do
+  nome das vistas**. No FreeCAD eles ficam em abas diferentes, e o "Tamanho do rótulo" da aba Geral vale só para o
+  nome das vistas, não para as cotas.
+
 ## 1.22.1 — 20/11/2026
 
 ### Correções

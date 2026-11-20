@@ -1077,6 +1077,11 @@ def _start_ferramentas():
         UsinixCena.instalar()        # texturas e efeitos gravados nos arquivos aparecem ao abrir
     except Exception as exc:
         FreeCAD.Console.PrintLog("Usinix: efeitos da vista: {}\n".format(exc))
+    try:
+        import UsinixFolhas
+        UsinixFolhas.acompanhar_texto_cotas()   # mudar o texto das cotas nas preferências muda o desenho aberto
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: texto das cotas: {}\n".format(exc))
     for modulo in ("UsinixContexto", "UsinixCotas", "UsinixGrade", "UsinixAnotacao"):
         try:
             __import__(modulo).install()

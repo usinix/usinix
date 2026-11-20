@@ -19274,3 +19274,84 @@ class T149AparenciaEfeitosETexturas(unittest.TestCase):
 def cor_do_teste(obj):
     m = obj.ViewObject.ShapeAppearance[0]
     return tuple(round(x, 3) for x in m.DiffuseColor[:3])
+
+
+class T150TextoDasCotas(unittest.TestCase):
+    """1.22.2: o tamanho do texto das cotas configurado nas preferências vale também nos desenhos abertos.
+    Antes, trocar o padrão de 5 para 3 mm só mudava cotas novas, e o "Tamanho do rótulo" da aba Geral (que é o
+    nome das vistas) não mudava cota nenhuma."""
+
+    def setUp(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixFolhas as F
+        self.F = F
+        self.cot = FreeCAD.ParamGet(F.COTAS_PATH)
+        self.rot = FreeCAD.ParamGet(F.ROTULOS_PATH)
+        self.antes = (self.cot.GetFloat("FontSize", -1.0), self.rot.GetFloat("LabelSize", -1.0))
+        F.acompanhar_texto_cotas()
+        self.doc = novo_doc("UsinixTesteTextoCotas")
+
+    def tearDown(self):
+        fechar(self.doc)
+        for grp, nome, v in ((self.cot, "FontSize", self.antes[0]), (self.rot, "LabelSize", self.antes[1])):
+            if v < 0:
+                grp.RemFloat(nome)
+            else:
+                grp.SetFloat(nome, v)
+
+    def _folha_com_cotas(self):
+        import UsinixVistas
+        b = self.doc.addObject("Part::Box", "Peca")
+        b.Length, b.Width, b.Height = 100, 60, 20
+        self.doc.recompute()
+        pg = self.F.nova_folha(self.doc)
+        self.F._vistas(self.doc, pg, [b])
+        vs = [o for o in pg.Views if o.isDerivedFrom("TechDraw::DrawViewPart")]
+        UsinixVistas.esperar_vistas(vs, 20)
+        cotas = UsinixVistas.cotas_gerais(pg, [b])
+        self.assertGreaterEqual(len(cotas), 2)
+        return cotas
+
+    def test_padrao_vale_para_as_cotas_novas_e_as_abertas(self):
+        self.cot.SetFloat("FontSize", 5.0)
+        cotas = self._folha_com_cotas()
+        for c in cotas:
+            self.assertAlmostEqual(c.ViewObject.Fontsize.Value, 5.0)
+        # uma cota mudada à mão não acompanha
+        cotas[0].ViewObject.Fontsize = 7.0
+        self.F.definir_texto_cotas(3.0)                 # o mesmo parâmetro da janela de preferências do FreeCAD
+        self.assertAlmostEqual(self.F.texto_cotas(), 3.0)
+        self.assertAlmostEqual(cotas[0].ViewObject.Fontsize.Value, 7.0)
+        for c in cotas[1:]:
+            self.assertAlmostEqual(c.ViewObject.Fontsize.Value, 3.0, msg=c.Label)
+        # cota nova já sai com o padrão novo
+        import UsinixVistas
+        pg = [o for o in self.doc.Objects if o.isDerivedFrom("TechDraw::DrawPage")][0]
+        b = self.doc.getObject("Peca")
+        mais = UsinixVistas.cotas_gerais(pg, [b])
+        self.assertTrue(mais)
+        self.assertAlmostEqual(mais[-1].ViewObject.Fontsize.Value, 3.0)
+
+    def test_rotulo_da_aba_geral_nao_e_o_texto_das_cotas(self):
+        self.cot.SetFloat("FontSize", 5.0)
+        self.rot.SetFloat("LabelSize", 3.0)
+        cotas = self._folha_com_cotas()
+        self.assertAlmostEqual(cotas[0].ViewObject.Fontsize.Value, 5.0)
+        self.assertAlmostEqual(self.F.texto_rotulos(), 3.0)
+
+    def test_janela_de_preferencias_tem_os_dois_tamanhos(self):
+        import UsinixPreferencias as P
+        self.cot.SetFloat("FontSize", 5.0)
+        j = P.JanelaPreferencias()
+        try:
+            self.assertAlmostEqual(j.campos["texto_cotas"].value(), 5.0)
+            j.campos["texto_cotas"].setValue(3.5)
+            j.campos["texto_cotas"].editingFinished.emit()
+            self.assertAlmostEqual(self.F.texto_cotas(), 3.5)
+            j.campos["texto_rotulos"].setValue(4.0)
+            j.campos["texto_rotulos"].editingFinished.emit()
+            self.assertAlmostEqual(self.F.texto_rotulos(), 4.0)
+        finally:
+            j.close()
+            j.deleteLater()

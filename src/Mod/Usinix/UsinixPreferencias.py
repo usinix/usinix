@@ -87,6 +87,7 @@ class JanelaPreferencias(QtWidgets.QDialog):
         self._grupo("Painel lateral", "arvore", PAINEL)
         self._modo_limpo(self._grupo("Esboço", "esboco", ESBOCO))
         self._unidades()
+        self._desenho()
         self._atualizacao()
         self._programacao()
         col.addStretch(1)
@@ -246,6 +247,41 @@ class JanelaPreferencias(QtWidgets.QDialog):
         dec.valueChanged.connect(self._decimais)
         c.linha("Casas decimais nos campos", dec)
         self.campos["decimais"] = dec
+        self.col.addWidget(c)
+
+    def _mm(self, valor, minimo=0.5, maximo=50.0):
+        sb = QtWidgets.QDoubleSpinBox()
+        sb.setObjectName("UsinixNum")
+        sb.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+        sb.setRange(minimo, maximo)
+        sb.setDecimals(1)
+        sb.setSingleStep(0.5)
+        sb.setSuffix(" mm")
+        sb.setLocale(QtCore.QLocale(QtCore.QLocale.Portuguese, QtCore.QLocale.Brazil))     # 3,5 mm
+        sb.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        sb.setMaximumWidth(90)
+        sb.setValue(valor)
+        return sb
+
+    def _desenho(self):
+        """Texto das cotas e dos rótulos das vistas. São dois tamanhos diferentes no FreeCAD (Dimensões ›
+        Tamanho da fonte e Geral › Tamanho do rótulo), e mudar o rótulo não muda as cotas."""
+        import UsinixFolhas
+        c = UI.Cartao("Desenho técnico", "folha")
+        cot = self._mm(UsinixFolhas.texto_cotas())
+        cot.editingFinished.connect(lambda: UsinixFolhas.definir_texto_cotas(cot.value()))
+        c.linha("Texto das cotas", cot)
+        rot = self._mm(UsinixFolhas.texto_rotulos())
+        rot.editingFinished.connect(lambda: FreeCAD.ParamGet(UsinixFolhas.ROTULOS_PATH).SetFloat(
+            "LabelSize", rot.value()))
+        c.linha("Texto do nome das vistas", rot)
+        nota = QtWidgets.QLabel("As cotas que estão no tamanho padrão acompanham a mudança, também nos desenhos "
+                                "abertos; uma cota mudada à mão fica como está.")
+        nota.setWordWrap(True)
+        nota.setObjectName("UsinixDica")
+        c.widget(nota)
+        self.campos["texto_cotas"] = cot
+        self.campos["texto_rotulos"] = rot
         self.col.addWidget(c)
 
     def _esquema(self, i):
