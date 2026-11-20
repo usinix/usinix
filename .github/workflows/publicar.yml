@@ -95,9 +95,24 @@ jobs:
             # 11/11/2026: "1.4.0" digitado no lugar de "1.14.0" compilou 40 minutos e só falhou no fim
             # ("a release with the same tag name already exists: v1.4.0"). Confere antes de compilar:
             # a versão não pode existir e tem de ser a do código (VERSAO em UsinixVersao.py)
-            if gh api "repos/${REPO}/git/ref/tags/v${v}" >/dev/null 2>&1; then
+            if gh api "repos/${REPO}/releases/tags/v${v}" >/dev/null 2>&1; then
               echo "::error title=Versão já publicada::A versão v${v} já existe na página de versões. Confira o número (a versão do código é a que está em UsinixVersao.py)."
               exit 1
+            fi
+            # tag criada à mão sem versão publicada (a regra do repositório não deixa apagar tag): segue se o
+            # código da tag for o mesmo do main (a diferença só pode estar em .github/, como esta ação)
+            tag_sha=$(gh api "repos/${REPO}/commits/v${v}" --jq .sha 2>/dev/null || true)
+            if [[ -n "$tag_sha" && "$tag_sha" != "$SHA" ]]; then
+              fora=$(gh api "repos/${REPO}/compare/${tag_sha}...${SHA}" --jq '.files[].filename' 2>/dev/null \
+                     | grep -v '^\.github/' || true)
+              if [[ -n "$fora" ]] || ! gh api "repos/${REPO}/compare/${tag_sha}...${SHA}" --jq .status 2>/dev/null \
+                   | grep -qE '^(ahead|identical)$'; then
+                echo "::error title=Tag em outro código::A tag v${v} já existe e aponta para ${tag_sha:0:7}, com código diferente do main. Confira o número da versão."
+                exit 1
+              fi
+            fi
+            if [[ -n "$tag_sha" ]]; then
+              echo "::notice title=Tag já existente::A tag v${v} já existe (${tag_sha:0:7}) sem versão publicada; a versão sai nela."
             fi
             codigo=$(gh api "repos/${REPO}/contents/src/Mod/Usinix/UsinixVersao.py?ref=${SHA}" --jq .content 2>/dev/null \
                      | base64 -d 2>/dev/null | sed -n 's/^VERSAO = "\([^"]*\)".*/\1/p' | head -1)
@@ -410,7 +425,11 @@ jobs:
             extra+=(--verify-tag)          # a tag já existe (foi ela que disparou)
           else
             tag="v${VERSAO#v}"
-            extra+=(--target "${GITHUB_SHA}")   # cria a tag no commit compilado
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+              extra+=(--verify-tag)        # tag criada antes, sem versão (conferida no Planejar)
+            else
+              extra+=(--target "${GITHUB_SHA}")   # cria a tag no commit compilado
+            fi
           fi
           # novidades da versão (NOVIDADES.md) + parte fixa (como baixar, como relatar problema)
           notas="$(mktemp)"
