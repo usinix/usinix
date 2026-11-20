@@ -22,13 +22,14 @@ import familia_esboco
 import familia_geral
 import familia_painel
 import familia_desenho
+import familia_fem
 
 VERSAO = "Usinix Guia 2.0"
 
 
 def todos():
     out = {}
-    for fam in (familia_3d, familia_esboco, familia_geral, familia_painel, familia_desenho):
+    for fam in (familia_3d, familia_esboco, familia_geral, familia_painel, familia_desenho, familia_fem):
         for nome, fn in fam.ICONS.items():
             base = nome[4:] if nome.startswith("SUB:") else os.path.basename(nome)
             if base.endswith(".svg"):

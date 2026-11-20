@@ -243,7 +243,7 @@ class Parafusamento:
         xs = [x for f in gs for x in E._pos_furos(e, f)]
         for d in diams:
             for ent, dirc, sai, _dd in furos_na_barra(b, d):
-                if not any(abs((ent - p0).dot(t) - x) < 1e-3 for x in xs):
+                if not any(abs((ent - p0).dot(t) - x) < 0.5 for x in xs):
                     continue                     # furo de outro grupo com o mesmo diâmetro
                 aperto_barra = (sai - ent).Length
                 comp, _p = comprimento_parafuso(m, aperto_barra + obj.Aperto.Value)

@@ -387,12 +387,28 @@ def f_perfis(busca="", limite=60):
             {"esqueleto": {"type": "string"}, "perfil": {"type": "string"},
              "uniao": {"type": "string", "enum": ["Meia-esquadria", "Topo"]},
              "giro": {"type": "number", "description": "giro do perfil em graus"},
-             "material": {"type": "string"}}, ["esqueleto", "perfil"])
-def f_estrutura(esqueleto, perfil, uniao="Meia-esquadria", giro=0.0, material=""):
+             "material": {"type": "string", "description": "nome da biblioteca de materiais (ex.: ASTM A36)"},
+             "fixacao": {"type": "string", "description": "ponto do perfil que fica sobre a linha: Centro, Centroide, "
+                         "Sup. esquerdo, Sup. centro, Sup. direito, Meio esquerdo, Meio direito, Inf. esquerdo, "
+                         "Inf. centro, Inf. direito (vigas apoiadas nas colunas: Sup. centro)"}},
+            ["esqueleto", "perfil"])
+def f_estrutura(esqueleto, perfil, uniao="Meia-esquadria", giro=0.0, material="", fixacao="Centro"):
     import UsinixEstrutura as E
+    import UsinixFEM
     doc = _doc()
     sk = _obj(doc, esqueleto)
-    est = E.criar(doc, sk, perfil, rotacao=float(giro), uniao=uniao, material=material, transacao=False)
+    if material:
+        d = UsinixFEM.achar_material(material)
+        if d is None:
+            sug = UsinixFEM.parecidos(material)
+            raise ValueError("material \"%s\" não está na biblioteca%s" % (
+                material, (". Parecidos: " + ", ".join(sug)) if sug else ""))
+        material = d["nome"]
+    fixacao = fixacao or "Centro"
+    if fixacao not in E.FIXACOES:
+        raise ValueError("fixação \"%s\" desconhecida; use uma de: %s" % (fixacao, ", ".join(E.FIXACOES)))
+    est = E.criar(doc, sk, perfil, rotacao=float(giro), alinhamento=fixacao, uniao=uniao, material=material,
+                  transacao=False)
     return {"estrutura": est.Name, "barras": [{"indice": b.Indice, "nome": b.Name,
                                                "comprimento_mm": round(b.ComprimentoCorte.Value, 1)}
                                               for b in E.barras_de(est)]}
@@ -444,11 +460,33 @@ def f_trabalhos(estrutura, barras=None, ponta_inicio=None, ponta_fim=None, furos
     if grupos and por_parafusos:
         if not grupos[0]["parafuso"]:
             raise ValueError("para pôr parafusos, informe furos.parafuso (M12...)")
-        T.por_parafusos(bs, gid, grupos[0]["parafuso"], float(aperto))
+        pfs = T.por_parafusos(bs, gid, grupos[0]["parafuso"], float(aperto))
         doc.recompute()
-    return [{"indice": b.Indice, "comprimento_mm": round(b.ComprimentoCorte.Value, 1),
+    else:
+        pfs = []
+    res = []
+    eds = E.arestas(est.Esqueleto)
+    for b in bs:
+        r = {"indice": b.Indice, "comprimento_mm": round(b.ComprimentoCorte.Value, 1),
              "corte_inicio_graus": round(b.CorteInicio.Value, 1), "corte_fim_graus": round(b.CorteFim.Value, 1),
-             "furacao": b.Furacao} for b in bs]
+             "furacao": b.Furacao}
+        pf = [o for o in pfs if o.Barra == b]
+        if pf:
+            # furos do grupo que cabem na barra × filas × lados, para conferir com os parafusos postos
+            e = eds[b.Indice]
+            esperados = 0
+            for g in grupos:
+                n_pos = len([x for x in E._pos_furos(e, g) if -1e-6 <= x <= e.Length + 1e-6])
+                esperados += n_pos * (2 if int(g.get("filas", 1)) >= 2 else 1) * \
+                    (2 if g.get("face") == "As duas mesas" else 1)
+            r["parafusos"] = int(pf[0].Quantidade)
+            if r["parafusos"] < esperados:
+                r["aviso"] = ("%d parafuso(s) para %d furo(s) do grupo: parte dos furos não existe na barra (a "
+                              "ponta cortada ou outra peça os tirou). Confira a posição." % (r["parafusos"], esperados))
+            r["aviso_junta"] = ("o comprimento do parafuso considera só o material da barra; acrescente a chapa ou "
+                                "a cantoneira da ligação em 'aperto' (mm)") if not aperto else ""
+        res.append(r)
+    return res
 
 
 @ferramenta("lista_de_corte", "Lista de corte das estruturas (perfil, comprimento, ângulos, quantidade, furação). "
@@ -487,6 +525,7 @@ def f_folha(objetos, formato="A3", vertical=False, titulo="", numero="", desenhi
     doc = _doc()
     objs = [_obj(doc, n) for n in objetos]
     campos = {k: v for k, v in (("titulo", titulo), ("numero", numero), ("desenhista", desenhista)) if v}
+    campos.update(SEM_REVISAO)
     page = F.nova_folha(doc, formato, F.NORMA_PADRAO, bool(vertical), campos, objs, arranjo=arranjo)
     return {"folha": page.Name, "escala": F._texto_escala(page.Scale)}
 
@@ -526,9 +565,13 @@ def f_baloes(folha):
 def f_folhas_barras(estrutura, formato="A3"):
     import UsinixFolhaPeca as FP
     doc = _doc()
-    feitas = FP.folhas_das_barras(doc, [_obj(doc, estrutura)], formato)
+    feitas = FP.folhas_das_barras(doc, [_obj(doc, estrutura)], formato, campos_extra=SEM_REVISAO)
     return {"folhas": [{"folha": p.Name, "barra": b.Label, "perfil": b.Perfil, "quantidade": q}
                        for p, b, q in feitas]}
+
+
+# a folha feita pela IA não sai como verificada nem aprovada: esses campos ficam para quem revisar
+SEM_REVISAO = {"verificado": "", "aprovado": ""}
 
 
 @ferramenta("folha_da_chapa", "Folha ABNT de uma peça de chapa: planificação cotada (com furação e linhas de dobra), "
@@ -536,7 +579,7 @@ def f_folhas_barras(estrutura, formato="A3"):
 def f_folha_chapa(peca):
     import UsinixFolhaPeca as FP
     doc = _doc()
-    page = FP.folha_da_chapa(doc, _obj(doc, peca))
+    page = FP.folha_da_chapa(doc, _obj(doc, peca), campos=dict(SEM_REVISAO))
     return {"folha": page.Name}
 
 
@@ -547,7 +590,7 @@ def f_excel(caminho, objetos=None):
     import UsinixBOM
     import UsinixFabrica
     doc = _doc()
-    objs = [_obj(doc, n) for n in objetos] if objetos else UsinixBOM._objetos_alvo()
+    objs = [_obj(doc, n) for n in objetos] if objetos else UsinixBOM._objetos_alvo(usar_selecao=False)
     UsinixFabrica.exportar_excel(objs, caminho)
     r = UsinixFabrica.resumo_orcamento(objs)
     return {"arquivo": caminho, "massa_total_kg": round(r["massa_total"], 3),
@@ -562,7 +605,7 @@ def f_dxf_lote(pasta, objetos=None):
     import UsinixBOM
     import UsinixFabrica
     doc = _doc()
-    objs = [_obj(doc, n) for n in objetos] if objetos else UsinixBOM._objetos_alvo()
+    objs = [_obj(doc, n) for n in objetos] if objetos else UsinixBOM._objetos_alvo(usar_selecao=False)
     feitos = UsinixFabrica.exportar_dxf_lote(objs, pasta)
     return {"arquivos": [{"arquivo": c, "peca": o.Label, "quantidade": q, "espessura_mm": t}
                          for c, o, q, t in feitos]}

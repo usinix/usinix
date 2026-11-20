@@ -264,7 +264,7 @@ def _selecao_ou_documento():
     if doc is None:
         return []
     # documento inteiro: objetos de topo (sem pai) que tenham forma
-    return [o for o in doc.RootObjects if o.TypeId != "App::Origin"]
+    return UsinixUtil.raizes(doc)
 
 
 class CmdMassa:

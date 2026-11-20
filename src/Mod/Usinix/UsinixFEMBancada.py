@@ -357,8 +357,115 @@ def estado(est):
     return "atual", "O resultado corresponde ao modelo de agora."
 
 
+# cores do tema Usinix nos símbolos de apoio e de carga (o FreeCAD usa verde-escuro, vermelho e azul)
+COR_APOIO = (0.0, 0.227, 0.439)            # azul Usinix #003A70
+COR_CARGA = (0.878, 0.631, 0.0)            # âmbar #E0A100 (o amarelo puro some no fundo claro)
+TIPOS_APOIO = ("Fem::ConstraintFixed", "Fem::ConstraintDisplacement", "Fem::ConstraintSpring",
+               "Fem::ConstraintPlaneRotation", "Fem::ConstraintRigidBody", "Fem::ConstraintContact",
+               "Fem::ConstraintBearing", "Fem::ConstraintTransform")
+TIPOS_CARGA = ("Fem::ConstraintForce", "Fem::ConstraintPressure", "Fem::ConstraintGear", "Fem::ConstraintPulley")
+
+
+def cor_do_simbolo(obj):
+    """Cor do tema para o símbolo da restrição, ou None se ela não tem símbolo de apoio/carga."""
+    t = obj.TypeId
+    if t in TIPOS_APOIO:
+        return COR_APOIO
+    if t in TIPOS_CARGA:
+        return COR_CARGA
+    return None
+
+
+def pintar_simbolo(obj):
+    """Aplica a cor do tema no símbolo de uma restrição nova (as de arquivos antigos ficam como estão)."""
+    cor = cor_do_simbolo(obj)
+    vo = getattr(obj, "ViewObject", None)
+    if cor is None or vo is None or not hasattr(vo, "ShapeAppearance"):
+        return False
+    try:
+        mats = list(vo.ShapeAppearance)
+        for m in mats:
+            m.DiffuseColor = cor + (1.0,) if len(m.DiffuseColor) == 4 else cor
+        vo.ShapeAppearance = mats
+        return True
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: cor da restrição %s: %s\n" % (obj.Name, exc))
+        return False
+
+
+# ícones da árvore dos objetos FEM em Python: o FreeCAD devolve o recurso interno (":/icons/X.svg"),
+# que não passa pelo tema de ícones; troca pelo arquivo do tema Usinix quando ele existe
+_VP_COM_ICONE = (("femviewprovider.view_base_femobject", "VPBaseFemObject"),
+                 ("femviewprovider.view_material_common", "VPMaterialCommon"),
+                 ("femviewprovider.view_mesh_gmsh", "VPMeshGmsh"),
+                 ("femviewprovider.view_mesh_netgen", "VPMeshNetgen"),
+                 ("femviewprovider.view_solver_ccxtools", "VPSolverCcxTools"),
+                 ("femviewprovider.view_solver_calculix", "VPSolverCalculiX"))
+
+
+def icone_do_tema(caminho):
+    """Arquivo do tema Usinix para um ícone interno ":/icons/Nome.svg", ou o próprio caminho."""
+    if not isinstance(caminho, str) or not caminho.startswith(":/"):
+        return caminho
+    nome = os.path.splitext(os.path.basename(caminho))[0]
+    try:
+        import UsinixEstilo
+        f = UsinixEstilo._icon_file(nome)
+    except Exception:
+        f = None
+    return f or caminho
+
+
+def tema_icones_fem():
+    """Passa os ícones da árvore dos objetos FEM em Python pelo tema (uma vez por sessão)."""
+    if _obs.get("icones") or not FreeCAD.GuiUp:
+        return
+    import importlib
+    for mod, cls in _VP_COM_ICONE:
+        try:
+            c = getattr(importlib.import_module(mod), cls)
+        except Exception:
+            continue
+        orig = c.__dict__.get("getIcon")
+        if orig is None or getattr(orig, "_usinix", False):
+            continue
+
+        def novo(self, _orig=orig):
+            return icone_do_tema(_orig(self))
+        novo._usinix = True
+        c.getIcon = novo
+    _obs["icones"] = True
+
+
 class _ObservadorResultado:
-    """Grava a assinatura quando um resultado termina de carregar (cálculo pela bancada ou pelo assistente)."""
+    """Grava a assinatura quando um resultado termina de carregar (cálculo pela bancada ou pelo assistente)
+    e pinta no tema Usinix os símbolos das restrições criadas."""
+
+    def slotCreatedObject(self, obj):
+        try:
+            if obj.TypeId.startswith("Fem::") and not _obs.get("icones"):
+                tema_icones_fem()
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: ícones FEM: %s\n" % exc)
+        try:
+            if not obj.TypeId.startswith("Fem::Constraint") or getattr(obj.Document, "Restoring", False):
+                return
+            nome, doc = obj.Name, obj.Document.Name
+        except Exception:
+            return
+
+        def pinta():
+            try:
+                d = FreeCAD.getDocument(doc)
+                o = d.getObject(nome) if d else None
+                if o is not None:
+                    pintar_simbolo(o)
+            except Exception:
+                pass
+        try:
+            QtCore.QTimer.singleShot(0, pinta)       # a vista do objeto ainda não existe neste instante
+        except Exception:
+            pass
 
     def slotFinishRestoreDocument(self, doc):
         # resultados escondidos no arquivo continuavam desenhando a barra de cores: refaz o hide() deles
@@ -378,6 +485,10 @@ class _ObservadorResultado:
             for a in obj.InList:
                 if a.isDerivedFrom("Fem::FemAnalysis"):
                     gravar_assinatura(F.Estudo(analise=a))
+            # o pipeline novo nasce sem campo e desenha a escala de −0,5 a +0,5: esconde depois de montado
+            d = obj.Document
+            for ms in (0, 800):
+                QtCore.QTimer.singleShot(ms, lambda d=d: esconder_legendas(d))
         except Exception as exc:
             FreeCAD.Console.PrintLog("Usinix: assinatura do resultado: %s\n" % exc)
 

@@ -457,7 +457,7 @@ def folha_da_barra(doc, barra, qtd=1, formato="A3", norma=None, campos=None, mar
     return page
 
 
-def folhas_das_barras(doc, objs, formato="A3", norma=None, prefixo=""):
+def folhas_das_barras(doc, objs, formato="A3", norma=None, prefixo="", campos_extra=None):
     """Uma folha por barra diferente (marcas B01, B02…). Devolve [(folha, barra, quantidade)]."""
     lista = barras_para_folhas(objs)
     if not lista:
@@ -466,7 +466,8 @@ def folhas_das_barras(doc, objs, formato="A3", norma=None, prefixo=""):
     feitas = []
     for k, (b, q, _todas) in enumerate(lista, 1):
         marca = "B%02d" % k
-        campos = {"folha": "%d / %d" % (k, n)}
+        campos = dict(campos_extra or {})
+        campos["folha"] = "%d / %d" % (k, n)
         if prefixo:
             campos["numero"] = "%s-%s" % (prefixo.rstrip("-"), marca)
         page = folha_da_barra(doc, b, q, formato, norma, campos, marca)

@@ -323,6 +323,36 @@ def materiais():
     return lista
 
 
+def _chave_nome(t):
+    import re
+    import unicodedata
+    t = "".join(c for c in unicodedata.normalize("NFD", str(t or "")) if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]", "", t.lower())
+
+
+def achar_material(nome):
+    """Material da biblioteca pelo nome, sem ligar para maiúsculas, espaços, pontos e hífens
+    ("ASTM A572 Gr.50" acha "ASTM A572 Gr 50"). None se não achar."""
+    k = _chave_nome(nome)
+    if not k:
+        return None
+    lista = materiais()
+    for d in lista:
+        if d["nome"] == nome:
+            return d
+    for d in lista:
+        if _chave_nome(d["nome"]) == k:
+            return d
+    return None
+
+
+def parecidos(nome, n=4):
+    """Nomes da biblioteca mais parecidos com `nome` (para a mensagem de erro)."""
+    import difflib
+    nomes = [d["nome"] for d in materiais()]
+    return difflib.get_close_matches(str(nome or ""), nomes, n=n, cutoff=0.4)
+
+
 def props_mat(p):
     """Propriedades principais em unidades de engenharia (MPa, kg/m³)."""
     return {

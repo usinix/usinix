@@ -1171,6 +1171,18 @@ class VPBarra:
         return None
 
 
+def nome_do_material(nome):
+    """Nome como está na biblioteca ("ASTM A572 Gr.50" → "ASTM A572 Gr 50"); fora da biblioteca, como veio."""
+    if not nome:
+        return nome
+    try:
+        import UsinixFEM
+        d = UsinixFEM.achar_material(nome)
+        return d["nome"] if d else nome
+    except Exception:
+        return nome
+
+
 def criar(doc, esqueleto, perfil=PERFIL_PADRAO, rotacao=0.0, alinhamento="Centro",
           uniao="Meia-esquadria", material="", grupos_extras=None, espelhar=False, linhas_sem_barra=(),
           transacao=True, rotacoes=None):
@@ -1198,7 +1210,7 @@ def criar(doc, esqueleto, perfil=PERFIL_PADRAO, rotacao=0.0, alinhamento="Centro
     est.Fixacao = fixacao
     est.Espelhar = bool(espelhar)
     est.Uniao = uniao
-    est.Material = material
+    est.Material = nome_do_material(material)
     definir_grupos(est, grupos_extras or [], len(eds), linhas_sem_barra)
     if rotacoes:
         est.RotacoesIndividuais = [float(x) for x in rotacoes]
@@ -1822,7 +1834,7 @@ def editar(est, padrao, grupos_extras, uniao=None, material=None, linhas_sem_bar
     if uniao is not None:
         est.Uniao = uniao
     if material is not None:
-        est.Material = material
+        est.Material = nome_do_material(material)
     for b in barras_de(est):
         b.touch()
     est.Document.recompute()

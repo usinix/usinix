@@ -237,6 +237,7 @@ def regras(tipo, p):
 
 
 def _f(v):
+    v = getattr(v, "Value", v)              # propriedade com unidade: só o número (a unidade vem no texto)
     try:
         import UsinixUtil
         return UsinixUtil.fmt(v, 1)

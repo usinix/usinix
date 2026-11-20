@@ -347,6 +347,15 @@ class Modelo:
             modo = v[:, 0]
             ids = np.where(livres)[0]
             trans = [(abs(modo[k]), ids[k]) for k in range(len(ids)) if ids[k] % 6 < 3]
+            giros = [(abs(modo[k]), ids[k]) for k in range(len(ids)) if ids[k] % 6 >= 3]
+            if giros and (not trans or max(giros)[0] > 3.0 * max(trans)[0]):
+                # modo de giro puro: a barra gira em torno de um eixo (torção da viga apoiada, rótulas demais)
+                _a, g = max(giros)
+                q = self.nos[g // 6]
+                eixo = "XYZ"[g % 6 - 3]
+                return txt + (": o nó (%.0f; %.0f; %.0f) gira em torno de %s sem nada que o segure. Se for uma viga "
+                              "apoiada girando no próprio eixo (torção), use \"Apoio simples (garfo)\" num apoio, "
+                              "que segura esse giro; senão, confira as rótulas." % (q[0], q[1], q[2], eixo))
             if trans and max(trans)[0] > 1e-3:
                 _a, g = max(trans)
                 q = self.nos[g // 6]

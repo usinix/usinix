@@ -223,7 +223,9 @@ class VPAnalise:
         from pivy import coin
         tipos = {"Engaste": (coin.SoMarkerSet.SQUARE_FILLED_9_9, (0.0, 0.23, 0.44)),
                  "Rótula": (coin.SoMarkerSet.TRIANGLE_FILLED_9_9, (0.0, 0.23, 0.44)),
-                 "Rolete (vertical)": (coin.SoMarkerSet.CIRCLE_FILLED_9_9, (0.0, 0.23, 0.44))}
+                 "Rolete (vertical)": (coin.SoMarkerSet.CIRCLE_FILLED_9_9, (0.0, 0.23, 0.44)),
+                 "Apoio simples (garfo)": (coin.SoMarkerSet.TRIANGLE_FILLED_9_9, (0.88, 0.63, 0.0)),
+                 "Rolete com garfo (vertical)": (coin.SoMarkerSet.CIRCLE_FILLED_9_9, (0.88, 0.63, 0.0))}
         for k, tipo in obj.Proxy.apoios(obj).items():
             p = A._ponto_da_chave(k)
             if tipo.startswith("Mola"):

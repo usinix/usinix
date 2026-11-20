@@ -20,7 +20,12 @@ APOIOS = {
     "Engaste": [1, 1, 1, 1, 1, 1],
     "Rótula": [1, 1, 1, 0, 0, 0],
     "Rolete (vertical)": [0, 0, 1, 0, 0, 0],
+    # viga apoiada: além do apoio, o garfo segura o giro da viga em torno do próprio eixo (torção), como no
+    # apoio de garfo que a verificação de flambagem lateral com torção supõe
+    "Apoio simples (garfo)": [1, 1, 1, 0, 0, 0],
+    "Rolete com garfo (vertical)": [0, 0, 1, 0, 0, 0],
 }
+GARFOS = ("Apoio simples (garfo)", "Rolete com garfo (vertical)")
 LIBERACOES = ["Rótula no início", "Rótula no fim", "Rótula nas duas pontas", "Barra de treliça",
               "Só tração (contraventamento)"]
 TRELICAS = ("Barra de treliça", "Só tração (contraventamento)")
@@ -243,6 +248,8 @@ def montar_modelo(est, casos, apoios, liberacoes=None):
             m.molas[no] = [kx * 1000.0, ky * 1000.0, kz * 1000.0, 0.0, 0.0, 0.0]   # kN/mm → N/mm
         elif no is not None and tipo in APOIOS:
             m.apoios[no] = list(APOIOS[tipo])
+            if tipo in GARFOS:
+                _garfo(m, no, rolete=tipo.startswith("Rolete"))
     # casos
     lista = []
     for c in casos:
@@ -285,6 +292,29 @@ def montar_modelo(est, casos, apoios, liberacoes=None):
                     pc.nos.append((no, list(d * val), [0.0, 0.0, 0.0]))
         lista.append(pc)
     return m, lista, mapa
+
+
+def _garfo(m, no, rolete=False):
+    """Trava o giro em torno do eixo das barras que chegam ao nó (torção). Barra fora dos eixos X, Y e Z:
+    trava os giros dos eixos que têm mais de 30 % da direção dela. No rolete com garfo, trava também o
+    deslocamento de lado (fora do eixo da barra); só o deslocamento ao longo da barra fica livre."""
+    import numpy as np
+    eixo = np.zeros(3)
+    for b in m.barras:
+        if no in (b.i, b.j):
+            d = np.array(m.nos[b.j], dtype=float) - np.array(m.nos[b.i], dtype=float)
+            n = np.linalg.norm(d)
+            if n > 0:
+                eixo += np.abs(d / n)
+    n = np.linalg.norm(eixo)
+    if n == 0:
+        return
+    eixo /= n
+    for k in range(3):
+        if eixo[k] > 0.3:
+            m.apoios[no][3 + k] = 1
+        elif rolete:
+            m.apoios[no][k] = 1
 
 
 def _no_mais_proximo(m, p, tol=None):
@@ -493,11 +523,18 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
                     calc.resultados[nome] = m.resolver(partes_de[nome], segunda_ordem=True, rigidez=0.8)
     except ValueError as ex:
         calc.erro = str(ex)
+        if "mecanismo" in calc.erro and "garfo" not in calc.erro and \
+                any(t in ("Rótula", "Rolete (vertical)") for t in apoios.values()):
+            calc.erro += (". Numa viga apoiada, use \"Apoio simples (garfo)\" numa ponta e \"Rolete com garfo "
+                          "(vertical)\" na outra: eles seguram o giro da viga no próprio eixo e o deslocamento de lado")
         calc.resultados = {}
         return calc
-    if nome_material.startswith("ASTM A36 (padrão"):
+    if nome_material.startswith("ASTM A36 (padrão: material não informado"):
         calc.avisos.append("Material não informado: verificado como ASTM A36 (fy 250 MPa, fu 400 MPa). "
                            "Confira o aço real das barras.")
+    elif nome_material.startswith("ASTM A36 (padrão"):
+        calc.avisos.append("ATENÇÃO: material %s. Verificado como ASTM A36 (fy 250 MPa, fu 400 MPa): escolha um "
+                           "material da biblioteca na estrutura ou na análise." % nome_material[len("ASTM A36 (padrão: "):-1])
     a = calc.amplificacao
     classe = ("pequena" if a <= 1.10 else "média" if a <= 1.40 else "grande")
     if not segunda_ordem:
@@ -803,12 +840,17 @@ class Analise:
         """(nome, fy, fu) do material: o da análise, o da estrutura, ou ASTM A36."""
         import UsinixFEM
         nome = (obj.Material or getattr(obj.Estrutura, "Material", "") or "").strip()
-        for d in UsinixFEM.materiais():
-            if nome and (d["nome"] == nome or nome.lower() in d["nome"].lower()):
-                p = UsinixFEM.props_mat(d["props"])
-                if p.get("Sy") and p.get("Su"):
-                    return d["nome"], float(p["Sy"]), float(p["Su"])
-        return "ASTM A36 (padrão: material não informado)", 250.0, 400.0
+        if not nome:
+            return "ASTM A36 (padrão: material não informado)", 250.0, 400.0
+        achados = [UsinixFEM.achar_material(nome)] + [d for d in UsinixFEM.materiais()
+                                                      if nome.lower() in d["nome"].lower()]
+        for d in achados:
+            if d is None:
+                continue
+            p = UsinixFEM.props_mat(d["props"])
+            if p.get("Sy") and p.get("Su"):
+                return d["nome"], float(p["Sy"]), float(p["Su"])
+        return "ASTM A36 (padrão: \"%s\" não está na biblioteca ou não tem fy e fu)" % nome, 250.0, 400.0
 
     def calcular_silencioso(self, obj):
         """Recalcula só o resultado em memória (para desenhar), sem mudar propriedades."""

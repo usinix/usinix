@@ -36,8 +36,8 @@ Novidades
 ---------
 
 **Versão atual: 1.23.0** (20/11/2026): relatório completo, em PDF, de uma análise feita à mão na bancada
-Simulação, com aviso de resultado desatualizado, conferência do equilíbrio e verificação; aviso de tração em barra
-com furos no cálculo por barras; correções na conexão com IA.
+Simulação, com aviso de resultado desatualizado, conferência do equilíbrio e verificação; bancada Simulação no
+tema Usinix; aviso de tração em barra com furos no cálculo por barras; correções na conexão com IA.
 
 Na 1.22.2: o tamanho do texto das cotas definido nas preferências passa a valer também nos desenhos abertos.
 

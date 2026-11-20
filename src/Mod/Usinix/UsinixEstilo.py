@@ -721,9 +721,21 @@ BUTTON_ICONS = {
 
 
 def _icon_file(name):
+    """Arquivo do tema de ícones: a pasta registrada (zip descompactado ou tema escuro) ou, no instalador,
+    a pasta que já vem descompactada (registrada pelo branding, sem o parâmetro)."""
     d = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Bitmaps").GetString("CustomPathUsinix", "")
-    p = os.path.join(d, name + ".svg") if d else ""
-    return p if p and os.path.isfile(p) else None
+    pastas = [d] if d else []
+    try:
+        import UsinixGui
+        if UsinixGui._params().GetBool("IconTheme", True):
+            pastas.append(UsinixGui.ICON_DIR_PACOTE)
+    except Exception:
+        pass
+    for pasta in pastas:
+        p = os.path.join(pasta, name + ".svg")
+        if os.path.isfile(p):
+            return p
+    return None
 
 
 _icon_cache = {}

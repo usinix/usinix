@@ -17,7 +17,7 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
 -->
 ## 1.23.0 — 20/11/2026
 
-![Painel Relatório da análise ao lado de uma grade de vigas calculada na bancada Simulação](.github/images/novidades/1.23.0.webp)
+![Bancada Simulação com os ícones novos e o painel Relatório da análise ao lado de uma grade de vigas calculada](.github/images/novidades/1.23.0.webp)
 
 ### Novo
 
@@ -28,6 +28,9 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   escrita, malha e solução, resultados com as vistas de tensão e deslocamento, reações de apoio com a soma
   comparada às cargas, verificação, premissas, conclusão e assinatura. Cliente, projeto, responsável, CREA e ART
   ficam em **Capa e assinatura**.
+- **Bancada Simulação no tema Usinix:** os botões da faixa e os itens da árvore (estudo, solver, material, seção,
+  apoios, cargas, malha, resultados) ganharam ícones no mesmo desenho das outras bancadas. Nas restrições novas,
+  o símbolo dos apoios sai em azul e o das cargas em âmbar.
 - **Resultado desatualizado:** se você mudar carga, apoio, material, seção, malha ou geometria depois de calcular,
   o painel avisa que o resultado é de um modelo anterior e só libera o relatório depois de **Recalcular esta
   análise**.
@@ -39,9 +42,26 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   avisam para conferir a ruptura na seção líquida.
 - **Legenda de cores sobrando:** a escala de cores de um resultado antigo (de −0,5 a +0,5) ficava na tela depois de
   mostrar outro resultado ou de reabrir o arquivo. Agora ela some.
+- **Lista de materiais, massa, interferência e DXF em lote:** a peça que tinha vista numa folha de desenho sumia da
+  lista e do DXF (e, com tudo em folhas, a lista saía vazia). Os sólidos de apoio das folhas das barras entravam na
+  lista e no Excel como peças, aumentando a massa. As duas coisas foram corrigidas.
+- **Barras com e sem furos:** viravam uma linha só na lista de materiais. Agora são itens separados, com a furação
+  na observação, como na lista de corte.
+- **Viga biapoiada na análise por barras:** rótula com rolete dava erro de mecanismo porque nada segurava o giro da
+  viga no próprio eixo. Há dois apoios novos, **Apoio simples (garfo)** e **Rolete com garfo (vertical)**, e a
+  mensagem de mecanismo explica o giro livre e indica esses apoios.
+- **Material da estrutura:** um nome escrito de outro jeito ("ASTM A572 Gr.50") fazia a análise cair em ASTM A36
+  sem aviso na tela. Agora o nome é corrigido para o da biblioteca e, se o material não existir, a análise avisa
+  em destaque.
+- **Aviso da placa:** saía com a unidade repetida ("39.0 mm mm"); agora sai "39,0 mm".
+- **Tubulação de aço:** entraram reduções concêntricas que faltavam no catálogo, como 4" × 2", 3" × 1 1/2" e
+  2" × 1".
 - **Conectar IA:** o assistente mostrava só a ferramenta "estado" quando era aberto antes do Usinix; agora a lista
   completa fica guardada e o assistente é avisado quando ela muda. A captura de imagem funciona mesmo com uma folha
-  de desenho na frente, e a lista de materiais não sai mais vazia em peças usadas numa simulação.
+  de desenho na frente, e a lista de materiais não sai mais vazia em peças usadas numa simulação. As folhas feitas
+  pela IA não saem mais com "verificado" e "aprovado" preenchidos: esses campos ficam para quem revisar.
+  Também pela IA, a estrutura recebe o ponto de fixação do perfil e só aceita material da biblioteca, e os furos
+  com parafusos informam quantos parafusos entraram em cada barra.
 
 ## 1.22.2 — 20/11/2026
 

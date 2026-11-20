@@ -19579,3 +19579,236 @@ class T151RelatorioMEFDaBancadaEIA(unittest.TestCase):
             self.assertIn("lista_de_materiais", nomes)
         finally:
             UsinixIA.desligar()
+
+
+class T152SimulacaoNoTemaUsinix(unittest.TestCase):
+    """1.23.1: bancada Simulação no tema Usinix — ícones redesenhados na faixa e na árvore, símbolos de apoio
+    em azul e de carga em âmbar, e sem a escala de cores vazia depois de calcular."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteTemaFEM")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_comandos_da_aba_tem_icone_redesenhado(self):
+        import zipfile
+        import UsinixGui
+        import UsinixRibbon
+        z = zipfile.ZipFile(UsinixGui.ICON_ZIP)
+        nomes = set(z.namelist())
+        aba = [t for t in UsinixRibbon.TABS if t["id"] == "simulacao"][0]
+        faltam = []
+        for _titulo, itens in aba["panels"]:
+            for cmd, _tam, _rot in itens:
+                if cmd.startswith("FEM_") and "actions/%s.svg" % cmd not in nomes:
+                    faltam.append(cmd)
+        self.assertFalse(faltam, "sem ícone no estilo Usinix: %s" % faltam)
+        # redesenhado (traço ardósia do guia), não o original recolorido
+        self.assertIn(b"#1E2A38", z.read("actions/FEM_ConstraintForce.svg"))
+        for n in ("FEM_MaterialSolid", "FEM_SolverStandard", "FEM_MeshGmshFromShape", "FEM_ElementGeometry1D",
+                  "FEM_ConstraintSelfWeight", "FEM_ResultShow", "fem-femmesh-from-shape"):
+            self.assertIn("%s.svg" % n, nomes)
+
+    def test_simbolos_de_apoio_e_carga_nas_cores_do_tema(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import ObjectsFem
+        import UsinixFEMBancada as B
+        B.instalar()
+        caixa = self.doc.addObject("Part::Box", "Peca")
+        self.doc.recompute()
+        fx = ObjectsFem.makeConstraintFixed(self.doc, "Fixo")
+        fx.References = [(caixa, ("Face1",))]
+        fo = ObjectsFem.makeConstraintForce(self.doc, "Forca")
+        fo.References = [(caixa, ("Face2",))]
+        self.doc.recompute()
+        for _i in range(5):
+            QtWidgets.QApplication.processEvents()
+        c1 = fx.ViewObject.ShapeAppearance[0].DiffuseColor
+        c2 = fo.ViewObject.ShapeAppearance[0].DiffuseColor
+        for a, b in zip(c1[:3], B.COR_APOIO):
+            self.assertAlmostEqual(a, b, places=2)
+        for a, b in zip(c2[:3], B.COR_CARGA):
+            self.assertAlmostEqual(a, b, places=2)
+
+    def test_icone_da_arvore_dos_objetos_em_python(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import ObjectsFem
+        import UsinixEstilo
+        import UsinixFEMBancada as B
+        if not UsinixEstilo._icon_file("FEM_MaterialSolid"):
+            self.skipTest("tema de ícones desligado")
+        B.instalar()
+        m = ObjectsFem.makeMaterialSolid(self.doc, "Mat")
+        g = ObjectsFem.makeElementGeometry1D(self.doc, name="Sec")
+        for o in (m, g):
+            ic = o.ViewObject.Proxy.getIcon()
+            self.assertFalse(ic.startswith(":"), ic)
+            self.assertTrue(os.path.isfile(ic), ic)
+        # caminho que não está no tema volta como veio
+        self.assertEqual(B.icone_do_tema(":/icons/NaoExiste123.svg"), ":/icons/NaoExiste123.svg")
+
+    def test_sem_escala_vazia_depois_de_calcular(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import time
+        import UsinixFEM as F
+        import UsinixFEMBancada as B
+        B.instalar()
+        a = T151RelatorioMEFDaBancadaEIA._grade(self)
+        ok, erro, _dt = F.calcular(F.Estudo(analise=a))
+        if not ok and ("ccx" in (erro or "").lower() or "calculix" in (erro or "").lower()):
+            self.skipTest("sem CalculiX: %s" % erro)
+        self.assertTrue(ok, erro)
+        t0 = time.time()
+        while time.time() - t0 < 1.5:
+            QtWidgets.QApplication.processEvents()
+            time.sleep(0.05)
+        for o in self.doc.Objects:
+            vo = getattr(o, "ViewObject", None)
+            if o.isDerivedFrom("Fem::FemPostObject") and vo is not None and hasattr(vo, "Field"):
+                self.assertFalse(vo.Visibility and vo.Field == "None", o.Name)
+
+
+class T153AchadosDaBateriaDeTestes(unittest.TestCase):
+    """1.23.0: achados da bateria de 20/11/2026 — peças com folha somem da lista, folhas das barras inflam a
+    lista, barras com e sem furos juntas, viga biapoiada vira mecanismo, material fora da biblioteca, folha da
+    IA aprovada sozinha, unidade repetida no aviso, redução 4" × 2" e parafusos conferidos com os furos."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteAchados")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_peca_com_folha_continua_na_lista_e_auxiliares_ficam_fora(self):
+        import UsinixBOM
+        import UsinixUtil
+        cx = self.doc.addObject("Part::Box", "Caixa")
+        pg = self.doc.addObject("TechDraw::DrawPage", "Folha")
+        tpl = self.doc.addObject("TechDraw::DrawSVGTemplate", "Modelo")
+        pg.Template = tpl
+        v = self.doc.addObject("TechDraw::DrawViewPart", "Vista")
+        pg.addView(v)
+        v.Source = [cx]
+        g = self.doc.addObject("App::DocumentObjectGroup", "DadosDasFolhas")
+        aux = self.doc.addObject("Part::Feature", "BarraReta")
+        import Part
+        aux.Shape = Part.makeBox(10, 10, 10)
+        g.addObject(aux)
+        self.doc.recompute()
+        self.assertNotIn(cx, self.doc.RootObjects)          # o que fazia a peça sumir da lista e do DXF
+        r = UsinixUtil.raizes(self.doc)
+        self.assertIn(cx, r)
+        for o in (aux, g, pg, v, tpl):
+            self.assertNotIn(o, r)
+        linhas = UsinixBOM.coletar(UsinixBOM._objetos_alvo(usar_selecao=False))
+        self.assertEqual(sum(l.qtd for l in linhas), 1)
+
+    def test_barras_com_e_sem_furos_sao_itens_diferentes(self):
+        import UsinixBOM
+        import UsinixEstrutura as E
+        import UsinixTrabalhosBarra as T
+        sk = esboco_linhas(self.doc, [((0, 0), (2000, 0)), ((0, 500), (2000, 500))], "XZ")
+        est = E.criar(self.doc, sk, "W 150 x 13,0", material="ASTM A36")
+        self.doc.recompute()
+        b0 = [b for b in E.barras_de(est) if b.Indice == 0]
+        T.aplicar(b0, None, {"face": "Alma", "diam": 14.0, "ref": "inicio", "dist": 60.0, "qtd": 2, "passo": 80.0},
+                  "g1")
+        for b in E.barras_de(est):
+            b.touch()
+        self.doc.recompute()
+        linhas = [l for l in UsinixBOM.coletar([est]) if l.denominacao.startswith("Barra")]
+        self.assertEqual(len(linhas), 2, [(l.denominacao, l.obs) for l in linhas])
+        self.assertTrue(any("furos" in l.obs for l in linhas))
+
+    def test_viga_biapoiada_com_garfo(self):
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        sk = esboco_linhas(self.doc, [((0, 0), (4000, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A36")
+        casos = [A.caso_padrao(), {"nome": "Q", "tipo": "Sobrecarga (sem predominância de equipamentos)",
+                                   "cargas": [{"alvo": "barra", "linha": 0, "tipo": "distribuida", "valor": 5.0,
+                                               "direcao": "Para baixo (−Z)"}]}]
+        calc = A.calcular(est, casos, {A._chave_no((0, 0, 0)): "Rótula", A._chave_no((4000, 0, 0)): "Rolete (vertical)"})
+        self.assertIsNotNone(calc.erro)
+        self.assertIn("garfo", calc.erro)                  # a mensagem diz o que fazer
+        calc = A.calcular(est, casos, {A._chave_no((0, 0, 0)): "Apoio simples (garfo)",
+                                       A._chave_no((4000, 0, 0)): "Rolete com garfo (vertical)"})
+        self.assertIsNone(calc.erro, calc.erro)
+        f, lim, _tx, _n, _t = calc.flechas[0]
+        self.assertGreater(f, 0.0)
+
+    def test_material_pelo_nome_da_biblioteca(self):
+        import UsinixEstrutura as E
+        import UsinixFEM
+        import UsinixIA
+        import UsinixAnaliseEstrutura as A
+        if UsinixFEM.achar_material("ASTM A572 Gr 50") is None:
+            self.skipTest("biblioteca sem ASTM A572 Gr 50")
+        self.assertEqual(E.nome_do_material("ASTM A572 Gr.50"), "ASTM A572 Gr 50")
+        sk = esboco_linhas(self.doc, [((0, 0), (2000, 0))], "XZ")
+        FreeCAD.setActiveDocument(self.doc.Name)
+        r = UsinixIA.f_estrutura(sk.Name, "W 150 x 13,0", material="astm a572 gr.50", fixacao="Sup. centro")
+        est = self.doc.getObject(r["estrutura"])
+        self.assertEqual(est.Material, "ASTM A572 Gr 50")
+        self.assertEqual(E._fixacao_da_estrutura(est), "Sup. centro")
+        with self.assertRaises(ValueError):
+            UsinixIA.f_estrutura(sk.Name, "W 150 x 13,0", material="Aço inventado 999")
+        # material escrito errado direto na estrutura: aviso forte no cálculo
+        est.Material = "Aço inventado 999"
+        casos = [A.caso_padrao()]
+        nome, fy, fu = A.Analise.material(None, type("O", (), {"Material": "", "Estrutura": est})())
+        self.assertTrue(nome.startswith("ASTM A36 (padrão"))
+        calc = A.calcular(est, casos, {A._chave_no((0, 0, 0)): "Engaste"}, fy, fu, nome)
+        self.assertTrue(any(a.startswith("ATENÇÃO: material") for a in calc.avisos), calc.avisos)
+
+    def test_folha_da_ia_nao_sai_aprovada(self):
+        import UsinixFolhas as F
+        import UsinixIA
+        g = FreeCAD.ParamGet(F.UsinixUtil.PARAM_PATH)
+        antes = (g.GetString("Folha_verificado", ""), g.GetString("Folha_aprovado", ""))
+        g.SetString("Folha_verificado", "Fulano")
+        g.SetString("Folha_aprovado", "Fulano")
+        try:
+            self.doc.addObject("Part::Box", "Caixa")
+            self.doc.recompute()
+            FreeCAD.setActiveDocument(self.doc.Name)
+            r = UsinixIA.f_folha(["Caixa"], "A4")
+            et = self.doc.getObject(r["folha"]).Template.EditableTexts
+            for k in ("verificado", "aprovado"):
+                if k in et:
+                    self.assertEqual(et[k].strip(), "", k)
+        finally:
+            g.SetString("Folha_verificado", antes[0])
+            g.SetString("Folha_aprovado", antes[1])
+
+    def test_aviso_da_placa_sem_unidade_repetida(self):
+        import UsinixModelos as M
+        q = FreeCAD.Units.Quantity("26 mm")
+        av = M.regras("placa", {"DiametroFuro": q, "FurosX": 2, "FurosY": 2, "Borda": FreeCAD.Units.Quantity("20 mm"),
+                                "Comprimento": FreeCAD.Units.Quantity("200 mm"),
+                                "Largura": FreeCAD.Units.Quantity("150 mm"),
+                                "Espessura": FreeCAD.Units.Quantity("12.5 mm")})
+        txt = " ".join(av)
+        self.assertIn("39", txt)
+        self.assertNotIn("mm mm", txt)
+        self.assertNotIn("39.0", txt)
+
+    def test_reducao_4_por_2(self):
+        import UsinixCatalogoTubos as CAT
+        self.assertEqual(CAT._RED_H[(100, 50)], 102)
+
+    def test_parafusos_nas_duas_pontas(self):
+        import UsinixEstrutura as E
+        import UsinixIA
+        sk = esboco_linhas(self.doc, [((0, 0), (2898, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", transacao=False)
+        self.doc.recompute()
+        FreeCAD.setActiveDocument(self.doc.Name)
+        r = UsinixIA.f_trabalhos(est.Name, furos={"face": "Alma", "parafuso": "M16", "ref": "as_duas", "dist": 60,
+                                                  "qtd": 2, "passo": 80}, por_parafusos=True)
+        self.assertEqual(r[0]["parafusos"], 4)
+        self.assertNotIn("aviso", r[0])

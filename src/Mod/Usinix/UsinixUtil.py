@@ -82,6 +82,52 @@ CONSOMEM = ("Part::Cut", "Part::Fuse", "Part::Common", "Part::MultiFuse", "Part:
             "Part::RefineFeature", "Part::BooleanFragments", "Part::Slice", "Part::XOR")
 
 
+# grupos de apoio que não são peças: dados das folhas das barras e resultado da verificação de interferência
+GRUPOS_AUXILIARES = ("DadosDasFolhas", "Interferencias")
+_TIPOS_FORA = ("App::Origin", "Spreadsheet::Sheet", "App::TextDocument")
+
+
+def auxiliar(obj):
+    """Objeto que não é peça: grupos de apoio (e o que está neles), folhas, simulação, planilhas e textos."""
+    try:
+        if obj.Name in GRUPOS_AUXILIARES or any(p.Name in GRUPOS_AUXILIARES for p in obj.InList):
+            return True
+        t = obj.TypeId
+        return t in _TIPOS_FORA or t.startswith("Fem::") or t.startswith("TechDraw::")
+    except Exception:
+        return False
+
+
+def _so_referencia(pai):
+    """Quem aponta para a peça sem contê-la: vistas e folhas do TechDraw e objetos da simulação (menos o
+    estudo, que contém os próprios objetos)."""
+    t = pai.TypeId
+    if t.startswith("TechDraw::"):
+        return True
+    return t.startswith("Fem::") and not pai.isDerivedFrom("Fem::FemAnalysis")
+
+
+def raizes(doc):
+    """Peças de topo do documento, para lista de materiais, massa, interferência e DXF.
+
+    Como doc.RootObjects, mas a peça que aparece numa folha de desenho ou numa simulação continua de topo
+    (a folha e o estudo apontam para ela, não a contêm), e os objetos de apoio ficam de fora."""
+    if doc is None:
+        return []
+    res = []
+    for o in doc.Objects:
+        if auxiliar(o):
+            continue
+        try:
+            if o.isDerivedFrom("App::DocumentObjectGroup") and not o.Group:
+                continue
+        except Exception:
+            pass
+        if all(_so_referencia(p) for p in o.InList):
+            res.append(o)
+    return res
+
+
 def _eh_container(obj):
     if obj.TypeId in CONTAINERS:
         return True

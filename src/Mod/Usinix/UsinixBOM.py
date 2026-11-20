@@ -228,7 +228,7 @@ def coletar(objs, densidade_padrao=None, mapa=None):
         if perfil:
             comp = _prop(base, "ComprimentoCorte", "Comprimento")
             c = round(comp.Value if hasattr(comp, "Value") else float(comp or 0), 1)
-            chave = ("perfil", str(perfil), c, str(_prop(base, "Material") or ""))
+            chave = ("perfil", str(perfil), c, str(_prop(base, "Material") or ""), str(_prop(base, "Furacao") or ""))
         elif _prop(base, "Denominacao") and "Espessura" in base.PropertiesList:
             # chapa da estrutura (reforço, tampa, placa de base): iguais pela descrição e material
             chave = ("chapa", str(base.Denominacao), str(_prop(base, "Material") or ""))
@@ -268,6 +268,9 @@ def coletar(objs, densidade_padrao=None, mapa=None):
                 nome_mat, definido = (mat_txt, True) if mat_txt else ("—", True)
                 den = "Barra " + str(perfil)
                 obs = "" if _prop(base, "SituacaoDados") in (None, "confirmado") else "perfil a conferir"
+                fur = str(_prop(base, "Furacao") or "")
+                if fur:                          # barras com furação diferente são itens diferentes
+                    obs = (obs + "; " if obs else "") + "furos " + fur
             acab = _prop(base, "Acabamento")
             if acab:
                 obs = (obs + "; " if obs else "") + str(acab)
@@ -412,29 +415,14 @@ def inserir_na_folha(page, sheet, n_linhas):
 
 
 def raizes(doc):
-    """Objetos de topo do documento para a lista de materiais.
-
-    Como doc.RootObjects, mas uma peça referenciada só pela simulação (restrições, malha e resultados do
-    FEM) continua sendo de topo: o FEM aponta para a peça, não a contém."""
-    def so_fem(o):
-        for p in o.InList:
-            if p.TypeId.startswith("Fem::") and not p.isDerivedFrom("Fem::FemAnalysis"):
-                continue
-            return False
-        return True
-    res = []
-    for o in doc.Objects:
-        if o.TypeId.startswith("Fem::") or o.TypeId in ("App::Origin", "Spreadsheet::Sheet", "App::TextDocument"):
-            continue
-        if o.isDerivedFrom("TechDraw::DrawPage") or o.isDerivedFrom("App::DocumentObjectGroup") and not o.Group:
-            continue
-        if so_fem(o):
-            res.append(o)
-    return res
+    """Objetos de topo para a lista de materiais (ver UsinixUtil.raizes)."""
+    return UsinixUtil.raizes(doc)
 
 
-def _objetos_alvo():
-    sel = FreeCADGui.Selection.getSelection()
+def _objetos_alvo(usar_selecao=True):
+    """O que a lista de materiais conta: a seleção (na tela), a montagem ou as peças de topo do documento.
+    Pela IA, usar_selecao=False: o resultado não muda conforme o que estiver clicado."""
+    sel = FreeCADGui.Selection.getSelection() if (usar_selecao and FreeCAD.GuiUp) else []
     if sel:
         return sel
     doc = FreeCAD.ActiveDocument

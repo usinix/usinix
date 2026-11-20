@@ -148,7 +148,7 @@ def PainelInterferencia():
             if vs:
                 return vs
             doc = FreeCAD.ActiveDocument
-            return [o for o in doc.RootObjects if UsinixUtil.tem_peca([o]) and not _eh_resultado(o)] if doc else []
+            return [o for o in UsinixUtil.raizes(doc) if UsinixUtil.tem_peca([o]) and not _eh_resultado(o)]
 
         def verificar(self):
             self.resultado = verificar(self._alvos(), self.tol.value(), self.contatos.isChecked(),
