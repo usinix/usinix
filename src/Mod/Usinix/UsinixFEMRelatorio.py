@@ -328,7 +328,7 @@ def _capa(p, W, H, k, est):
     p.setPen(QtGui.QColor(INK))
     p.setFont(_fonte(5.0 * k, QtGui.QFont.DemiBold))
     p.drawText(QtCore.QRectF(MARGEM_MM * k, 112 * k, W, 12 * k), "Relatório técnico de simulação")
-    linhas = [("Peça analisada", est.peca.Label if est.peca else "—"),
+    linhas = [("Peça analisada", est.get("UsinixRelPeca", "") or (est.peca.Label if est.peca else "—")),
               ("Cliente", est.get("UsinixRelCliente", "") or "—"),
               ("Equipamento / projeto", est.get("UsinixRelProjeto", "") or "—"),
               ("Tipo de análise", "Estática linear" if est.tipo == "static" else "Frequências naturais"),
@@ -353,7 +353,7 @@ def _capa(p, W, H, k, est):
 def _cabecalho(p, W, k, est):
     p.setPen(QtGui.QColor(NAVY))
     p.setFont(_fonte(3.2 * k, QtGui.QFont.DemiBold))
-    tit = "Relatório de simulação · " + (est.peca.Label if est.peca else "")
+    tit = "Relatório de simulação · " + (est.get("UsinixRelPeca", "") or (est.peca.Label if est.peca else ""))
     p.drawText(QtCore.QRectF(MARGEM_MM * k, 8 * k, W - 60 * k, 6 * k), QtCore.Qt.AlignVCenter, tit)
     p.setPen(QtGui.QColor(INK2))
     p.setFont(_fonte(3.0 * k))
@@ -388,18 +388,23 @@ def _rodape(p, W, H, k, pagina, total):
                    QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, "Página %d de %d" % (pagina, total))
 
 
-def gerar(est, caminho):
+def gerar(est, caminho, corpo=None, capturas=None):
+    """PDF do estudo. `corpo(est, doc, imgs, largura)` troca o texto (o relatório da bancada usa o seu);
+    `capturas(est, pasta)` troca as imagens."""
     pasta = tempfile.mkdtemp(prefix="usinix_rel_")
     # estado de visibilidade para restaurar depois
     objs = [o for o in est.doc.Objects if hasattr(o, "ViewObject") and o.ViewObject is not None]
     vis = {o.Name: o.ViewObject.Visibility for o in objs}
     imgs = {}
     try:
-        imgs["modelo"] = _captura(est, "modelo", pasta)
-        imgs["malha"] = _captura(est, "malha", pasta)
-        if est.tipo == "static":
-            imgs["tensao"] = _captura(est, "tensao", pasta)
-        imgs["deslocamento"] = _captura(est, "deslocamento", pasta)
+        if capturas is not None:
+            imgs = capturas(est, pasta)
+        else:
+            imgs["modelo"] = _captura(est, "modelo", pasta)
+            imgs["malha"] = _captura(est, "malha", pasta)
+            if est.tipo == "static":
+                imgs["tensao"] = _captura(est, "tensao", pasta)
+            imgs["deslocamento"] = _captura(est, "deslocamento", pasta)
     finally:
         for o in objs:
             try:
@@ -429,7 +434,7 @@ def gerar(est, caminho):
     f.setPixelSize(14)
     doc.setDefaultFont(f)
     doc.setDocumentMargin(0)
-    doc.setHtml(_corpo(est, doc, imgs, int(larg_doc * 0.78)))
+    doc.setHtml((corpo or _corpo)(est, doc, imgs, int(larg_doc * 0.78)))
     doc.setTextWidth(larg_doc)
     doc.setPageSize(QtCore.QSizeF(larg_doc, alt_doc))
     paginas = doc.pageCount()

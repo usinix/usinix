@@ -42,12 +42,47 @@ def _ponte(caminho, dados, tempo=200):
         return json.loads(r.read().decode("utf-8"))
 
 
+_lista = {"vista": None, "ao_vivo": False}        # última lista mandada ao assistente
+
+
+def _guardada():
+    """Lista gravada pelo Usinix na última vez que a ponte esteve ligada (inclui as ferramentas do Pro)."""
+    caminho = os.path.join(os.path.dirname(_arquivo_conexao()), "usinix-ia-ferramentas.json")
+    try:
+        with open(caminho, encoding="utf-8") as fh:
+            lista = json.load(fh)["ferramentas"]
+        if isinstance(lista, list) and lista:
+            return lista
+    except Exception:
+        pass
+    return None
+
+
 def _ferramentas():
     try:
-        return _ponte("/ferramentas", {}, tempo=10)["ferramentas"]
+        lista = _ponte("/ferramentas", {}, tempo=10)["ferramentas"]
+        _lista["ao_vivo"] = True
     except Exception:
-        return [{"name": "estado", "description": "Situação da conexão com o Usinix. " + AVISO_DESLIGADO,
-                 "inputSchema": {"type": "object", "properties": {}}}]
+        _lista["ao_vivo"] = False
+        lista = _guardada() or [{"name": "estado", "description": "Situação da conexão com o Usinix. "
+                                 + AVISO_DESLIGADO, "inputSchema": {"type": "object", "properties": {}}}]
+    _lista["vista"] = [t.get("name") for t in lista]
+    return lista
+
+
+def _avisar_se_mudou():
+    """Com o Usinix ligado depois, a lista pode ter crescido: avisa o assistente para pedir de novo."""
+    if _lista["vista"] is None or _lista["ao_vivo"]:
+        return
+    try:
+        nomes = [t.get("name") for t in _ponte("/ferramentas", {}, tempo=5)["ferramentas"]]
+    except Exception:
+        return
+    _lista["ao_vivo"] = True
+    if nomes != _lista["vista"]:
+        _lista["vista"] = nomes
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}) + "\n")
+        sys.stdout.flush()
 
 
 def _chamar(nome, args):
@@ -81,7 +116,7 @@ def tratar(msg):
     if metodo == "initialize":
         pedido = par.get("protocolVersion")
         _resposta(ident, {"protocolVersion": pedido if pedido in PROTOCOLOS else PROTOCOLOS[0],
-                          "capabilities": {"tools": {"listChanged": False}},
+                          "capabilities": {"tools": {"listChanged": True}},
                           "serverInfo": {"name": "usinix", "version": VERSAO},
                           "instructions": "Ferramentas do Usinix (CAD mecânico brasileiro, base FreeCAD). Medidas em "
                                           "mm. Para estruturas: esboco_linhas → criar_estrutura → trabalhos_na_barra → "
@@ -92,6 +127,7 @@ def tratar(msg):
         _resposta(ident, {"tools": _ferramentas()})
     elif metodo == "tools/call":
         _resposta(ident, _chamar(par.get("name"), par.get("arguments")))
+        _avisar_se_mudou()
     else:
         _resposta(ident, erro={"code": -32601, "message": "método não suportado: %s" % metodo})
     return True

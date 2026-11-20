@@ -377,6 +377,7 @@ TABS = [
         ("7 · Resultados", [("FEM_ResultShow", L, "Ver\nresultados"), ("FEM_PostFilterWarp", S, "Deformada"),
                             ("FEM_PostFilterClipScalar", S, "Recorte por valor"), ("FEM_PostFilterDataAlongLine", S, "Gráfico ao longo de linha"),
                             ("FEM_ResultsPurge", S, "Limpar resultados")]),
+        ("8 · Relatório", [("Usinix_RelatorioMEF", L, "Relatório\nda análise")]),
     ]},
     {"id": "superficies", "label": "Superfícies", "wb": "SurfaceWorkbench", "wb_extra": ["PartWorkbench"], "panels": [
         ("Superfície", [

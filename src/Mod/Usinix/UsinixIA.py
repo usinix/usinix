@@ -470,7 +470,7 @@ def f_corte(estrutura=None, planilha=False):
 def f_bom(objetos=None):
     import UsinixBOM
     doc = _doc()
-    objs = [_obj(doc, n) for n in objetos] if objetos else [o for o in doc.RootObjects]
+    objs = [_obj(doc, n) for n in objetos] if objetos else UsinixBOM.raizes(doc)
     return [{"qtd": l.qtd, "descricao": l.denominacao, "material": l.material, "dimensoes": l.dimensoes,
              "massa_kg": None if l.massa is None else round(l.massa, 3), "obs": l.obs}
             for l in UsinixBOM.coletar(objs)]
@@ -575,6 +575,23 @@ def f_captura(vista="iso", largura=900):
     if gd is None:
         raise ValueError("não há documento aberto")
     v = gd.ActiveView
+    if not hasattr(v, "saveImage"):
+        # a aba ativa é uma folha, planilha ou texto: volta para a vista 3D do documento
+        vistas = list(gd.mdiViewsOfType("Gui::View3DInventor")) if hasattr(gd, "mdiViewsOfType") else []
+        if not vistas:
+            raise ValueError("o documento não tem vista 3D aberta para capturar")
+        v = vistas[0]
+        try:
+            mw = FreeCADGui.getMainWindow()
+            from PySide import QtWidgets
+            area = mw.findChild(QtWidgets.QMdiArea)
+            alvo = getattr(v, "graphicsView", lambda: None)()
+            for sub in (area.subWindowList() if area else []):
+                if alvo is not None and sub.isAncestorOf(alvo):
+                    area.setActiveSubWindow(sub)
+                    break
+        except Exception:
+            pass
     acao = {"iso": "viewIsometric", "frente": "viewFront", "topo": "viewTop", "direita": "viewRight"}.get(vista)
     if acao and hasattr(v, acao):
         getattr(v, acao)()
@@ -678,8 +695,9 @@ class _Pedido(BaseHTTPRequestHandler):
             return self._responder(400, {"erro": "pedido inválido"})
         caminho = self.path.rstrip("/")
         if caminho == "/ferramentas":
-            return self._responder(200, {"ferramentas": [t["def"] for t in FERRAMENTAS.values()],
-                                         "protocolo": VERSAO_PROTOCOLO})
+            lista = [t["def"] for t in FERRAMENTAS.values()]
+            gravar_lista_ferramentas(lista)
+            return self._responder(200, {"ferramentas": lista, "protocolo": VERSAO_PROTOCOLO})
         if caminho == "/chamar":
             nome = pedido.get("ferramenta")
             args = pedido.get("argumentos") or {}
@@ -689,6 +707,31 @@ class _Pedido(BaseHTTPRequestHandler):
             except Exception as exc:
                 return self._responder(200, {"ok": False, "erro": "%s" % exc})
         return self._responder(404, {"erro": "caminho desconhecido"})
+
+
+def arquivo_ferramentas():
+    """Lista de ferramentas guardada para o servidor MCP mostrar mesmo com o Usinix fechado."""
+    return os.path.join(os.path.dirname(arquivo_conexao()), "usinix-ia-ferramentas.json")
+
+
+def gravar_lista_ferramentas(lista=None):
+    """Grava a lista completa (inclusive as do Pro) quando muda; o assistente costuma pedir a lista uma vez só,
+    ao abrir, e com o Usinix ainda fechado ficaria só com 'estado'."""
+    if lista is None:
+        lista = [t["def"] for t in FERRAMENTAS.values()]
+    caminho = arquivo_ferramentas()
+    try:
+        with open(caminho, encoding="utf-8") as fh:
+            if json.load(fh).get("ferramentas") == lista:
+                return False
+    except Exception:
+        pass
+    try:
+        with open(caminho, "w", encoding="utf-8") as fh:
+            json.dump({"ferramentas": lista}, fh, ensure_ascii=False)
+        return True
+    except OSError:
+        return False
 
 
 def ligar(porta=None):
@@ -720,6 +763,7 @@ def ligar(porta=None):
         os.chmod(caminho, 0o600)
     except OSError:
         pass
+    gravar_lista_ferramentas()
     FreeCAD.Console.PrintMessage("Usinix: IA conectável na porta local %d.\n" % _estado["porta"])
     return _estado["porta"]
 

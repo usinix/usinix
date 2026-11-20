@@ -126,10 +126,13 @@ def _faces_validas(obj, subs):
 class Estudo:
     """Lê (e cria quando preciso) os objetos FEM de um documento."""
 
-    def __init__(self, doc=None):
-        self.doc = doc or FreeCAD.ActiveDocument
+    def __init__(self, doc=None, analise=None):
+        self.doc = doc or (analise.Document if analise is not None else FreeCAD.ActiveDocument)
         self.analise = None
         if self.doc is None:
+            return
+        if analise is not None:                 # uma análise escolhida (relatório na bancada)
+            self.analise = analise
             return
         anal = [o for o in self.doc.Objects if o.isDerivedFrom("Fem::FemAnalysis")]
         for a in anal:
@@ -679,6 +682,11 @@ def mostrar_campo(est, campo):
             c.ViewObject.Visibility = not vis
     except Exception as exc:
         FreeCAD.Console.PrintWarning("Usinix: não foi possível mostrar o resultado: {}\n".format(exc))
+    try:
+        import UsinixFEMBancada
+        UsinixFEMBancada.esconder_legendas(est.doc)   # resultado escondido não deixa a barra de cores na tela
+    except Exception:
+        pass
 
 
 # =========================================================================== operações (sem interface)
@@ -774,6 +782,11 @@ def calcular(est, modos=None):
         est.put("UsinixConvergencia", "")
     est.put("UsinixResultadoVelho", False, "App::PropertyBool")
     est.put("UsinixTempoCalculo", dt, "App::PropertyFloat")
+    try:
+        import UsinixFEMBancada
+        UsinixFEMBancada.gravar_assinatura(est)       # de que modelo é este resultado (relatório da bancada)
+    except Exception:
+        pass
     try:
         est.put("UsinixCcxVersao", "%d.%d" % fea.get_ccx_version())
     except Exception:

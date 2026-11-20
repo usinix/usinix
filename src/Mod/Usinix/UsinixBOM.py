@@ -411,6 +411,28 @@ def inserir_na_folha(page, sheet, n_linhas):
     return vista
 
 
+def raizes(doc):
+    """Objetos de topo do documento para a lista de materiais.
+
+    Como doc.RootObjects, mas uma peça referenciada só pela simulação (restrições, malha e resultados do
+    FEM) continua sendo de topo: o FEM aponta para a peça, não a contém."""
+    def so_fem(o):
+        for p in o.InList:
+            if p.TypeId.startswith("Fem::") and not p.isDerivedFrom("Fem::FemAnalysis"):
+                continue
+            return False
+        return True
+    res = []
+    for o in doc.Objects:
+        if o.TypeId.startswith("Fem::") or o.TypeId in ("App::Origin", "Spreadsheet::Sheet", "App::TextDocument"):
+            continue
+        if o.isDerivedFrom("TechDraw::DrawPage") or o.isDerivedFrom("App::DocumentObjectGroup") and not o.Group:
+            continue
+        if so_fem(o):
+            res.append(o)
+    return res
+
+
 def _objetos_alvo():
     sel = FreeCADGui.Selection.getSelection()
     if sel:
@@ -421,8 +443,7 @@ def _objetos_alvo():
     montagens = [o for o in doc.Objects if o.TypeId == "Assembly::AssemblyObject"]
     if montagens:
         return montagens[:1]
-    return [o for o in doc.RootObjects if o.TypeId not in ("App::Origin", "Spreadsheet::Sheet")
-            and not o.isDerivedFrom("TechDraw::DrawPage")]
+    return raizes(doc)
 
 
 class CmdListaMateriais:

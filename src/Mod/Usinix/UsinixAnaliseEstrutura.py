@@ -522,12 +522,23 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
                                "(elástico com 80 %% da rigidez) não basta. Enrijeça a estrutura (travamentos, "
                                "perfis) ou faça a análise avançada." % a)
     calc.membros = membros(m, mapa)
+    import UsinixEstrutura as E
+    eds_furos = E.arestas(est.Esqueleto) if E.furos_de(est) else None
+
+    def furos_em(i):
+        if eds_furos is None:
+            return ""
+        try:
+            return E.descricao_furacao(est, i, eds_furos)
+        except Exception:
+            return ""
     # verificação por linha (barra do Usinix), pior combinação ELU
     for i, trechos in mapa["barras"].items():
         prop = mapa["secoes"][i]
         _ls, Lm, balanco = calc.membros[i]
         Kb = 1.0          # NBR 8800:2024: sem K; Ne com o comprimento destravado do membro
         pior = None
+        tracao_max = 0.0
         elems_m = [eb for j in _ls for eb, _a in mapa["barras"][j]] if len(_ls) > 1 else None
         for nome, tipo, _f in calc.combinacoes:
             if tipo != "ELU":
@@ -536,6 +547,7 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
             esf = _esforcos_da_linha(r, trechos, mapa["linhas"][i][2])
             if elems_m:
                 esf["Mcb"] = _cb_do_membro(r, elems_m, m)
+            tracao_max = max(tracao_max, esf["Nmax"])
             # tração e compressão: verifica as duas se aparecerem
             for Nv in sorted({esf["Nmax"], esf["Nmin"]}):
                 e2 = dict(esf, N=Nv)
@@ -546,6 +558,15 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
                 if pior is None or ver["taxa"] > pior["taxa"]:
                     pior = ver
         calc.verificacao[i] = pior
+        txt_furos = furos_em(i) if tracao_max > 1e-6 else ""
+        if txt_furos:
+            # a tração da NBR 8800 foi tomada com Ae = Ag: furo na barra tracionada pede a seção líquida
+            if pior is not None:
+                pior["furos_tracao"] = True
+            calc.avisos.append(
+                "ATENÇÃO — Barra %d: tem furos (%s) e trabalha à tração em alguma combinação última, mas a "
+                "resistência à tração foi calculada com a área bruta (Ae = Ag, sem descontar os furos). "
+                "Verifique a ruptura na seção líquida efetiva antes de aceitar esta barra." % (i + 1, txt_furos))
         for a in (pior or {}).get("avisos", []):
             txt = "Barra %d: %s" % (i + 1, a)
             if txt not in calc.avisos:

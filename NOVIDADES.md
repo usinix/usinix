@@ -15,6 +15,34 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.23.0 — 20/11/2026
+
+![Painel Relatório da análise ao lado de uma grade de vigas calculada na bancada Simulação](.github/images/novidades/1.23.0.webp)
+
+### Novo
+
+- **Relatório da análise (Simulação › 8 · Relatório):** gera o relatório completo, em PDF, de uma análise montada à
+  mão na bancada, não só das feitas pelo assistente. Escolha a análise e o painel mostra se o resultado vale para o
+  modelo de agora, confere o equilíbrio e compara a tensão com fy / γa1 (cargas majoradas) ou com o fator de
+  segurança. O PDF traz capa, modelo com apoios e cargas, materiais, seções das barras, apoios, cargas com a direção
+  escrita, malha e solução, resultados com as vistas de tensão e deslocamento, reações de apoio com a soma
+  comparada às cargas, verificação, premissas, conclusão e assinatura. Cliente, projeto, responsável, CREA e ART
+  ficam em **Capa e assinatura**.
+- **Resultado desatualizado:** se você mudar carga, apoio, material, seção, malha ou geometria depois de calcular,
+  o painel avisa que o resultado é de um modelo anterior e só libera o relatório depois de **Recalcular esta
+  análise**.
+
+### Correções
+
+- **Tração em barra com furos (cálculo por barras):** a resistência à tração é calculada com a área bruta, sem
+  descontar os furos. Agora, quando uma barra com furos de Trabalhos na barra fica tracionada, o cálculo e a memória
+  avisam para conferir a ruptura na seção líquida.
+- **Legenda de cores sobrando:** a escala de cores de um resultado antigo (de −0,5 a +0,5) ficava na tela depois de
+  mostrar outro resultado ou de reabrir o arquivo. Agora ela some.
+- **Conectar IA:** o assistente mostrava só a ferramenta "estado" quando era aberto antes do Usinix; agora a lista
+  completa fica guardada e o assistente é avisado quando ela muda. A captura de imagem funciona mesmo com uma folha
+  de desenho na frente, e a lista de materiais não sai mais vazia em peças usadas numa simulação.
+
 ## 1.22.2 — 20/11/2026
 
 ### Correções

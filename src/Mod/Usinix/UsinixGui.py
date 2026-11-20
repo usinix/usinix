@@ -951,6 +951,7 @@ def register_commands():
                                  "Usinix_SecaoPersonalizada", m.CmdSecaoPersonalizada())),
                              ("UsinixAnaliseVista", lambda m: FreeCADGui.addCommand("Usinix_AnaliseEstrutura",
                                                                                   m.CmdAnaliseEstrutura())),
+                             ("UsinixFEMBancada", lambda m: m.registrar_comandos()),
                              ("UsinixRegua", lambda m: (
                                  FreeCADGui.addCommand("Usinix_ReguaHistorico", m.CmdRegua()),
                                  FreeCADGui.getMainWindow().workbenchActivated.connect(m.ao_trocar_bancada),
@@ -1082,6 +1083,11 @@ def _start_ferramentas():
         UsinixFolhas.acompanhar_texto_cotas()   # mudar o texto das cotas nas preferências muda o desenho aberto
     except Exception as exc:
         FreeCAD.Console.PrintLog("Usinix: texto das cotas: {}\n".format(exc))
+    try:
+        import UsinixFEMBancada
+        UsinixFEMBancada.instalar()             # o resultado do MEF guarda de que modelo ele é
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: assinatura do MEF: {}\n".format(exc))
     for modulo in ("UsinixContexto", "UsinixCotas", "UsinixGrade", "UsinixAnotacao"):
         try:
             __import__(modulo).install()

@@ -35,9 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.22.2** (20/11/2026): o tamanho do texto das cotas definido nas preferências passa a valer
-também nos desenhos abertos, e as Preferências do Usinix ganharam o cartão Desenho técnico com o texto das cotas e o
-do nome das vistas.
+**Versão atual: 1.23.0** (20/11/2026): relatório completo, em PDF, de uma análise feita à mão na bancada
+Simulação, com aviso de resultado desatualizado, conferência do equilíbrio e verificação; aviso de tração em barra
+com furos no cálculo por barras; correções na conexão com IA.
+
+Na 1.22.2: o tamanho do texto das cotas definido nas preferências passa a valer também nos desenhos abertos.
 
 Na 1.22.1: o painel "Comando" não aparece mais vazio ao abrir o programa; ele só aparece com um comando aberto.
 

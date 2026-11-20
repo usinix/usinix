@@ -19355,3 +19355,227 @@ class T150TextoDasCotas(unittest.TestCase):
         finally:
             j.close()
             j.deleteLater()
+
+
+class T151RelatorioMEFDaBancadaEIA(unittest.TestCase):
+    """1.23.0: relatório completo de uma análise MEF feita à mão na bancada (situação do resultado, reações e
+    equilíbrio, verificação, PDF); aviso de tração com furos no cálculo por barras; lista de materiais e
+    captura da IA com simulação e folha abertas; lista de ferramentas guardada para o servidor MCP."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteRelMEF")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    # ------------------------------------------------------------------ MEF da bancada
+    def _grade(self, sufixo="A"):
+        import Part
+        import ObjectsFem
+        V = FreeCAD.Vector
+        doc = self.doc
+        sk = doc.getObject("Esqueleto")
+        if sk is None:
+            pts = [V(0, 0, 0), V(3000, 0, 0), V(3000, 1200, 0), V(0, 1200, 0)]
+            ed = [Part.makeLine(pts[i], pts[(i + 1) % 4]) for i in range(4)]
+            ed += [Part.makeLine(V(1000, 0, 0), V(1000, 1200, 0)), Part.makeLine(V(2000, 0, 0), V(2000, 1200, 0))]
+            sk = doc.addObject("Part::Feature", "Esqueleto")
+            sk.Shape = ed[0].multiFuse(ed[1:])
+            doc.recompute()
+        a = ObjectsFem.makeAnalysis(doc, "MEF_" + sufixo)
+        a.Label = "MEF caso " + sufixo
+        s = ObjectsFem.makeSolverCalculiXCcxTools(doc, "Ccx" + sufixo)
+        s.AnalysisType = "static"
+        a.addObject(s)
+        m = ObjectsFem.makeMaterialSolid(doc, "Mat" + sufixo)
+        m.Material = {"Name": "Aço ASTM A36", "YoungsModulus": "200000 MPa", "PoissonRatio": "0.3",
+                      "Density": "7850 kg/m^3"}
+        a.addObject(m)
+        g = ObjectsFem.makeElementGeometry1D(doc, name="Sec" + sufixo)
+        g.SectionType = "Box"
+        g.BoxWidth, g.BoxHeight = 40, 80
+        g.BoxT1 = g.BoxT2 = g.BoxT3 = g.BoxT4 = 3
+        a.addObject(g)
+        eds = tuple("Edge%d" % (i + 1) for i in range(len(sk.Shape.Edges)))
+        g.References = [(sk, eds)]
+        m.References = [(sk, eds)]
+        cantos = [i + 1 for i, v in enumerate(sk.Shape.Vertexes)
+                  if (abs(v.Point.x) < 1e-6 or abs(v.Point.x - 3000) < 1e-6)]
+        ap = ObjectsFem.makeConstraintDisplacement(doc, "Apoio" + sufixo)
+        ap.References = [(sk, tuple("Vertex%d" % i for i in cantos))]
+        for p in ("x", "y", "z", "rotx", "roty", "rotz"):
+            setattr(ap, p + "Free", False)
+        a.addObject(ap)
+        pp = ObjectsFem.makeConstraintSelfWeight(doc, "Peso" + sufixo)
+        a.addObject(pp)
+        trav = [i + 1 for i, e in enumerate(sk.Shape.Edges)
+                if abs(e.Vertexes[0].Point.x - e.Vertexes[1].Point.x) < 1e-6 and 100 < e.Vertexes[0].Point.x < 2900]
+        f = ObjectsFem.makeConstraintForce(doc, "Carga" + sufixo)
+        f.References = [(sk, tuple("Edge%d" % i for i in trav))]
+        f.Force = "4000 N"
+        f.Reversed = True
+        a.addObject(f)
+        me = ObjectsFem.makeMeshGmsh(doc, "Malha" + sufixo)
+        me.Shape = sk
+        me.ElementDimension = "1D"
+        me.CharacteristicLengthMax = "100 mm"
+        me.ElementOrder = "2nd"
+        a.addObject(me)
+        doc.recompute()
+        from femmesh.gmshtools import GmshTools
+        try:
+            err = GmshTools(me).create_mesh()
+        except Exception as exc:
+            self.skipTest("sem gmsh: %s" % exc)
+        if not me.FemMesh.NodeCount:
+            self.skipTest("gmsh não gerou malha: %s" % err)
+        return a
+
+    def _calculada(self):
+        import UsinixFEM as F
+        import UsinixFEMBancada as B
+        a = self._grade()
+        est = F.Estudo(analise=a)
+        self.assertEqual(B.estado(est)[0], "sem_resultado")
+        ok, erro, _dt = F.calcular(est)
+        if not ok and ("ccx" in (erro or "").lower() or "calculix" in (erro or "").lower()):
+            self.skipTest("sem CalculiX: %s" % erro)
+        self.assertTrue(ok, erro)
+        return a, est
+
+    def test_situacao_reacoes_e_pdf(self):
+        import UsinixFEM as F
+        import UsinixFEMBancada as B
+        a, est = self._calculada()
+        self.assertEqual(B.estado(est)[0], "atual")
+        av = B.avaliar(est)
+        self.assertTrue(av["reacoes"], "sem reações lidas do CalculiX")
+        self.assertTrue(av["eq"] and av["eq"][0], av["eq"])
+        # direção da carga em palavras
+        self.assertTrue(any("baixo" in c["dir"] for c in av["cargas"]), av["cargas"])
+        caminho = os.path.join(tempfile.mkdtemp(), "rel.pdf")
+        p, _av = B.gerar_pdf(a, caminho)
+        with open(p, "rb") as fh:
+            self.assertEqual(fh.read(5), b"%PDF-")
+        # nenhuma escala de cores "vazia" (campo None, −0,5 a +0,5) visível depois do relatório
+        for o in self.doc.Objects:
+            vo = getattr(o, "ViewObject", None)
+            if o.isDerivedFrom("Fem::FemPostObject") and vo is not None and hasattr(vo, "Field"):
+                self.assertFalse(vo.Visibility and vo.Field == "None", o.Name)
+        self.assertGreater(os.path.getsize(p), 20000)
+        # mexeu na carga: o resultado deixa de valer e o relatório é recusado
+        self.doc.getObject("CargaA").Force = "5000 N"
+        self.doc.recompute()
+        self.assertEqual(B.estado(F.Estudo(analise=a))[0], "desatualizado")
+        with self.assertRaises(Exception):
+            B.gerar_pdf(a, os.path.join(tempfile.mkdtemp(), "rel2.pdf"))
+
+    def test_painel_bloqueia_resultado_velho(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixFEMBancada as B
+        a, _est = self._calculada()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(a)
+        pn = B.PainelRelatorioMEF()
+        pn.mostrar()
+        try:
+            self.assertEqual(pn.analise().Name, a.Name)
+            self.assertFalse(pn.pendencia())
+            self.doc.getObject("CargaA").Force = "4500 N"
+            self.doc.recompute()
+            self.assertTrue(pn.pendencia())
+        finally:
+            FreeCADGui.Control.closeDialog()
+
+    def test_lista_de_materiais_ve_a_peca_da_simulacao(self):
+        import ObjectsFem
+        import UsinixBOM
+        caixa = self.doc.addObject("Part::Box", "Peca")
+        a = ObjectsFem.makeAnalysis(self.doc, "MEF")
+        ap = ObjectsFem.makeConstraintFixed(self.doc, "Fixo")
+        ap.References = [(caixa, ("Face1",))]
+        a.addObject(ap)
+        txt = self.doc.addObject("App::TextDocument", "ccx_dat_file")
+        a.addObject(txt)
+        self.doc.recompute()
+        self.assertNotIn(caixa, self.doc.RootObjects)       # o que fazia a lista sair vazia
+        r = UsinixBOM.raizes(self.doc)
+        self.assertIn(caixa, r)
+        self.assertNotIn(txt, r)
+        self.assertFalse([o for o in r if o.TypeId.startswith("Fem::")])
+
+    def test_capturar_vista_com_folha_ativa(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixIA
+        self.doc.addObject("Part::Box", "Peca")
+        pg = self.doc.addObject("TechDraw::DrawPage", "Folha")
+        tpl = self.doc.addObject("TechDraw::DrawSVGTemplate", "Modelo")
+        pg.Template = tpl
+        self.doc.recompute()
+        pg.ViewObject.doubleClicked() if hasattr(pg.ViewObject, "doubleClicked") else pg.ViewObject.show()
+        for _i in range(10):
+            QtWidgets.QApplication.processEvents()
+        r = UsinixIA.f_captura("iso", 300)
+        self.assertTrue(r["_imagem"])
+
+    # ------------------------------------------------------------------ cálculo por barras
+    def test_tracao_com_furos_avisa(self):
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        sk = esboco_linhas(self.doc, [((0, 0), (0, -2000))], "XZ")      # tirante pendurado: tração
+        est = E.criar(self.doc, sk, "W 150 x 13,0", material="ASTM A36")
+        casos = [A.caso_padrao(), {"nome": "Q", "tipo": "Sobrecarga (sem predominância de equipamentos)",
+                                   "cargas": [{"alvo": "barra", "linha": 0, "tipo": "distribuida", "valor": 2.0,
+                                               "direcao": "Para baixo (−Z)"}]}]
+        apoios = {A._chave_no((0, 0, 0)): "Engaste"}
+        calc = A.calcular(est, casos, apoios)
+        self.assertIsNone(calc.erro, calc.erro)
+        self.assertFalse([t for t in calc.avisos if "furos" in t])
+        E.gravar_furos(est, [{"barras": [0], "face": "Alma", "diam": 14.0, "ref": "inicio", "dist": 100.0,
+                              "qtd": 2, "passo": 80.0}])
+        self.doc.recompute()
+        calc = A.calcular(est, casos, apoios)
+        self.assertIsNone(calc.erro, calc.erro)
+        avisos = [t for t in calc.avisos if "furos" in t]
+        self.assertTrue(avisos, calc.avisos)
+        self.assertIn("Ae = Ag", avisos[0])
+        self.assertTrue(calc.verificacao[0].get("furos_tracao"))
+
+    # ------------------------------------------------------------------ servidor MCP
+    def test_servidor_mcp_usa_lista_guardada(self):
+        import json
+        import subprocess
+        import shutil as sh
+        import UsinixIA
+        py = sh.which("python3") or sh.which("python")
+        if py is None:
+            self.skipTest("sem python externo")
+        pasta = tempfile.mkdtemp()
+        lista = [{"name": "estado", "description": "x", "inputSchema": {"type": "object", "properties": {}}},
+                 {"name": "trabalho_em_altura", "description": "y", "inputSchema": {"type": "object",
+                                                                                   "properties": {}}}]
+        with open(os.path.join(pasta, "usinix-ia-ferramentas.json"), "w", encoding="utf-8") as fh:
+            json.dump({"ferramentas": lista}, fh)
+        msgs = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}},
+                {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}]
+        p = subprocess.run([py, UsinixIA.script_mcp(), "--conexao", os.path.join(pasta, "usinix-ia.json")],
+                           input=("\n".join(json.dumps(m) for m in msgs) + "\n").encode(), capture_output=True,
+                           timeout=30, env=_ambiente_limpo())
+        resp = {r["id"]: r for r in (json.loads(l) for l in p.stdout.decode("utf-8").splitlines() if l.strip())}
+        self.assertTrue(resp[1]["result"]["capabilities"]["tools"]["listChanged"])
+        self.assertEqual([t["name"] for t in resp[2]["result"]["tools"]], ["estado", "trabalho_em_altura"])
+
+    def test_ponte_grava_a_lista_completa(self):
+        import json
+        import UsinixIA
+        UsinixIA.desligar()
+        try:
+            UsinixIA.ligar()
+            with open(UsinixIA.arquivo_ferramentas(), encoding="utf-8") as fh:
+                nomes = [t["name"] for t in json.load(fh)["ferramentas"]]
+            self.assertEqual(nomes, [t["def"]["name"] for t in UsinixIA.FERRAMENTAS.values()])
+            self.assertIn("lista_de_materiais", nomes)
+        finally:
+            UsinixIA.desligar()
