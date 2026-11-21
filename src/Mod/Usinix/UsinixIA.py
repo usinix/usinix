@@ -370,6 +370,151 @@ def f_esboco(pontos=None, segmentos=None, plano="XY", fechado=False, nome="Esboc
     return {"esboco": sk.Name, "linhas": len(ids)}
 
 
+@ferramenta("grupo_das_barras", "Põe barras de uma estrutura num grupo, escolhendo pela barra (nome como Barra015 ou "
+            "rótulo), não pelo índice da linha. grupo: nome de grupo existente ou novo; para grupo novo, perfil, giro "
+            "(graus), fixacao (Centro, Centroide, Sup. centro, Meio direito...) e espelhar; o que faltar vem do grupo "
+            "padrão.",
+            {"barras": {"type": "array", "items": {"type": "string"}}, "grupo": {"type": "string"},
+             "perfil": {"type": "string"}, "giro": {"type": "number"}, "fixacao": {"type": "string"},
+             "espelhar": {"type": "boolean"}, "estrutura": {"type": "string"}}, ("barras", "grupo"))
+def f_grupo_das_barras(barras, grupo, perfil=None, giro=None, fixacao=None, espelhar=None, estrutura=None):
+    import UsinixEstrutura as E
+    doc = _doc()
+    if estrutura:
+        est = doc.getObject(estrutura) or (doc.getObjectsByLabel(estrutura) or [None])[0]
+    else:
+        b0 = doc.getObject(barras[0]) or (doc.getObjectsByLabel(barras[0]) or [None])[0] if barras else None
+        est = E.estrutura_de(b0) if b0 is not None else None
+    if est is None or not E.eh_estrutura(est):
+        raise ValueError("estrutura não encontrada")
+    k = E.mover_para_grupo(est, barras, grupo, perfil, giro, fixacao, espelhar)
+    return {"estrutura": est.Name, "grupo": k,
+            "barras": {b.Name: E.parametros(est, b.Indice)["perfil"] for b in E.barras_de(est)
+                       if E.grupo_da_barra(est, b.Indice) == k}}
+
+
+@ferramenta("esqueleto_mef", "Cria (ou atualiza) o esqueleto de barras da estrutura para o estudo de vigas no MEF: "
+            "linhas das barras partidas nos cruzamentos, ligadas à estrutura (mudou a estrutura, o esqueleto acompanha "
+            "e a simulação avisa que a malha e o resultado ficaram velhos).",
+            {"estrutura": {"type": "string"}})
+def f_esqueleto_mef(estrutura=None):
+    import UsinixEstrutura as E
+    import UsinixEsqueletoMEF as M
+    doc = _doc()
+    if estrutura:
+        est = doc.getObject(estrutura) or (doc.getObjectsByLabel(estrutura) or [None])[0]
+    else:
+        ests = [o for o in doc.Objects if E.eh_estrutura(o)]
+        est = ests[0] if len(ests) == 1 else None
+    if est is None or not E.eh_estrutura(est):
+        raise ValueError("informe a estrutura (há %s no documento)" % (
+            len([o for o in doc.Objects if E.eh_estrutura(o)]) or "nenhuma"))
+    o = M.criar(est)
+    return {"objeto": o.Name, "rotulo": o.Label, "linhas": len(o.Shape.Edges), "nos": len(o.Shape.Vertexes)}
+
+
+@ferramenta("conferir_folha", "Confere uma folha de desenho antes de sair: escala do carimbo contra as vistas (e se "
+            "estão na série normalizada), material do carimbo contra o modelo, vista ou anotação que invade a legenda "
+            "ou passa da margem. corrigir_escala=true escreve no carimbo a escala das vistas (\"INDICADA\" quando há "
+            "mais de uma).", {"folha": {"type": "string"}, "corrigir_escala": {"type": "boolean"}})
+def f_conferir_folha(folha=None, corrigir_escala=False):
+    import UsinixConferirFolha as C
+    import UsinixFolhas as F
+    doc = _doc()
+    if folha:
+        page = doc.getObject(folha) or (doc.getObjectsByLabel(folha) or [None])[0]
+    else:
+        pgs = [o for o in doc.Objects if o.TypeId == "TechDraw::DrawPage"]
+        page = pgs[0] if len(pgs) == 1 else None
+    if page is None or page.TypeId != "TechDraw::DrawPage":
+        raise ValueError("informe a folha")
+    corrigida = F.escrever_escala(page) if corrigir_escala else False
+    return {"folha": page.Name, "avisos": C.conferir(page), "escala_corrigida": bool(corrigida)}
+
+
+@ferramenta("isolar_solido", "Num corpo com vários sólidos (peças iguais modeladas juntas), cria uma cópia ligada de um "
+            "só sólido para pôr na folha, sem esconder o corpo na árvore. indice: 0 = primeiro sólido; ou ponto [x, y, "
+            "z] perto do sólido. Use o objeto devolvido em nova_folha.",
+            {"peca": {"type": "string"}, "indice": {"type": "integer"},
+             "ponto": {"type": "array", "items": {"type": "number"}}, "rotulo": {"type": "string"}}, ("peca",))
+def f_isolar_solido(peca, indice=None, ponto=None, rotulo=None):
+    import UsinixIsolarSolido as I
+    doc = _doc()
+    base = doc.getObject(peca) or (doc.getObjectsByLabel(peca) or [None])[0]
+    if base is None:
+        raise ValueError("peça não encontrada: %s" % peca)
+    o = I.isolar(base, indice, FreeCAD.Vector(*ponto) if ponto else None, rotulo)
+    return {"objeto": o.Name, "rotulo": o.Label, "solido": o.Indice, "solidos": len(base.Shape.Solids),
+            "iguais": o.Iguais}
+
+
+@ferramenta("duplicar_analise", "Copia uma análise de simulação (material, seções, apoios, cargas, malha e solver) sobre a "
+            "mesma geometria, para outro caso de carga ou de apoio. Os rótulos ficam iguais no relatório; a cópia "
+            "nasce sem resultado.", {"analise": {"type": "string"}, "rotulo": {"type": "string"}}, ("analise",))
+def f_duplicar_analise(analise, rotulo=None):
+    import UsinixFEMBancada as B
+    doc = _doc()
+    a = doc.getObject(analise) or (doc.getObjectsByLabel(analise) or [None])[0]
+    if a is None or not a.isDerivedFrom("Fem::FemAnalysis"):
+        raise ValueError("análise não encontrada: %s" % analise)
+    n = B.duplicar_analise(a, rotulo)
+    return {"analise": n.Name, "rotulo": n.Label, "objetos": [(o.Name, B.rotulo(o)) for o in n.Group]}
+
+
+@ferramenta("salvar", "Salva o documento ativo (ou o indicado), tentando de novo se o arquivo estiver preso por "
+                "um instante pela sincronização do Drive/OneDrive.", {"documento": {"type": "string"}}, muda=False)
+def f_salvar(documento=None):
+    doc = _doc(documento)
+    if not doc.FileName:
+        raise ValueError("o documento ainda não tem arquivo: use Salvar como no Usinix")
+    n = UsinixUtil.salvar(doc)
+    return {"arquivo": doc.FileName, "tentativas": n}
+
+
+@ferramenta("carga_ponto_mais_distante", "Na análise de simulação (modelo de barras), aplica uma força vertical para "
+            "baixo de massa_kg × 9,80665 N no vértice mais distante dos apoios (pessoa com carga na ponta de uma "
+            "plataforma). A massa é informada por quem calcula, conforme a norma aplicável.",
+            {"analise": {"type": "string"}, "massa_kg": {"type": "number"}, "rotulo": {"type": "string"}},
+            ("analise", "massa_kg"))
+def f_carga_ponto_mais_distante(analise, massa_kg, rotulo=None):
+    import UsinixFEMBancada as B
+    doc = _doc()
+    a = doc.getObject(analise) or (doc.getObjectsByLabel(analise) or [None])[0]
+    if a is None or not a.isDerivedFrom("Fem::FemAnalysis"):
+        raise ValueError("análise não encontrada: %s" % analise)
+    c, p, d = B.carga_no_ponto_mais_distante(a, massa_kg, rotulo)
+    return {"carga": c.Name, "rotulo": c.Label, "forca_N": round(float(massa_kg) * B.G, 2),
+            "ponto_mm": [round(p.x, 1), round(p.y, 1), round(p.z, 1)], "distancia_ao_apoio_mm": round(d, 1)}
+
+
+@ferramenta("grupo_de_vistas", "Acrescenta um grupo de vistas (1º diedro) de outra peça numa folha que já existe, na "
+            "posição x, y (mm da folha) e na escala dada (ex.: 0.2 = 1:5; sem escala, a da folha). projecoes: Front, "
+            "Top, Right, Left, Bottom, Rear. Use no lugar de criar DrawProjGroup por script: com a folha aberta, o grupo "
+            "criado à mão só aparecia certo depois de fechar e reabrir a página.",
+            {"folha": {"type": "string"}, "objetos": {"type": "array", "items": {"type": "string"}},
+             "projecoes": {"type": "array", "items": {"type": "string"}}, "x": {"type": "number"},
+             "y": {"type": "number"}, "escala": {"type": "number"}}, ("folha", "objetos"))
+def f_grupo_de_vistas(folha, objetos, projecoes=None, x=None, y=None, escala=None):
+    import UsinixFolhas as F
+    import UsinixVistas as V
+    doc = _doc()
+    page = doc.getObject(folha) or (doc.getObjectsByLabel(folha) or [None])[0]
+    if page is None or page.TypeId != "TechDraw::DrawPage":
+        raise ValueError("folha não encontrada: %s" % folha)
+    fontes = []
+    for n in objetos:
+        o = doc.getObject(n) or (doc.getObjectsByLabel(n) or [None])[0]
+        if o is None:
+            raise ValueError("objeto não encontrado: %s" % n)
+        fontes.append(o)
+    if escala and F.escala_normal(float(escala)) != float(escala):
+        raise ValueError("escala fora da série normalizada; use %s" % F._texto_escala(F.escala_normal(float(escala))))
+    g = V.grupo_na_folha(page, fontes, tuple(projecoes or ("Front", "Right")), x, y, escala)
+    F.escrever_escala(page)
+    return {"grupo": g.Name, "vistas": [(v.Name, v.Type) for v in g.Views],
+            "escala_legenda": dict(page.Template.EditableTexts).get("escala")}
+
+
 @ferramenta("listar_perfis", "Perfis do catálogo do Usinix (W, U, L, tubos, metalon...). busca filtra pelo nome "
             "(ex.: 'W 150', 'U 152', 'tubo'). Use o nome exato em criar_estrutura.",
             {"busca": {"type": "string"}, "limite": {"type": "integer"}}, muda=False)

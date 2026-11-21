@@ -66,15 +66,46 @@ def _captura(est, modo, pasta):
                 c.ViewObject.Visibility = False
         else:
             F.mostrar_campo(est, modo)
-        FreeCADGui.updateGui()
-        v.viewIsometric()
-        v.fitAll()
-        FreeCADGui.updateGui()
-        v.saveImage(caminho, 1800, 1150, "White")
+        escala = _unidade_do_relatorio(est, modo)
+        if escala:
+            est.pipeline.ViewObject.transformField(*escala)
+        try:
+            FreeCADGui.updateGui()
+            v.viewIsometric()
+            v.fitAll()
+            FreeCADGui.updateGui()
+            v.saveImage(caminho, 1800, 1150, "White")
+        finally:
+            if escala:
+                est.pipeline.ViewObject.transformField(escala[0], 1.0 / escala[1])
         return caminho if os.path.isfile(caminho) else None
     except Exception as exc:
         FreeCAD.Console.PrintWarning("Usinix: captura '{}' falhou: {}\n".format(modo, exc))
         return None
+
+
+def _unidade_do_relatorio(est, modo):
+    """(campo, fator) para a barra de cores da figura sair nas unidades do texto (MPa e mm), ou None. Resultado
+    guardado em unidades SI (Pa, m: modelo de vigas) mostrava 1.013e+08 na legenda com o texto em MPa."""
+    p = est.pipeline
+    if p is None or modo not in ("tensao", "deslocamento"):
+        return None
+    campo = "von Mises Stress" if modo == "tensao" else p.ViewObject.Field
+    try:
+        arr = p.Data.GetPointData().GetArray(campo)
+        vmax = max(abs(x) for x in arr.GetRange(-1 if arr.GetNumberOfComponents() > 1 else 0))
+        st = F.estatisticas(est) or {}
+        ref = st.get("svm_max") if modo == "tensao" else st.get("u_max")
+    except Exception:
+        return None
+    if not ref or not vmax:
+        return None
+    r = vmax / abs(ref)
+    if modo == "tensao" and 1e5 < r < 1e7:
+        return campo, 1e-6                     # Pa → MPa
+    if modo == "deslocamento" and 1e-4 < r < 1e-2:
+        return campo, 1e3                      # m → mm
+    return None
 
 
 # ------------------------------------------------------------------ html
@@ -288,11 +319,20 @@ def _corpo(est, doc, imgs, largura):
 
 
 # ------------------------------------------------------------------ pintura
+def _garantir_poppins():
+    try:
+        import UsinixEstilo
+        UsinixEstilo.garantir_fontes()
+    except Exception:
+        pass
+
+
 def _mm(px_por_mm, v):
     return v * px_por_mm
 
 
 def _fonte(px, peso=QtGui.QFont.Normal):
+    _garantir_poppins()
     f = QtGui.QFont("Poppins")
     f.setPixelSize(int(px))
     f.setWeight(peso)
@@ -444,6 +484,7 @@ def gerar(est, caminho, corpo=None, capturas=None):
             except Exception:
                 pass
 
+    _garantir_poppins()
     w = QtGui.QPdfWriter(caminho)
     w.setPageSize(QtGui.QPageSize(QtGui.QPageSize.A4))
     w.setPageMargins(QtCore.QMarginsF(0, 0, 0, 0))

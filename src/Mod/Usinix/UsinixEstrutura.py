@@ -409,6 +409,82 @@ def _rotacao_da_barra(est, i):
     return float(parametros(est, i)["giro"])
 
 
+_cache_contorno = {}
+
+
+def _contorno(eds, normal):
+    """Índices das linhas sobre o contorno externo (envoltória convexa no plano do esqueleto)."""
+    pts = []
+    for e in eds:
+        if e is not None:
+            pts += [e.Vertexes[0].Point, e.Vertexes[-1].Point]
+    if not pts or normal is None:
+        return set(range(len(eds)))
+    chave = (tuple((round(p.x, 3), round(p.y, 3), round(p.z, 3)) for p in pts),
+             tuple(round(c, 6) for c in normal))
+    if chave in _cache_contorno:
+        return _cache_contorno[chave]
+    n = FreeCAD.Vector(normal).normalize()
+    a = FreeCAD.Vector(1, 0, 0) if abs(n.x) < 0.9 else FreeCAD.Vector(0, 1, 0)
+    a = (a - n * a.dot(n)).normalize()
+    b = n.cross(a)
+    xy = sorted({(round(p.dot(a), 6), round(p.dot(b), 6)) for p in pts})
+
+    def giro(o, p, q):
+        return (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0])
+    baixo, cima = [], []
+    for p in xy:
+        while len(baixo) >= 2 and giro(baixo[-2], baixo[-1], p) <= 0:
+            baixo.pop()
+        baixo.append(p)
+    for p in reversed(xy):
+        while len(cima) >= 2 and giro(cima[-2], cima[-1], p) <= 0:
+            cima.pop()
+        cima.append(p)
+    casca = baixo[:-1] + cima[:-1]
+    lados = [(casca[k], casca[(k + 1) % len(casca)]) for k in range(len(casca))]
+    tam = max(max(x for x, _ in xy) - min(x for x, _ in xy), max(y for _, y in xy) - min(y for _, y in xy), 1.0)
+    tol = 1e-4 * tam + 1e-3
+
+    def no_lado(q):
+        for (p0, p1) in lados:
+            dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+            L = (dx * dx + dy * dy) ** 0.5
+            if L < 1e-9:
+                continue
+            dist = abs(dx * (q[1] - p0[1]) - dy * (q[0] - p0[0])) / L
+            t = ((q[0] - p0[0]) * dx + (q[1] - p0[1]) * dy) / (L * L)
+            if dist <= tol and -1e-6 <= t <= 1 + 1e-6:
+                return True
+        return False
+    res = set()
+    for i, e in enumerate(eds):
+        if e is None:
+            continue
+        m = e.valueAt((e.FirstParameter + e.LastParameter) / 2.0)
+        if no_lado((m.dot(a), m.dot(b))):
+            res.add(i)
+    if len(_cache_contorno) > 64:
+        _cache_contorno.clear()
+    _cache_contorno[chave] = res
+    return res
+
+
+def fixacao_efetiva(fixacao, grupo, eds, j, normal, u):
+    """Fixação usada na barra j. A escolha lateral (esquerdo/direito) do grupo padrão vale para o contorno:
+    numa barra interna, com a largura no plano do esqueleto, ela jogava cada travessa para um lado da linha
+    (os lados apontam para fora do centro) e os vãos saíam desiguais com as linhas igualmente espaçadas.
+    A barra interna fica centrada na largura; grupos próprios seguem como escolhidos."""
+    partes = (fixacao or "").split(" ")
+    if grupo != 0 or len(partes) != 2 or partes[1] not in ("esquerdo", "direito") or normal is None:
+        return fixacao
+    if abs(FreeCAD.Vector(u).dot(FreeCAD.Vector(normal).normalize())) > 0.5:
+        return fixacao                       # largura fora do plano (pórtico vertical): vale para todas
+    if j in _contorno(eds, normal):
+        return fixacao
+    return "Centro" if partes[0] == "Meio" else partes[0] + " centro"
+
+
 class Secao:
     """Seção da barra j posicionada: eixos, dimensões e deslocamento."""
 
@@ -423,6 +499,7 @@ class Secao:
         self.fixacao = par["fixacao"]
         self.centro = centro_esqueleto(est.Esqueleto)
         self.t, self.u, self.v = eixos_secao(eds[j], self.giro, normal, self.centro)
+        self.fixacao = fixacao_efetiva(self.fixacao, par["grupo"], eds, j, normal, self.u)
         self.du, self.dv = deslocamento(self.it, self.fixacao, self.espelhar)
 
     def extremos(self, n):
@@ -1276,6 +1353,51 @@ def definir_grupos(est, grupos_extras, n_arestas=None, linhas_sem_barra=()):
             por_aresta[i] = SEM_BARRA
     est.Grupos = lst
     est.GrupoDaAresta = por_aresta
+
+
+def mover_para_grupo(est, barras, grupo, perfil=None, giro=None, fixacao=None, espelhar=None):
+    """Põe as barras indicadas num grupo, escolhidas pela própria barra (objeto, nome "Barra015" ou rótulo),
+    não pelo índice da linha: a lista GrupoDaAresta segue a ordem das arestas do esboço, que não é a ordem do
+    desenho, e mexer nela à mão trocava a barra errada.
+
+    grupo: nome de um grupo existente (o padrão também), ou nome novo — criado com perfil/giro/fixação/espelhar
+    dados (o que faltar vem do grupo padrão). Retorna o índice do grupo."""
+    import json
+    doc = est.Document
+    alvos = []
+    for b in barras:
+        o = b if hasattr(b, "Indice") else (doc.getObject(str(b)) or (doc.getObjectsByLabel(str(b)) or [None])[0])
+        if o is None or not eh_barra(o) or estrutura_de(o) != est:
+            raise ValueError("%s não é uma barra desta estrutura" % b)
+        alvos.append(o.Indice)
+    padrao = grupo_padrao(est)
+    extras = grupos(est)
+    nomes = [padrao["nome"]] + [g.get("nome", "") for g in extras]
+    if isinstance(grupo, int):
+        if not 0 <= grupo <= len(extras):
+            raise ValueError("grupo %d não existe (0 a %d)" % (grupo, len(extras)))
+        k = grupo
+    elif grupo in nomes:
+        k = nomes.index(grupo)
+    else:
+        if fixacao is not None and fixacao not in FIXACOES:
+            raise ValueError("ponto de fixação desconhecido: %s" % fixacao)
+        novo = {"nome": str(grupo), "perfil": perfil or padrao["perfil"],
+                "giro": float(padrao["giro"] if giro is None else giro),
+                "fixacao": fixacao or padrao["fixacao"],
+                "espelhar": bool(padrao["espelhar"] if espelhar is None else espelhar)}
+        if UsinixPerfis.perfil(novo["perfil"]) is None:
+            raise ValueError("perfil desconhecido: %s" % novo["perfil"])
+        est.Grupos = list(est.Grupos) + [json.dumps(novo, ensure_ascii=False)]
+        k = len(extras) + 1
+    n = len(arestas(est.Esqueleto))
+    ga = list(est.GrupoDaAresta) + [0] * max(0, n - len(est.GrupoDaAresta))
+    for i in alvos:
+        ga[i] = k
+    est.GrupoDaAresta = ga
+    est.touch()
+    doc.recompute()
+    return k
 
 
 def _aparencia():

@@ -20778,3 +20778,246 @@ class T159CapaDoRelatorio(unittest.TestCase):
             p.end()
         self.assertEqual(curto, "Relatório de simulação · Suporte")
         self.assertTrue(longo.endswith("…"), longo)
+
+
+class T160PendenciasDaGrade(unittest.TestCase):
+    """1.27.0: pendências 50 a 66 da rodada da Grade — fixação lateral só no contorno, grupo pela barra, esqueleto
+    MEF ligado à estrutura, verificador de vigas, escala da legenda e escalas normalizadas, conferência da folha,
+    sólido isolado, modelo antigo, reação por nó, duplicar análise, carga na ponta, salvar com nova tentativa."""
+
+    _grade = T151RelatorioMEFDaBancadaEIA._grade
+    _calculada = T151RelatorioMEFDaBancadaEIA._calculada
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteT160")
+
+    def tearDown(self):
+        try:
+            if self.doc.Name in FreeCAD.listDocuments():
+                fechar(self.doc)
+        except ReferenceError:
+            pass
+
+    # ------------------------------------------------------------------ estrutura
+    def _quadro(self, fixacao="Meio direito"):
+        import UsinixEstrutura as E
+        segs = [((0, 0), (2220, 0)), ((2220, 0), (2220, 800)), ((2220, 800), (0, 800)), ((0, 800), (0, 0)),
+                ((585, 0), (585, 800)), ((1150, 0), (1150, 800)), ((1715, 0), (1715, 800))]
+        sk = esboco_linhas(self.doc, segs, "XY")
+        est = E.criar(self.doc, sk, "Tubo ▭ 80 x 40 x 1,5", alinhamento=fixacao)
+        self.doc.recompute()
+        return sk, est
+
+    def test_fixacao_lateral_so_no_contorno(self):
+        import UsinixEstrutura as E
+        _sk, est = self._quadro()
+        internas, contorno = [], []
+        for b in E.barras_de(est):
+            bb = b.Shape.BoundBox
+            if bb.XLength < 100:                       # barras ao longo de Y
+                (internas if 100 < bb.Center.x < 2120 else contorno).append(round(bb.Center.x, 1))
+        self.assertEqual(sorted(internas), [585.0, 1150.0, 1715.0])      # travessas centradas na linha
+        self.assertTrue(all(x not in (0.0, 2220.0) for x in contorno), contorno)   # contorno deslocado
+        vaos = [585 - 20 - 20, 1150 - 585 - 40, 1715 - 1150 - 40, 2220 - 1715 - 20 - 20]
+        self.assertEqual(len(set(vaos[1:3])), 1)
+
+    def test_grupo_pela_barra(self):
+        import UsinixEstrutura as E
+        _sk, est = self._quadro("Centro")
+        trav = [b for b in E.barras_de(est) if b.Shape.BoundBox.XLength < 100 and 100 < b.Shape.BoundBox.Center.x < 2120]
+        k = E.mover_para_grupo(est, [trav[0].Name, trav[1].Label], "Travessas", perfil="Tubo ▭ 80 x 40 x 1,2")
+        self.assertEqual(k, 1)
+        perfis = {b.Name: E.parametros(est, b.Indice)["perfil"] for b in E.barras_de(est)}
+        self.assertEqual(perfis[trav[0].Name], "Tubo ▭ 80 x 40 x 1,2")
+        self.assertEqual(perfis[trav[1].Name], "Tubo ▭ 80 x 40 x 1,2")
+        self.assertEqual(perfis[trav[2].Name], "Tubo ▭ 80 x 40 x 1,5")
+        self.assertEqual(E.mover_para_grupo(est, [trav[2]], "Travessas"), 1)        # grupo existente pelo nome
+        with self.assertRaises(ValueError):
+            E.mover_para_grupo(est, ["NaoExiste"], "Travessas")
+
+    def test_esqueleto_mef_acompanha_a_estrutura(self):
+        import UsinixEsqueletoMEF as M
+        import UsinixUtil
+        sk, est = self._quadro("Centro")
+        o = M.criar(est)
+        self.assertIs(M.criar(est), o)                              # um por estrutura
+        self.assertTrue(UsinixUtil.auxiliar(o))
+        self.assertEqual(len(o.Shape.Edges), 4 * 2 + 3 + 2)         # longarinas partidas pelas 3 travessas
+        xs0 = sorted({round(v.Point.x, 1) for v in o.Shape.Vertexes})
+        self.assertIn(1150.0, xs0)
+        g = sk.Geometry[5]                                          # travessa do meio: 1150 → 1110
+        mover = getattr(sk, "moveGeometry", None) or getattr(sk, "movePoint")
+        mover(5, 1, FreeCAD.Vector(1110, 0, 0), False)
+        mover(5, 2, FreeCAD.Vector(1110, 800, 0), False)
+        self.doc.recompute()
+        xs1 = sorted({round(v.Point.x, 1) for v in o.Shape.Vertexes})
+        self.assertIn(1110.0, xs1)
+        self.assertNotIn(1150.0, xs1)
+        del g
+
+    # ------------------------------------------------------------------ simulação
+    def test_pontos_da_forma_veem_a_barra_mudar(self):
+        import Part
+        import UsinixFEM as F
+        a = Part.Compound([Part.makeLine(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(100, 0, 0)),
+                           Part.makeLine(FreeCAD.Vector(50, 0, 0), FreeCAD.Vector(50, 50, 0))])
+        b = Part.Compound([Part.makeLine(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(100, 0, 0)),
+                           Part.makeLine(FreeCAD.Vector(40, 0, 0), FreeCAD.Vector(40, 50, 0))])
+        self.assertNotEqual(F.pontos_da_forma(a), F.pontos_da_forma(b))
+        self.assertEqual(F.pontos_da_forma(a), F.pontos_da_forma(a.copy()))
+
+    def test_reacoes_por_no_no_inp(self):
+        import UsinixFEM as F
+        txt = ("*NSET,NSET=Apoio\n1,\n2,\n3,\n*NSET,NSET=Face\n" + "".join("%d,\n" % i for i in range(1, 200)) +
+               "*STEP\n*NODE PRINT, NSET=Apoio, TOTALS=ONLY\nRF\n*NODE PRINT, NSET=Face, TOTALS=ONLY\nRF\n*END STEP\n")
+        p = os.path.join(tempfile.mkdtemp(), "m.inp")
+        with open(p, "w") as f:
+            f.write(txt)
+        self.assertEqual(F.reacoes_por_no_no_inp(p), 1)
+        novo = open(p).read()
+        self.assertIn("*NODE PRINT, NSET=Apoio, TOTALS=YES", novo)
+        self.assertIn("*NODE PRINT, NSET=Face, TOTALS=ONLY", novo)      # face grande fica só na soma
+
+    def test_vigas_reacao_por_no_duplicar_e_carga_na_ponta(self):
+        import UsinixFEM as F
+        import UsinixFEMBancada as B
+        a, est = self._calculada()
+        self.assertTrue(F.eh_modelo_de_vigas(est))
+        av = F.avaliar(est)
+        erros = [m for k in ("estudo", "fixacao", "carga", "malha") for n, m in av[k][2] if n == F.ERRO]
+        self.assertEqual(erros, [])                                   # sem os erros falsos de sólido e faces
+        nos = B.reacoes_por_no(est)
+        apoio = est.fixacoes[0].Name
+        self.assertEqual(len(nos.get(apoio, [])), 4, nos)              # os 4 cantos, cada um com a sua reação
+        soma = sum((r for _n, _p, r in nos[apoio]), FreeCAD.Vector())
+        total = B.reacoes(est)[apoio]
+        self.assertLess((soma - total).Length, 1e-3 * max(1.0, total.Length))
+        # duplicar: mesmos rótulos no relatório, sem resultado
+        n = B.duplicar_analise(a)
+        e2 = F.Estudo(analise=n)
+        self.assertFalse(e2.resultados)
+        orig = [B.rotulo(o) for o in a.Group if not (
+            o.isDerivedFrom("Fem::FemResultObject") or o.isDerivedFrom("Fem::FemPostObject") or
+            o.TypeId == "App::TextDocument" or (o.TypeId == "Fem::FemMeshObject" and o.Name.startswith("ResultMesh")))]
+        self.assertEqual(sorted(B.rotulo(o) for o in n.Group), sorted(orig))
+        self.assertTrue(all(not B.rotulo(o).endswith("001") for o in n.Group))
+        # carga na ponta: vértice mais longe dos apoios (cantos) é o meio de uma travessa? não: nós do contorno
+        c, p, d = B.carga_no_ponto_mais_distante(n, 250)
+        self.assertAlmostEqual(c.Force.getValueAs("N").Value, 250 * 9.80665, places=1)
+        self.assertLess(c.DirectionVector.z, -0.99)
+        self.assertGreater(d, 500)
+
+    # ------------------------------------------------------------------ desenho
+    def _folha(self, objs=None):
+        import UsinixFolhas as F
+        import Part
+        if objs is None:
+            o = self.doc.addObject("Part::Feature", "Caixa")
+            o.Shape = Part.makeBox(100, 60, 40)
+            self.doc.recompute()
+            objs = [o]
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, objs)
+        self.doc.recompute()
+        return p, objs
+
+    def test_escala_normal_e_legenda_indicada(self):
+        import UsinixFolhas as F
+        self.assertAlmostEqual(F.escala_normal(0.075), 0.05)
+        self.assertAlmostEqual(F.escala_normal(0.5), 0.5)
+        self.assertAlmostEqual(F.escala_normal(0.3), 0.2)
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        p, objs = self._folha()
+        self.assertEqual(F.texto_escala_legenda(p), F._texto_escala(p.Scale))
+        import UsinixVistas as V
+        g = V.grupo_na_folha(p, objs, ("Front",), 300, 200, 0.2)
+        self.assertEqual((float(g.X), float(g.Y)), (300.0, 200.0))
+        if abs(float(p.Scale) - 0.2) > 1e-9:
+            self.assertEqual(F.texto_escala_legenda(p), "INDICADA")
+            F.escrever_escala(p)
+            self.assertEqual(dict(p.Template.EditableTexts)["escala"], "INDICADA")
+
+    def test_conferir_folha(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import UsinixConferirFolha as C
+        p, _objs = self._folha()
+        et = dict(p.Template.EditableTexts)
+        et["escala"] = "1:10"
+        p.Template.EditableTexts = et
+        n = self.doc.addObject("TechDraw::DrawViewAnnotation", "Nota")
+        p.addView(n)
+        n.Text = ["NOTA SOBRE O CARIMBO"]
+        x0, y0, x1, y1 = C.caixa_legenda(p)
+        n.X, n.Y = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        self.doc.recompute()
+        avisos = C.conferir(p)
+        self.assertTrue(any("Escala do carimbo" in a for a in avisos), avisos)
+        self.assertTrue(any("invade a legenda" in a for a in avisos), avisos)
+
+    def test_solido_isolado_pelo_ponto(self):
+        import Part
+        import UsinixIsolarSolido as I
+        import UsinixUtil
+        caixas = [Part.makeBox(10, 10, 10, FreeCAD.Vector(30 * i, 0, 0)) for i in range(3)]
+        o = self.doc.addObject("Part::Feature", "Corpo")
+        o.Shape = Part.Compound(caixas)
+        self.doc.recompute()
+        s = I.isolar(o, indice=1)
+        self.assertAlmostEqual(s.Shape.Volume, 1000.0)
+        self.assertAlmostEqual(s.Shape.BoundBox.XMin, 30.0)
+        self.assertEqual(s.Iguais, 3)
+        self.assertTrue(UsinixUtil.auxiliar(s))
+        self.assertNotIn(o, s.ViewObject.claimChildren() if FreeCAD.GuiUp and s.ViewObject.Proxy else [])
+        # um sólido novo antes dele na peça não troca o desenhado
+        o.Shape = Part.Compound([Part.makeBox(5, 5, 5, FreeCAD.Vector(0, 50, 0))] + caixas)
+        self.doc.recompute()
+        self.assertAlmostEqual(s.Shape.BoundBox.XMin, 30.0)
+        self.assertEqual(s.Indice, 2)
+
+    def test_modelo_antigo_vira_usinix_mesmo_existindo(self):
+        import UsinixNomeAntigo as N
+        pasta = tempfile.mkdtemp()
+        velho = os.path.join(pasta, "Prumo_A4_Paisagem_NBR16752.svg")
+        with open(velho, "w") as f:
+            f.write("<svg/>")
+        novo = N._modelo_novo(velho)
+        self.assertTrue(novo and os.path.basename(novo) == "Usinix_A4_Paisagem_NBR16752.svg", novo)
+
+    def test_salvar_tenta_de_novo(self):
+        import UsinixUtil
+
+        class Doc:
+            FileName = "x.FCStd"
+            Label = "x"
+            n = 0
+
+            def save(self):
+                self.n += 1
+                if self.n < 3:
+                    raise IOError("somente leitura")
+        d = Doc()
+        self.assertEqual(UsinixUtil.salvar(d, tentativas=4, espera=0.01), 3)
+
+        class Ruim(Doc):
+            def save(self):
+                raise IOError("sem permissão")
+        with self.assertRaises(IOError) as cm:
+            UsinixUtil.salvar(Ruim(), tentativas=2, espera=0.01)
+        self.assertIn("2 tentativas", str(cm.exception))
+
+    def test_poppins_para_os_pdfs(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixEstilo
+        self.assertTrue(UsinixEstilo.garantir_fontes())
+
+    def test_ferramentas_novas_na_ponte(self):
+        import UsinixIA
+        for nome in ("grupo_das_barras", "esqueleto_mef", "conferir_folha", "isolar_solido", "duplicar_analise",
+                     "carga_ponto_mais_distante", "salvar", "grupo_de_vistas"):
+            self.assertIn(nome, UsinixIA.FERRAMENTAS)

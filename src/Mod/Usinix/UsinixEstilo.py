@@ -240,6 +240,31 @@ def write_ui_files():
 _font_state = {"family": None}
 
 
+_fontes_registradas = {"ok": None}
+
+
+def garantir_fontes():
+    """Registra a Poppins do Usinix no Qt (uma vez), sem mexer na fonte da interface. Os relatórios em PDF pedem
+    "Poppins": com a preferência da interface desligada ela não estava registrada, o Qt trocava pela Tahoma e, no
+    Windows, o texto do PDF saía como desenho (sem seleção nem busca). Devolve True com a Poppins disponível."""
+    if _fontes_registradas["ok"] is not None:
+        return _fontes_registradas["ok"]
+    try:
+        if "Poppins" in QtGui.QFontDatabase.families():
+            _fontes_registradas["ok"] = True
+            return True
+    except Exception:
+        pass
+    fams = []
+    for f in sorted(os.listdir(FONT_DIR)) if os.path.isdir(FONT_DIR) else []:
+        if f.lower().endswith(".ttf"):
+            fid = QtGui.QFontDatabase.addApplicationFont(os.path.join(FONT_DIR, f))
+            if fid >= 0:
+                fams += QtGui.QFontDatabase.applicationFontFamilies(fid)
+    _fontes_registradas["ok"] = "Poppins" in fams
+    return _fontes_registradas["ok"]
+
+
 def install_font():
     if not _params().GetBool("FontePoppins", True):
         return None

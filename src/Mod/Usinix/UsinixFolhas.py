@@ -317,7 +317,7 @@ def nova_folha(doc, formato=FORMATO_PADRAO, norma=NORMA_PADRAO, retrato=None, ca
             FreeCAD.Console.PrintLog("Usinix: folha ligada à peça: %s\n" % exc)
     if objs:
         _vistas(doc, page, objs, escala, arranjo)
-        valores["escala"] = _texto_escala(page.Scale)
+        valores["escala"] = texto_escala_legenda(page)
         et = dict(tpl.EditableTexts)
         et["escala"] = valores["escala"]
         tpl.EditableTexts = et
@@ -524,16 +524,70 @@ def _faixa_vertical(page, alt):
     return inf + leg + FOLGA_COTAS, alt - sup - FOLGA_COTAS
 
 
+def _vista_principal(v):
+    """Vista que entra na escala da legenda: desenho da peça em projeção ortogonal (a isométrica e os detalhes
+    têm escala própria, indicada junto deles)."""
+    if not v.isDerivedFrom("TechDraw::DrawViewPart") or v.TypeId == "TechDraw::DrawViewDetail":
+        return False
+    try:
+        d = FreeCAD.Vector(v.Direction)
+        d.normalize()
+        return max(abs(d.x), abs(d.y), abs(d.z)) > 0.999
+    except Exception:
+        return True
+
+
+def escalas_das_vistas(page):
+    """Escalas (sem repetição) das vistas principais da folha."""
+    res = []
+    for v in page.Views:
+        if v.TypeId == "TechDraw::DrawProjGroup":
+            itens = [i for i in v.Views if _vista_principal(i)]
+        else:
+            itens = [v] if _vista_principal(v) else []
+        for i in itens:
+            try:
+                e = float(i.getScale())
+            except Exception:
+                continue
+            if e > 0 and not any(abs(e - x) <= 1e-6 * max(1.0, e) for x in res):
+                res.append(e)
+    return res
+
+
+def texto_escala_legenda(page):
+    """ESCALA da legenda pelas vistas: a escala delas quando é uma só, "INDICADA" quando há mais de uma (cada
+    vista leva a sua junto do título). Sem vista, a escala da folha."""
+    esc = escalas_das_vistas(page)
+    if len(esc) == 1:
+        return _texto_escala(esc[0])
+    if len(esc) > 1:
+        return "INDICADA"
+    return _texto_escala(page.Scale)
+
+
 def escrever_escala(page):
-    """Põe a escala da folha no campo ESCALA da legenda."""
+    """Põe no campo ESCALA da legenda a escala das vistas (antes: a da folha, que podia não ser a das vistas;
+    a Grade saiu com 1:10 no carimbo e vistas em 1:20 e 1:13,3)."""
     try:
         tpl = page.Template
         et = dict(tpl.EditableTexts)
-        if "escala" in et and et["escala"] != _texto_escala(page.Scale):
-            et["escala"] = _texto_escala(page.Scale)
+        txt = texto_escala_legenda(page)
+        if "escala" in et and et["escala"] != txt:
+            et["escala"] = txt
             tpl.EditableTexts = et
+            return True
     except Exception:
         pass
+    return False
+
+
+def escala_normal(e):
+    """Maior escala da série normalizada (1:2, 1:5, 1:10, 1:20...) que não passa de e."""
+    for x in ESCALAS_NORMAIS:
+        if x <= e * (1 + 1e-9):
+            return x
+    return ESCALAS_NORMAIS[-1]
 
 
 def _deitar(fontes):

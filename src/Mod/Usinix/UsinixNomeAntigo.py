@@ -206,9 +206,10 @@ def _copiar_estado(o, velha, nova):
 
 
 def _modelo_novo(caminho):
-    """Modelo de folha de até a 1.20.0 (.../Mod/Prumo3D/Resources/folhas/Prumo_A3_...svg) que não existe mais: o
-    equivalente nas folhas do Usinix, ou None."""
-    if not caminho or "Prumo" not in caminho or os.path.isfile(caminho):
+    """Modelo de folha de até a 1.20.0 (.../Mod/Prumo3D/Resources/folhas/Prumo_A3_...svg): o equivalente nas folhas
+    do Usinix, ou None. Vale também quando o arquivo antigo ainda existe (instalação velha esquecida no disco): a
+    folha continuava com o nome "Prumo_..." no modelo."""
+    if not caminho or "Prumo" not in caminho:
         return None
     nome = os.path.basename(caminho.replace("\\", "/"))
     if not nome.startswith(ANTIGO + "_"):

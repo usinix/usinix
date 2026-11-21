@@ -213,6 +213,7 @@ def gerar_pdf(analise, caminho):
         analise.Mostrar = antes
         analise.Document.recompute()
     d = _Dados(analise)
+    R._garantir_poppins()                # Poppins registrada: texto do PDF selecionável no Windows
     w = QtGui.QPdfWriter(caminho)
     w.setPageSize(QtGui.QPageSize(QtGui.QPageSize.A4))
     w.setPageMargins(QtCore.QMarginsF(0, 0, 0, 0))

@@ -19,6 +19,7 @@ import re
 import FreeCAD
 
 import UsinixFEM as F
+import UsinixUtil
 
 try:
     import FreeCADGui
@@ -151,7 +152,7 @@ def materiais(est):
             if sy:
                 pm["Sy"], fonte = sy, "biblioteca do Usinix (%s)" % nome
         subs = _subs(m)
-        out.append({"obj": m, "nome": m.Material.get("Name", m.Label), "rotulo": m.Label, "E": pm.get("E"),
+        out.append({"obj": m, "nome": m.Material.get("Name", m.Label), "rotulo": rotulo(m), "E": pm.get("E"),
                     "nu": pm.get("nu"), "rho": pm.get("rho"), "Sy": pm.get("Sy"), "fonte_sy": fonte,
                     "rigido": bool(pm.get("E") and pm["E"] >= E_RIGIDO), "subs": subs})
     return out
@@ -168,7 +169,7 @@ def secoes(est):
                 comp += ob.Shape.getElement(s).Length
             except Exception:
                 pass
-        sp.update(obj=g, rotulo=g.Label, subs=subs, n=len(subs), comprimento=comp)
+        sp.update(obj=g, rotulo=rotulo(g), subs=subs, n=len(subs), comprimento=comp)
         out.append(sp)
     return out
 
@@ -224,14 +225,14 @@ def _graus(o):
 
 
 def apoios(est):
-    return [{"obj": o, "rotulo": o.Label, "graus": _graus(o), "subs": _subs(o)} for o in est.fixacoes]
+    return [{"obj": o, "rotulo": rotulo(o), "graus": _graus(o), "subs": _subs(o)} for o in est.fixacoes]
 
 
 def cargas(est, massa=None):
     """[{obj, rotulo, tipo, valor, dir, vetor (N), texto}] — vetor é a resultante (None para pressão)."""
     out = []
     for o in est.cargas:
-        d = {"obj": o, "rotulo": o.Label, "subs": _subs(o), "vetor": None}
+        d = {"obj": o, "rotulo": rotulo(o), "subs": _subs(o), "vetor": None}
         if F._eh(o, "Fem::ConstraintSelfWeight"):
             g = _q(getattr(o, "GravityAcceleration", 9806.65), "mm/s^2") or 9806.65
             dv = V(getattr(o, "GravityDirection", V(0, 0, -1)))
@@ -250,9 +251,127 @@ def cargas(est, massa=None):
             d.update(tipo="Pressão", valor=_fmt(_q(o.Pressure, "MPa"), 3, "MPa"),
                      dir="para dentro da face" if not o.Reversed else "para fora da face")
         else:
-            d.update(tipo=o.Label, valor="—", dir="—")
+            d.update(tipo=rotulo(o), valor="—", dir="—")
         out.append(d)
     return out
+
+
+def rotulo(o):
+    """Rótulo do objeto no relatório: a cópia feita por duplicar_analise guarda o rótulo original (o FreeCAD põe
+    "001" no fim do rótulo repetido, e ele aparecia no relatório)."""
+    try:
+        return o.UsinixRotulo if "UsinixRotulo" in o.PropertiesList and o.UsinixRotulo else o.Label
+    except Exception:
+        return getattr(o, "Label", "")
+
+
+G = 9.80665     # m/s² (1 kgf = 9,80665 N)
+
+
+def _pontos_dos_apoios(est):
+    pts = []
+    for c in est.fixacoes:
+        for o, ss in c.References:
+            for sub in ss:
+                try:
+                    el = o.Shape.getElement(sub)
+                except Exception:
+                    continue
+                pts += [v.Point for v in el.Vertexes]
+    return pts
+
+
+def _linha_vertical(doc):
+    """Linha vertical escondida que serve de direção para forças em vértices (uma por documento)."""
+    o = doc.getObject("UsinixDirecaoVertical")
+    if o is None:
+        o = doc.addObject("Part::Line", "UsinixDirecaoVertical")
+        o.Label = "Direção vertical (referência das cargas)"
+        o.X1 = o.Y1 = o.Z1 = 0.0
+        o.X2 = o.Y2 = 0.0
+        o.Z2 = 100.0
+        doc.recompute()
+        try:
+            o.ViewObject.Visibility = False
+        except Exception:
+            pass
+    return o
+
+
+def carga_no_ponto_mais_distante(analise, massa_kg, rotulo=None):
+    """Força vertical para baixo de massa_kg × g no vértice do modelo mais longe dos apoios (o vértice cuja
+    distância ao apoio mais próximo é a maior): o caso de uma pessoa com carga na ponta de uma plataforma, que
+    antes era montado à mão e chegou a ser esquecido. Funciona no modelo de barras (vértices do esqueleto)."""
+    import ObjectsFem
+    est = F.Estudo(analise=analise)
+    peca = est.peca
+    if peca is None:
+        raise ValueError("a análise não tem geometria")
+    apoios = _pontos_dos_apoios(est)
+    if not apoios:
+        raise ValueError("defina os apoios antes: o ponto mais distante é medido a partir deles")
+    vs = peca.Shape.Vertexes
+    if not vs:
+        raise ValueError("a geometria da análise não tem vértices")
+    k = max(range(len(vs)), key=lambda i: min((vs[i].Point - q).Length for q in apoios))
+    dist = min((vs[k].Point - q).Length for q in apoios)
+    doc = analise.Document
+    c = ObjectsFem.makeConstraintForce(doc, "CargaNaPonta")
+    c.References = [(peca, ("Vertex%d" % (k + 1),))]
+    c.Force = "%.3f N" % (float(massa_kg) * G)
+    analise.addObject(c)
+    c.Direction = (_linha_vertical(doc), ["Edge1"])     # vértice não tem normal: direção por uma linha vertical
+    c.Reversed = False
+    c.recompute()
+    if c.DirectionVector.z > 0:
+        c.Reversed = True
+        c.recompute()
+    if c.DirectionVector.z > -0.99:
+        doc.removeObject(c.Name)
+        raise ValueError("não foi possível apontar a força para baixo neste vértice (o modelo não é plano "
+                         "horizontal): aplique a carga pela bancada escolhendo a direção")
+    c.Label = rotulo or UsinixUtil.rotulo_unico(doc, "Carga de %s kg no ponto mais distante dos apoios" %
+                                                UsinixUtil.fmt(float(massa_kg), 0))
+    est.put("UsinixResultadoVelho", True, "App::PropertyBool")
+    doc.recompute()
+    return c, vs[k].Point, dist
+
+
+def duplicar_analise(analise, rotulo_novo=None):
+    """Cópia da análise com material, seções, apoios, cargas, malha e solver próprios, apontando para a mesma
+    geometria (o caso B a partir do caso A, por exemplo). Os rótulos da cópia saem iguais aos do original no
+    relatório. Resultados não são copiados: a cópia nasce para ser calculada."""
+    doc = analise.Document
+    nova = doc.addObject(analise.TypeId, analise.Name)
+    nova.Label = rotulo_novo or UsinixUtil.rotulo_unico(doc, analise.Label + " (cópia)")
+    mapa = {}
+    for o in analise.Group:
+        if o.isDerivedFrom("Fem::FemResultObject") or o.isDerivedFrom("Fem::FemPostObject") or \
+                o.TypeId == "App::TextDocument" or (o.TypeId == "Fem::FemMeshObject" and o.Name.startswith("ResultMesh")):
+            continue                     # resultados e arquivos do solver: a cópia nasce para ser calculada
+        c = doc.copyObject(o, False)
+        if "UsinixRotulo" not in c.PropertiesList:
+            c.addProperty("App::PropertyString", "UsinixRotulo", "Usinix", "Rótulo no relatório (cópia de análise)")
+        c.UsinixRotulo = rotulo(o)
+        mapa[o] = c
+        nova.addObject(c)
+    for nome in nova.PropertiesList:
+        if nome.startswith("Usinix") and nome in analise.PropertiesList and nome not in (
+                "UsinixCondAssin", "UsinixCondPontos", "UsinixCalculadoEm", "UsinixConvergencia", "UsinixRelTitulo"):
+            try:
+                setattr(nova, nome, getattr(analise, nome))
+            except Exception:
+                pass
+    for nome in analise.PropertiesList:
+        if nome.startswith("Usinix") and nome not in nova.PropertiesList and nome not in (
+                "UsinixCondAssin", "UsinixCondPontos", "UsinixCalculadoEm", "UsinixConvergencia", "UsinixRelTitulo"):
+            try:
+                nova.addProperty(analise.getTypeIdOfProperty(nome), nome, "Usinix")
+                setattr(nova, nome, getattr(analise, nome))
+            except Exception:
+                pass
+    doc.recompute()
+    return nova
 
 
 def _dat(est):
@@ -276,6 +395,35 @@ def reacoes(est):
         r = por_set.get(o.Name.upper())
         if r is not None:
             out[o.Name] = r
+    return out
+
+
+def reacoes_por_no(est):
+    """Reação de cada nó dos apoios pequenos (o .dat traz nó a nó quando o Usinix pediu TOTALS=YES):
+    {nome do apoio: [(nó, Vector posição mm ou None, Vector(Fx, Fy, Fz) N)]}."""
+    txt = _dat(est)
+    if not txt:
+        return {}
+    mesh = getattr(est.malha, "FemMesh", None) if est.malha is not None else None
+    nomes = {o.Name.upper(): o.Name for o in est.fixacoes}
+    out = {}
+    for m in re.finditer(r"^\s*forces \(fx,fy,fz\) for set (\S+) and time\s+\S+\s*$(.*?)(?=^\s*total force|\Z)",
+                         txt, re.M | re.S):
+        nome = nomes.get(m.group(1).upper())
+        if nome is None:
+            continue
+        lst = []
+        for ln in m.group(2).splitlines():
+            p = ln.split()
+            if len(p) == 4 and p[0].isdigit():
+                no = int(p[0])
+                try:
+                    pos = V(mesh.getNodeById(no)) if mesh is not None else None
+                except Exception:
+                    pos = None
+                lst.append((no, pos, V(float(p[1]), float(p[2]), float(p[3]))))
+        if lst:
+            out[nome] = lst
     return out
 
 
@@ -338,9 +486,19 @@ def assinatura(est):
     return hashlib.md5("\n".join(partes).encode("utf-8")).hexdigest()
 
 
+def _pontos_da_malha(est):
+    m = est.malha
+    try:
+        return F.pontos_da_forma(m.Shape.Shape)
+    except Exception:
+        return ""
+
+
 def gravar_assinatura(est):
     if est.analise is not None:
         est.put("UsinixCondAssin", assinatura(est))
+        # posição dos vértices do modelo, à parte da assinatura (para não dar por velho o que já foi conferido)
+        est.put("UsinixCondPontos", _pontos_da_malha(est))
 
 
 def estado(est):
@@ -354,6 +512,10 @@ def estado(est):
     if gravada != assinatura(est):
         return "desatualizado", ("O resultado é de antes da última mudança em cargas, apoios, materiais, seções ou "
                                  "malha: recalcule antes de gerar o relatório.")
+    pts = est.get("UsinixCondPontos", "")
+    if pts and pts != _pontos_da_malha(est):
+        return "desatualizado", ("A geometria mudou depois do cálculo (posição das barras ou dos vértices): gere a "
+                                 "malha e recalcule antes de gerar o relatório.")
     return "atual", "O resultado corresponde ao modelo de agora."
 
 
@@ -622,6 +784,7 @@ def avaliar(est, elu=True, gama=GAMA_A1, fs_min=1.5):
         val.append((OK if verif["ok"] else ERRO, "Verificação de tensão: %s (%s)." % (
             verif["texto"], "atende" if verif["ok"] else "não atende")))
     return {"mats": mats, "secs": secs, "vigas": vigas, "massa": massa, "cargas": cgs, "reacoes": reac, "eq": eq,
+            "reacoes_nos": reacoes_por_no(est),
             "est": e, "Sy": sy, "verif": verif, "val": val, "estado": chave, "elu": elu, "gama": gama,
             "fs_min": fs_min}
 
@@ -737,7 +900,7 @@ def corpo(est, doc, imgs, largura, a=None):
     h.append("<h1>%d. Reações de apoio e equilíbrio</h1>" % num)
     reac = a["reacoes"]
     if reac:
-        nomes = {o.Name: o.Label for o in est.fixacoes}
+        nomes = {o.Name: rotulo(o) for o in est.fixacoes}
         lin = [[nomes.get(k, k), _fmt(r.x, 1), _fmt(r.y, 1), _fmt(r.z, 1)] for k, r in reac.items()]
         if a["eq"] is not None:
             _ok, dif, sr, sc = a["eq"]
@@ -752,6 +915,19 @@ def corpo(est, doc, imgs, largura, a=None):
                         _fmt(LIMITE_EQUILIBRIO, 0, "%")))
     else:
         h.append("<p>O resultado não trouxe as reações de apoio.</p>")
+    por_no = {k: v for k, v in (a.get("reacoes_nos") or {}).items() if len(v) > 1}
+    if por_no:
+        nomes = {o.Name: rotulo(o) for o in est.fixacoes}
+        lin = []
+        for k, lst in por_no.items():
+            for no, pos, r in sorted(lst, key=lambda t: (t[1].x, t[1].y, t[1].z) if t[1] is not None else (t[0],)):
+                lin.append([nomes.get(k, k), "%d" % no,
+                            "%s; %s; %s" % (_fmt(pos.x, 0), _fmt(pos.y, 0), _fmt(pos.z, 0)) if pos is not None else "—",
+                            _fmt(r.x, 1), _fmt(r.y, 1), _fmt(r.z, 1), _fmt(r.Length, 1)])
+        h.append("<p>Reação em cada nó dos apoios com mais de um ponto (para dimensionar parafusos, correntes e "
+                 "chumbadores):</p>")
+        h.append(R._tab(lin, cab=["Apoio", "Nó", "Posição x; y; z (mm)", "Fx (N)", "Fy (N)", "Fz (N)", "|F| (N)"],
+                        larguras=["22%", "7%", "21%", "12%", "12%", "12%", "14%"]))
     num += 1
 
     h.append("<h1>%d. Verificação e validação do modelo</h1>" % num)
@@ -1117,6 +1293,91 @@ if P is not None:
             PainelRelatorioMEF().mostrar()
 
 
+    def _analise_escolhida():
+        try:
+            for o in FreeCADGui.Selection.getSelection():
+                if o.isDerivedFrom("Fem::FemAnalysis"):
+                    return o
+                for p in o.InList:
+                    if p.isDerivedFrom("Fem::FemAnalysis"):
+                        return p
+            import FemGui
+            a = FemGui.getActiveAnalysis()
+            if a is not None:
+                return a
+        except Exception:
+            pass
+        lst = analises()
+        return lst[0] if len(lst) == 1 else None
+
+    class CmdDuplicarAnalise:
+        def GetResources(self):
+            return {"Pixmap": UsinixUtil.icone("duplicar_analise.svg"), "MenuText": "Duplicar análise",
+                    "ToolTip": "Cópia da análise escolhida (material, seções, apoios, cargas, malha e solver) sobre "
+                               "a mesma geometria, para montar outro caso de carga ou de apoio. Os rótulos ficam "
+                               "iguais no relatório; a cópia nasce sem resultado."}
+
+        def IsActive(self):
+            return _analise_escolhida() is not None
+
+        def Activated(self):
+            a = _analise_escolhida()
+            if a is None:
+                return
+            doc = a.Document
+            doc.openTransaction("Duplicar análise")
+            try:
+                n = duplicar_analise(a)
+                doc.commitTransaction()
+            except Exception as exc:
+                doc.abortTransaction()
+                QtWidgets.QMessageBox.warning(FreeCADGui.getMainWindow(), "Duplicar análise", str(exc))
+                return
+            try:
+                import FemGui
+                FemGui.setActiveAnalysis(n)
+            except Exception:
+                pass
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(n)
+
+
+    class CmdCargaNaPonta:
+        def GetResources(self):
+            return {"Pixmap": UsinixUtil.icone("carga_ponta.svg"), "MenuText": "Carga na ponta",
+                    "ToolTip": "Força vertical para baixo no ponto do modelo de barras mais distante dos apoios "
+                               "(pessoa com carga na ponta de uma plataforma). Informe a massa conforme a norma "
+                               "que se aplica ao projeto."}
+
+        def IsActive(self):
+            return _analise_escolhida() is not None
+
+        def Activated(self):
+            a = _analise_escolhida()
+            if a is None:
+                return
+            kg, ok = QtWidgets.QInputDialog.getDouble(FreeCADGui.getMainWindow(), "Carga na ponta",
+                                                      "Massa no ponto mais distante dos apoios (kg):", 100.0, 0.1,
+                                                      100000.0, 1)
+            if not ok:
+                return
+            doc = a.Document
+            doc.openTransaction("Carga na ponta")
+            try:
+                c, _p, _d = carga_no_ponto_mais_distante(a, kg)
+                doc.commitTransaction()
+            except Exception as exc:
+                doc.abortTransaction()
+                QtWidgets.QMessageBox.warning(FreeCADGui.getMainWindow(), "Carga na ponta", str(exc))
+                return
+            FreeCADGui.Selection.clearSelection()
+            FreeCADGui.Selection.addSelection(c)
+
+
 def registrar_comandos():
+    if FreeCADGui is not None and P is not None and "Usinix_CargaNaPonta" not in FreeCADGui.listCommands():
+        FreeCADGui.addCommand("Usinix_CargaNaPonta", CmdCargaNaPonta())
     if FreeCADGui is not None and P is not None and "Usinix_RelatorioMEF" not in FreeCADGui.listCommands():
         FreeCADGui.addCommand("Usinix_RelatorioMEF", CmdRelatorioMEF())
+    if FreeCADGui is not None and P is not None and "Usinix_DuplicarAnalise" not in FreeCADGui.listCommands():
+        FreeCADGui.addCommand("Usinix_DuplicarAnalise", CmdDuplicarAnalise())

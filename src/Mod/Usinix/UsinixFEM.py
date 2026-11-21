@@ -106,21 +106,35 @@ def _migrar_propriedades(obj):
 
 
 def _faces_validas(obj, subs):
-    """Faces (ou arestas, nos modelos de casca) que ainda existem na forma."""
+    """Faces, arestas (casca e vigas) ou vértices (vigas) que ainda existem na forma."""
     try:
-        n = {"Face": len(obj.Shape.Faces), "Edge": len(obj.Shape.Edges)}
+        n = {"Face": len(obj.Shape.Faces), "Edge": len(obj.Shape.Edges), "Vertex": len(obj.Shape.Vertexes)}
     except Exception:
         return False
     for s in subs:
-        tipo = "Face" if s.startswith("Face") else ("Edge" if s.startswith("Edge") else None)
+        tipo = next((t for t in ("Face", "Edge", "Vertex") if s.startswith(t)), None)
         if tipo is None:
             return False
         try:
-            if not 1 <= int(s[4:]) <= n[tipo]:
+            if not 1 <= int(s[len(tipo):]) <= n[tipo]:
                 return False
         except ValueError:
             return False
     return True
+
+
+def eh_modelo_de_vigas(est):
+    """Estudo de barras (elementos 1D com seção): a peça é um esqueleto de linhas e a malha só tem arestas.
+    O verificador do assistente cobrava sólido, faces e elementos de volume e dava erro falso nesses estudos."""
+    try:
+        if est.analise is None:
+            return False
+        if any(o.TypeId == "Fem::ElementGeometry1D" for o in est.analise.Group):
+            return True
+        sh = est.peca.Shape if est.peca is not None else None
+        return sh is not None and not sh.Solids and not sh.Faces and bool(sh.Edges)
+    except Exception:
+        return False
 
 
 class Estudo:
@@ -255,6 +269,11 @@ class Estudo:
             pass
         return self.analise
 
+    def pontos_geo(self):
+        """Posição dos vértices da peça (resumo): num esqueleto de barras, mover uma travessa não muda volume,
+        área, caixa nem comprimento total, e a malha velha passava por atual."""
+        return pontos_da_forma(getattr(self.peca, "Shape", None))
+
     def assinatura_geo(self):
         p = self.peca
         try:
@@ -264,6 +283,18 @@ class Estudo:
                                                   len(s.Faces))
         except Exception:
             return ""
+
+
+def pontos_da_forma(sh):
+    """Resumo (md5) das coordenadas dos vértices, arredondadas a 0,01 mm; "" sem forma."""
+    import hashlib
+    try:
+        pts = sorted((round(v.Point.x, 2), round(v.Point.y, 2), round(v.Point.z, 2)) for v in sh.Vertexes)
+    except Exception:
+        return ""
+    if not pts:
+        return ""
+    return hashlib.md5(repr(pts).encode("ascii")).hexdigest()
 
 
 # =========================================================================== materiais
@@ -472,10 +503,14 @@ def avaliar(est):
     else:
         nivel = OK
         casca = bool(est.get("UsinixCasca", False))
+        vigas = eh_modelo_de_vigas(est)
         try:
             sh = peca.Shape
             nsol = len(sh.Solids)
-            if casca:
+            if vigas:
+                if not sh.Edges:
+                    msgs.append((ERRO, "O modelo de barras não tem linhas."))
+            elif casca:
                 if not sh.Faces:
                     msgs.append((ERRO, "O modelo de casca não tem faces."))
             elif nsol == 0:
@@ -508,7 +543,10 @@ def avaliar(est):
         if precisa_rho and not pm["rho"]:
             msgs.append((ERRO, "O material não tem densidade (necessária para peso próprio e frequências)."))
         if not pm["Sy"] and tipo == "static":
-            msgs.append((AVISO, "Sem limite de escoamento no material: o fator de segurança não será calculado."))
+            msgs.append((AVISO, "Sem limite de escoamento no material: o fator de segurança não será calculado. "
+                                "Os aços SAE da biblioteca vêm sem ele de propósito (a SAE J403 só fixa a "
+                                "composição; o escoamento depende da condição de fornecimento): escolha um aço "
+                                "estrutural (ASTM A36, A572...) ou informe o valor do certificado no material."))
         if m.References:
             msgs.append((AVISO, "O material está ligado só a parte da peça. O assistente usa material único "
                                 "para a peça inteira."))
@@ -573,17 +611,23 @@ def avaliar(est):
     else:
         msgs = []
         fm = me.FemMesh
-        if fm.VolumeCount == 0 and not (est.get("UsinixCasca", False) and fm.FaceCount > 0):
+        if eh_modelo_de_vigas(est):
+            if fm.EdgeCount == 0:
+                msgs.append((ERRO, "A malha do modelo de barras não tem elementos de linha. Gere novamente."))
+        elif fm.VolumeCount == 0 and not (est.get("UsinixCasca", False) and fm.FaceCount > 0):
             msgs.append((ERRO, "A malha não tem elementos de volume. Gere novamente a partir do sólido."))
         if est.get("UsinixMalhaAssin") and est.get("UsinixMalhaAssin") != est.assinatura_geo():
             msgs.append((ERRO, "A peça mudou depois que a malha foi gerada: gere a malha novamente."))
+        elif est.get("UsinixMalhaPontos") and est.get("UsinixMalhaPontos") != est.pontos_geo():
+            msgs.append((ERRO, "A posição das barras ou dos vértices da peça mudou depois que a malha foi gerada: "
+                               "gere a malha novamente."))
         if peca is not None and getattr(me, "Shape", None) not in (None, peca):
             msgs.append((AVISO, "A malha foi gerada de outro objeto ({}).".format(me.Shape.Label)))
         if fm.NodeCount > 400000:
             msgs.append((AVISO, "Malha muito grande ({} nós): o cálculo pode levar muitos minutos e usar "
                                 "muita memória.".format(fmt(fm.NodeCount, 0))))
         nivel = ERRO if any(n == ERRO for n, _ in msgs) else (AVISO if msgs else OK)
-        nel = fm.VolumeCount or fm.FaceCount
+        nel = fm.VolumeCount or fm.FaceCount or fm.EdgeCount
         r["malha"] = (nivel, "{} nós · {} elementos".format(fmt(fm.NodeCount, 0), fmt(nel, 0)), msgs)
 
     # 6 cálculo
@@ -790,6 +834,7 @@ def gerar_malha(est, tamanho, ordem="2nd", nivel=None, lados_retos=None):
     if m.FemMesh.NodeCount == 0:
         return False, "O Gmsh não gerou elementos."
     est.put("UsinixMalhaAssin", est.assinatura_geo())
+    est.put("UsinixMalhaPontos", est.pontos_geo())
     if nivel is not None:
         est.put("UsinixMalhaNivel", nivel, "App::PropertyInteger")
     est.put("UsinixResultadoVelho", True, "App::PropertyBool")
@@ -838,6 +883,10 @@ def calcular(est, modos=None):
     if msg:
         return False, "O Usinix apontou pré-requisitos faltando:\n" + msg, 0.0
     fea.write_inp_file()
+    try:
+        reacoes_por_no_no_inp(getattr(fea, "inp_file_name", ""))
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: reações por nó: %s\n" % exc)
     ret = fea.ccx_run()
     if ret != 0:
         return False, _explicar_erro_ccx(getattr(fea, "ccx_stdout", "") + getattr(fea, "ccx_stderr", "")), 0.0
@@ -860,6 +909,36 @@ def calcular(est, modos=None):
     except Exception:
         pass
     return True, "", dt
+
+
+NOS_REACAO_POR_NO = 60      # apoio com até tantos nós sai nó a nó no .dat (parafusos, correntes, vigas)
+
+
+def reacoes_por_no_no_inp(caminho, limite=NOS_REACAO_POR_NO):
+    """O FreeCAD pede ao CalculiX só a soma das reações de cada apoio (TOTALS=ONLY). Num apoio de poucos nós
+    (modelo de vigas: um nó por parafuso ou corrente) pede também cada nó (TOTALS=YES), para o relatório trazer a
+    força de cada ponto sem separar cada um num apoio próprio. Apoio de face com milhares de nós fica só na soma."""
+    import re
+    if not caminho or not os.path.isfile(caminho):
+        return 0
+    with open(caminho, encoding="utf-8", errors="replace") as f:
+        txt = f.read()
+    tam = {}
+    for m in re.finditer(r"^\*NSET\s*,\s*NSET\s*=\s*(\S+?)\s*$(.*?)(?=^\*)", txt, re.M | re.S | re.I):
+        nos = [x for x in re.split(r"[,\s]+", m.group(2)) if x.strip().isdigit()]
+        tam[m.group(1).upper()] = tam.get(m.group(1).upper(), 0) + len(nos)
+    n = [0]
+
+    def troca(m):
+        if 0 < tam.get(m.group(1).upper(), limite + 1) <= limite:
+            n[0] += 1
+            return "*NODE PRINT, NSET=%s, TOTALS=YES" % m.group(1)
+        return m.group(0)
+    novo = re.sub(r"^\*NODE PRINT, NSET=(\S+), TOTALS=ONLY", troca, txt, flags=re.M)
+    if n[0]:
+        with open(caminho, "w", encoding="utf-8") as f:
+            f.write(novo)
+    return n[0]
 
 
 LIMITE_CONVERGENCIA = 5.0   # % de variação entre as duas malhas mais finas

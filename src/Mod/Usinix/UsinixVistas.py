@@ -860,6 +860,11 @@ def nome_do_arquivo(page, extensao):
 
 def salvar_pdf(page, caminho=None):
     import TechDrawGui
+    try:
+        import UsinixConferirFolha
+        UsinixConferirFolha.avisar(page)          # escala/material do carimbo, legenda e margem invadidas
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: conferência da folha: %s\n" % exc)
     caminho = caminho or nome_do_arquivo(page, "pdf")
     TechDrawGui.exportPageAsPdf(page, caminho)
     return caminho
@@ -1362,3 +1367,53 @@ def registrar_comandos():
         FreeCADGui.addCommand("Usinix_ExportarDXF", CmdExportarDXF())
         FreeCADGui.addCommand("Usinix_FolhasLote", CmdFolhasLote())
         FreeCADGui.addCommand("Usinix_CotasCorte", CmdCotasCorte())
+
+
+def _janela_da_folha(page):
+    try:
+        import FreeCADGui
+        from PySide import QtWidgets
+        mdi = FreeCADGui.getMainWindow().findChild(QtWidgets.QMdiArea)
+        for w in mdi.subWindowList():
+            t = w.windowTitle().replace("[*]", "").strip()
+            if t == page.Label or t.endswith(" : " + page.Label):
+                return w
+    except Exception:
+        pass
+    return None
+
+
+def grupo_na_folha(page, fontes, projecoes=("Front", "Right"), x=None, y=None, escala=None,
+                   tipo_projecao="First angle"):
+    """Grupo de vistas numa folha que já existe (outra peça na mesma prancha). Criado com a janela da folha
+    aberta, o grupo nascia no canto da folha, só como caixas cinza, e só aparecia certo ao fechar e reabrir a
+    página: aqui a janela é fechada antes e reaberta depois."""
+    import FreeCAD
+    doc = page.Document
+    janela = _janela_da_folha(page)
+    if janela is not None:
+        janela.close()
+    g = doc.addObject("TechDraw::DrawProjGroup", "Vistas")
+    g.Label = "Vistas"
+    page.addView(g)
+    g.Source = list(fontes)
+    g.ProjectionType = tipo_projecao
+    if escala:
+        g.ScaleType = "Custom"
+        g.Scale = float(escala)
+    else:
+        g.ScaleType = "Page"
+    for pr in projecoes:
+        g.addProjection(pr)
+    if x is not None:
+        g.X = float(x)
+    if y is not None:
+        g.Y = float(y)
+    doc.recompute()
+    esperar_vistas(list(g.Views), 30.0)
+    if janela is not None and FreeCAD.GuiUp:
+        try:
+            page.ViewObject.doubleClicked()
+        except Exception:
+            pass
+    return g

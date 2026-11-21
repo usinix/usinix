@@ -610,6 +610,27 @@ class _FolhaObserver:
         except Exception:
             pass
 
+    def slotChangedObject(self, obj, prop):
+        """Escala automática do TechDraw fora da série normalizada (0,075 = 1:13,3) vira a normalizada logo
+        abaixo, e a ESCALA da legenda acompanha as vistas da folha do Usinix."""
+        if prop not in ("Scale", "ScaleType", "Views"):
+            return
+        try:
+            t = obj.TypeId
+            if not (t.startswith("TechDraw::DrawView") or t in ("TechDraw::DrawProjGroup", "TechDraw::DrawPage")):
+                return
+            if prop == "Scale" and t != "TechDraw::DrawProjGroupItem" and getattr(obj, "ScaleType", "") == "Automatic":
+                ref = (obj.Document.Name, obj.Name)
+                QtCore.QTimer.singleShot(0, lambda r=ref: _normalizar_escala(*r))
+            page = obj if t == "TechDraw::DrawPage" else _pagina_da_vista(obj)
+            if page is not None:
+                chave = (page.Document.Name, page.Name)
+                if chave not in _escala_pendente:
+                    _escala_pendente.add(chave)
+                    QtCore.QTimer.singleShot(300, lambda c=chave: _escala_da_legenda(*c))
+        except Exception:
+            pass
+
     def slotFinishRestoreDocument(self, doc):
         try:
             import UsinixNomeAntigo
@@ -708,6 +729,56 @@ def _fix_folha_date(obj):
         if "deleted" in str(exc):
             return  # a folha (ou o documento) foi fechada antes do ajuste adiado
         FreeCAD.Console.PrintWarning("Usinix: data da folha: {}\n".format(exc))
+
+
+_escala_pendente = set()
+
+
+def _pagina_da_vista(v):
+    for o in getattr(v, "InList", []) or []:
+        if o.TypeId == "TechDraw::DrawPage":
+            return o
+        if o.TypeId == "TechDraw::DrawProjGroup":
+            for p in o.InList:
+                if p.TypeId == "TechDraw::DrawPage":
+                    return p
+    return None
+
+
+def _modelo_usinix(page):
+    try:
+        return any(n in (page.Template.Template or "") for n in ("Usinix", "Prumo"))
+    except Exception:
+        return False
+
+
+def _normalizar_escala(doc_name, obj_name):
+    try:
+        import UsinixFolhas
+        o = FreeCAD.getDocument(doc_name).getObject(obj_name)
+        if o is None or getattr(o, "ScaleType", "") != "Automatic":
+            return
+        e = float(o.Scale)
+        n = UsinixFolhas.escala_normal(e)
+        if abs(n - e) > 1e-9 * max(1.0, e):
+            o.ScaleType = "Custom"
+            o.Scale = n
+            o.Document.recompute()
+    except Exception as exc:
+        if "deleted" not in str(exc):
+            FreeCAD.Console.PrintLog("Usinix: escala normalizada: %s\n" % exc)
+
+
+def _escala_da_legenda(doc_name, page_name):
+    _escala_pendente.discard((doc_name, page_name))
+    try:
+        import UsinixFolhas
+        page = FreeCAD.getDocument(doc_name).getObject(page_name)
+        if page is not None and _modelo_usinix(page):
+            UsinixFolhas.escrever_escala(page)
+    except Exception as exc:
+        if "deleted" not in str(exc) and "not exist" not in str(exc):
+            FreeCAD.Console.PrintLog("Usinix: escala da legenda: %s\n" % exc)
 
 
 _folha_obs = {"obj": None}
@@ -954,6 +1025,8 @@ def register_commands():
                              ("UsinixFEMBancada", lambda m: m.registrar_comandos()),
                              ("UsinixValidacao", lambda m: m.registrar_comandos()),
                              ("UsinixDetalhe", lambda m: m.registrar_comandos()),
+                             ("UsinixEsqueletoMEF", lambda m: m.registrar_comandos()),
+                             ("UsinixIsolarSolido", lambda m: m.registrar_comandos()),
                              ("UsinixRegua", lambda m: (
                                  FreeCADGui.addCommand("Usinix_ReguaHistorico", m.CmdRegua()),
                                  FreeCADGui.getMainWindow().workbenchActivated.connect(m.ao_trocar_bancada),

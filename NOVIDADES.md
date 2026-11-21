@@ -15,6 +15,50 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.27.0 — 21/11/2026
+
+![Quadro de tubos com o contorno fixado pela lateral e as três travessas centradas, vãos iguais](.github/images/novidades/1.27.0.webp)
+
+### Estruturas
+
+- **Barra interna centrada:** a fixação lateral do grupo padrão (esquerdo/direito) vale para o contorno. As
+  travessas internas ficam centradas na linha e os vãos saem iguais quando as linhas estão igualmente espaçadas
+  (antes cada travessa ia para um lado: 535 / 495 / 535 / 535).
+- **Grupo pela barra:** as barras vão para um grupo escolhidas pelo nome (Barra015) ou pelo rótulo, não pelo
+  índice da linha no esboço.
+
+### Simulação
+
+- **Esqueleto da estrutura:** linhas das barras para o estudo de vigas, partidas nos cruzamentos e ligadas à
+  estrutura. Mudou a estrutura, o esqueleto acompanha, e a bancada avisa que a malha e o resultado ficaram
+  velhos (também quando só a posição das barras muda).
+- **Duplicar análise:** cópia do estudo (material, seções, apoios, cargas, malha e solver) para outro caso, com
+  os mesmos rótulos no relatório.
+- **Carga na ponta:** força vertical para baixo no ponto do modelo de barras mais distante dos apoios, com a
+  massa informada por quem calcula.
+- **Reação por nó:** apoio com poucos pontos (parafusos, correntes) sai no relatório nó a nó, além da soma.
+- **Relatório:** legenda das figuras em MPa e mm, como o texto; fonte Poppins garantida no PDF.
+- **Verificador do assistente:** reconhece o estudo de vigas e não acusa mais "peça sem sólido", "faces que não
+  existem" nem "malha sem elementos de volume".
+
+### Desenho
+
+- **Escala do carimbo pelas vistas:** a legenda mostra a escala das vistas, ou "INDICADA" quando há mais de uma.
+- **Escalas normalizadas:** a escala automática do TechDraw fora da série (1:13,3) vira a normalizada logo
+  abaixo.
+- **Conferência da folha ao gravar o PDF:** escala e material do carimbo contra o modelo, vista ou anotação que
+  invade a legenda ou passa da margem.
+- **Isolar sólido para desenho:** num corpo com peças iguais modeladas juntas, desenha só uma, sem esconder o
+  corpo na árvore.
+- **Modelo de folha antigo:** "Prumo_..." passa a apontar para o modelo do Usinix mesmo quando o arquivo antigo
+  ainda existe no disco.
+
+### Conexão com IA
+
+- Ferramentas novas: grupo das barras, esqueleto MEF, conferir folha, grupo de vistas numa folha existente,
+  isolar sólido, duplicar análise, carga na ponta e salvar (com nova tentativa quando a sincronização do Drive
+  segura o arquivo).
+
 ## 1.26.1 — 21/11/2026
 
 ### Correções

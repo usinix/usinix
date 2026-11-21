@@ -288,3 +288,22 @@ def forma_global(obj):
             sh = sh.copy()
             sh.transformShape(pai.toMatrix())
     return sh
+
+
+def salvar(doc, tentativas=4, espera=1.5):
+    """Salva o documento tentando de novo quando o arquivo está preso por um instante (sincronização do Google
+    Drive/OneDrive, antivírus): o FreeCAD acusava "somente leitura" e salvava normalmente segundos depois.
+    Erro de verdade (pasta sem permissão, disco cheio) volta com uma mensagem clara."""
+    import time
+    ultimo = None
+    for i in range(max(1, tentativas)):
+        try:
+            doc.save()
+            return i + 1
+        except Exception as exc:              # o FreeCAD levanta Base.FreeCADError/IOError
+            ultimo = exc
+            time.sleep(espera * (i + 1))
+    caminho = getattr(doc, "FileName", "") or doc.Label
+    raise IOError("Não foi possível salvar \"%s\" depois de %d tentativas: %s. Se o arquivo está numa pasta "
+                  "sincronizada (Google Drive, OneDrive), espere a sincronização terminar; confira também se ele "
+                  "não está aberto em outro programa e se a pasta permite gravar." % (caminho, tentativas, ultimo))
