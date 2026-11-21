@@ -816,8 +816,17 @@ def _novo(doc, classe, nome, rotulo, **props):
         if c is not None and E.eh_barra(c) and E.eh_estrutura(c.Estrutura):
             est = c.Estrutura
             break
+    if est is None:
+        # placa de base e reforço apontam para a barra por Barra/BarraA/Apoio: acha a estrutura por ela
+        for c in [props.get("Apoio"), props.get("BarraB")]:
+            if c is not None and E.eh_barra(c) and E.eh_estrutura(c.Estrutura):
+                est = c.Estrutura
+                break
     if est is not None:
         est.addObject(o)
+        # sem material escolhido: o da estrutura (antes saía "material a definir" no Excel)
+        if "Material" in o.PropertiesList and not (o.Material or "").strip() and (est.Material or "").strip():
+            o.Material = est.Material
     return o
 
 

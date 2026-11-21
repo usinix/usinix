@@ -309,11 +309,28 @@ def _alinhado(vista, eixo):
     return "x" if abs(abs(xd.normalize().dot(eixo)) - 1.0) < 1e-6 else "y"
 
 
+def _alt_texto():
+    """Altura do texto das cotas (mm): a preferência das folhas (3 mm no Usinix)."""
+    try:
+        import UsinixFolhas
+        return UsinixFolhas.texto_cotas()
+    except Exception:
+        return 3.0
+
+
+def _largura_texto(txt):
+    """Largura aproximada, em mm de papel, do texto de uma cota."""
+    return len(txt) * _alt_texto() * 0.62 + 1.0
+
+
 def cotas_de_revolucao(page, por_tipo, rev):
-    """Peça torneada: diâmetros na vista longitudinal (⌀ de cada trecho, entre as geratrizes), comprimento
-    total ao longo do eixo e o diâmetro maior na vista em que o círculo aparece."""
+    """Peça torneada, na vista longitudinal: ⌀ de cada trecho (no meio do trecho, entre as geratrizes; os
+    textos que ficariam um em cima do outro são escalonados), o comprimento de cada trecho em corrente
+    embaixo e o comprimento total em cima. Na vista do círculo, só o que a longitudinal não mostrou (o ⌀
+    maior não se repete)."""
     eixo, ext, inn = rev
     criadas = []
+    feitos = set()           # diâmetros já cotados
     longitudinal = circular = None
     for tipo in ("Front", "Top", "Left", "Right", "Bottom", "Rear"):
         v = por_tipo.get(tipo)
@@ -328,13 +345,18 @@ def cotas_de_revolucao(page, por_tipo, rev):
         v, a = longitudinal
         vs = _vertices(v)
         k_ax, k_pp = (1, 2) if a == "x" else (2, 1)
+        try:
+            e = float(v.getScale())
+        except Exception:
+            e = 1.0
         ex = _extremos(v, "x" if a == "x" else "y")
         if ex:
             criadas.append(_cota(page, v, "DistanceX" if a == "x" else "DistanceY", ex[0], ex[1],
-                                 "Comprimento total", "cima" if a == "x" else "esq"))
+                                 "Comprimento total", "cima" if a == "x" else "esq", 16.0))
+        trechos = []          # (meio ao longo do eixo, d, par de vértices, pontas ao longo)
         if vs:
             c = (min(t[k_pp] for t in vs) + max(t[k_pp] for t in vs)) / 2.0
-            for i, d in enumerate(ext[:6]):
+            for d in ext[:8]:
                 cima = [t for t in vs if abs(t[k_pp] - (c + d / 2.0)) < 1e-3]
                 baixo = [t for t in vs if abs(t[k_pp] - (c - d / 2.0)) < 1e-3]
                 par = None
@@ -345,24 +367,58 @@ def cotas_de_revolucao(page, por_tipo, rev):
                         break
                 if par is None:
                     continue
-                cota = _cota(page, v, "DistanceY" if a == "x" else "DistanceX", par[0], par[1],
-                             "Ø %s" % UsinixUtil.fmt_dim(d), "dir" if a == "x" else "baixo", 9.0 + 9.0 * i)
-                cota.FormatSpec = "⌀" + _numero(d)
-                # o texto fica na altura do trecho que ele mede (não empilha no meio da vista)
-                try:
-                    e = float(v.getScale())
-                except Exception:
-                    e = 1.0
-                # no meio do trecho daquele diâmetro (entre as pontas da geratriz)
                 ao_longo = [t[k_ax] for t in cima]
-                meio = (min(ao_longo) + max(ao_longo)) / 2.0
-                if a == "x":
-                    cota.X = meio * e
-                else:
-                    cota.Y = meio * e
-                cota.recompute()
-                criadas.append(cota)
-    if circular is not None and ext:
+                trechos.append(((min(ao_longo) + max(ao_longo)) / 2.0, d, par, (min(ao_longo), max(ao_longo))))
+        # diâmetros: no meio de cada trecho; texto escalonado quando dois trechos vizinhos ficam perto
+        ultimo, nivel = None, 0
+        for meio, d, par, _pontas in sorted(trechos, key=lambda t: t[0]):
+            txt = "⌀" + (_numero(d) % d)
+            cota = _cota(page, v, "DistanceY" if a == "x" else "DistanceX", par[0], par[1],
+                         "Ø %s" % UsinixUtil.fmt_dim(d), "dir" if a == "x" else "baixo", 9.0)
+            cota.FormatSpec = "⌀" + _numero(d)
+            perto = ultimo is not None and abs(meio - ultimo) * e < _alt_texto() * 1.6
+            nivel = nivel + 1 if perto else 0
+            desloca = 0.0
+            if nivel:
+                # sobe ou desce o texto (vertical na cota de diâmetro) o comprimento dele
+                passo = _largura_texto(txt) + 1.5
+                desloca = passo * ((nivel + 1) // 2) * (1 if nivel % 2 else -1)
+            if a == "x":
+                cota.X, cota.Y = meio * e, desloca
+            else:
+                cota.X, cota.Y = desloca, meio * e
+            cota.recompute()
+            criadas.append(cota)
+            feitos.add(round(d, 2))
+            ultimo = meio
+        # comprimento de cada trecho, em corrente, do lado oposto ao total
+        if ex and len(trechos) > 1:
+            L = abs(ex[1][k_ax] - ex[0][k_ax])
+            pos = [ex[0][k_ax], ex[1][k_ax]]
+            for _m, _d, _p, (p0, p1) in trechos:
+                pos += [p0, p1]
+            pos = sorted(pos)
+            junto = max(1.0, 0.01 * L)
+            marcos = []
+            for x in pos:
+                if not marcos or x - marcos[-1] > junto:
+                    marcos.append(x)
+            if len(marcos) > 2:
+                lado = "baixo" if a == "x" else "dir"
+                for x0, x1 in zip(marcos[:-1], marcos[1:]):
+                    va = min((t for t in vs if abs(t[k_ax] - x0) < 1e-3), key=lambda t: t[k_pp], default=None)
+                    vb = min((t for t in vs if abs(t[k_ax] - x1) < 1e-3), key=lambda t: t[k_pp], default=None)
+                    if va is None or vb is None:
+                        continue
+                    cota = _cota(page, v, "DistanceX" if a == "x" else "DistanceY", va, vb,
+                                 "Trecho %s" % UsinixUtil.fmt_dim(abs(x1 - x0)), lado, 9.0)
+                    if a == "x":
+                        cota.X = (x0 + x1) / 2.0 * e
+                    else:
+                        cota.Y = (x0 + x1) / 2.0 * e
+                    cota.recompute()
+                    criadas.append(cota)
+    if circular is not None and ext and round(ext[0], 2) not in feitos:
         circ = [c for c in circulos_do_corte(circular) if c[3] and abs(2 * c[1] - ext[0]) < 1e-2]
         if circ:
             nome, r, (cx, cy), _i = circ[0]

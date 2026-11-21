@@ -15,6 +15,43 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.25.0 — 21/11/2026
+
+![Folha de um eixo modelado em pé, desenhado deitado, com diâmetros, trechos e comprimento total](.github/images/novidades/1.25.0.webp)
+
+### Desenho
+
+- **Peça torneada:** sai com o comprimento de cada trecho em corrente, além do comprimento total e dos
+  diâmetros. Os textos de diâmetro não se sobrepõem, e o diâmetro maior não se repete na vista do círculo. Eixo
+  modelado em pé é desenhado deitado, em escala maior (1:2 onde antes saía 1:5), e a vista superior, que
+  repetia a frontal, fica de fora.
+- **Cotas com texto de 3 mm** nas folhas novas (antes, 5 mm). Quem já mudou o tamanho nas Preferências
+  continua com o seu.
+- **Ícones novos** de novo arquivo, de mostrar/ocultar e do arquivo na árvore do projeto.
+
+### Correções
+
+- **Peça de chapa na lista e no DXF:** a planificação criada pela folha da chapa tirava a peça da lista de
+  materiais e do DXF em lote. Objetos de apoio (planificação, cópia da barra para a folha, análise da estrutura)
+  não contam mais como "pai" da peça.
+- **Contraventamento só de tração com vento:** não dá mais mecanismo no nó do cruzamento do X. A diagonal
+  comprimida perde só o esforço normal (a flexão segura o cruzamento), e as duas metades de uma diagonal partida
+  no cruzamento ligam e desligam juntas. A diagonal tracionada agora leva a força (antes ficava com máximo 0).
+  Na instabilidade de 2ª ordem, a mensagem diz o primeiro nó que cede.
+- **Fixador:** só aceita borda de furo (círculo fechado com parede côncava). O arco de um canto arredondado
+  não vira mais "furo" com parafuso na quina.
+- **Massa na legenda da folha:** componentes da biblioteca ficam fora da soma, como na lista de materiais
+  ("+ catálogo" na legenda). A janela de propriedades de massa lista o que ficou fora.
+- **Convergência da malha:** parte sempre do tamanho escolhido para o estudo, e não da última malha refinada.
+  Avisa antes quando a malha mais fina passaria de 150 mil nós.
+- **Placa de base e reforço** sem material escolhido recebem o material da estrutura.
+- **Estudo antigo:** avisa quando o material gravado no estudo difere do de mesmo nome na biblioteca (os aços
+  estruturais passaram de 203 para 200 GPa na 1.24.0).
+- **Cargas:** carga acima do bom senso também aparece quando a análise de 2ª ordem para por instabilidade.
+- **Conectar IA:** fechar o documento ativo e abrir outro na mesma chamada não dá mais erro de transação. A
+  descrição da ferramenta de estado não afirma mais que a conexão está desligada.
+- **Barra de cores −0,5 a +0,5** não volta mais ao reabrir um estudo.
+
 ## 1.24.0 — 20/11/2026
 
 ![Folha de um eixo torneado com as cotas automáticas de diâmetro e comprimento](.github/images/novidades/1.24.0.webp)

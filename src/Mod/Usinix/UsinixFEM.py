@@ -353,6 +353,29 @@ def parecidos(nome, n=4):
     return difflib.get_close_matches(str(nome or ""), nomes, n=n, cutoff=0.4)
 
 
+def material_desatualizado(dados):
+    """Aviso quando o material gravado no estudo (arquivo antigo) difere do de mesmo nome na biblioteca atual
+    (ex.: aços estruturais com E de 203 GPa antes da 1.24.0, hoje 200 GPa). None se estiver igual."""
+    try:
+        nome = dados.get("Name", "")
+        d = achar_material(nome) if nome else None
+        if not d:
+            return None
+        atual, novo = props_mat(dados), props_mat(d["props"])
+        dif = []
+        for chave, rot, un, k in (("E", "módulo de elasticidade", "GPa", 1e-3), ("rho", "densidade", "kg/m³", 1.0),
+                                  ("Sy", "escoamento", "MPa", 1.0)):
+            a, b = atual.get(chave), novo.get(chave)
+            if a and b and abs(a - b) > 0.002 * abs(b):
+                dif.append("%s %s no estudo, %s na biblioteca" % (rot, fmt(a * k, 0, un), fmt(b * k, 0, un)))
+        if not dif:
+            return None
+        return ("O material %s da biblioteca mudou desde que o estudo foi feito (%s). Escolha o material de novo "
+                "para usar os valores atuais e recalcule." % (nome, "; ".join(dif)))
+    except Exception:
+        return None
+
+
 def props_mat(p):
     """Propriedades principais em unidades de engenharia (MPa, kg/m³)."""
     return {
@@ -489,6 +512,9 @@ def avaliar(est):
         if m.References:
             msgs.append((AVISO, "O material está ligado só a parte da peça. O assistente usa material único "
                                 "para a peça inteira."))
+        txt = material_desatualizado(m.Material)
+        if txt:
+            msgs.append((AVISO, txt))
         nivel = ERRO if any(n == ERRO for n, _ in msgs) else (AVISO if msgs else OK)
         r["material"] = (nivel, m.Material.get("Name", m.Label), msgs)
 
@@ -741,6 +767,8 @@ def gerar_malha(est, tamanho, ordem="2nd", nivel=None, lados_retos=None):
         est.analise.addObject(m)
         m.Label = "Malha"
     m.Shape = est.peca
+    if not getattr(est, "_em_convergencia", False):
+        est.put("UsinixMalhaBase", float(tamanho), "App::PropertyFloat")   # tamanho escolhido (não o refinado)
     m.CharacteristicLengthMax = "{} mm".format(round(tamanho, 4))
     m.CharacteristicLengthMin = "0 mm"
     m.ElementOrder = ordem
@@ -837,9 +865,38 @@ def calcular(est, modos=None):
 LIMITE_CONVERGENCIA = 5.0   # % de variação entre as duas malhas mais finas
 
 
-def convergencia(est, fatores=(1.0, 0.7, 0.5), ordem="2nd", progresso=None):
+LIMITE_NOS_CONVERGENCIA = 150000    # malha mais fina acima disso: pergunta antes (o programa trava minutos)
+
+
+def tamanho_base(est):
+    """Tamanho de elemento escolhido para o estudo (o da malha gerada à mão), não o da última malha refinada
+    pela convergência."""
+    b = est.get("UsinixMalhaBase", 0.0)
+    try:
+        b = float(b)
+    except (TypeError, ValueError):
+        b = 0.0
+    if b > 0:
+        return b
+    m = est.malha
+    return (_q(str(m.CharacteristicLengthMax), "mm") if m is not None else 0.0) or 1.0
+
+
+def nos_estimados(est, fatores=(1.0, 0.7, 0.5)):
+    """Nós previstos na malha mais fina da convergência: os nós crescem com o cubo de 1/tamanho."""
+    m = est.malha
+    if m is None or not getattr(m, "FemMesh", None) or not m.FemMesh.NodeCount:
+        return 0
+    atual = _q(str(m.CharacteristicLengthMax), "mm") or tamanho_base(est)
+    alvo = tamanho_base(est) * min(fatores)
+    return int(m.FemMesh.NodeCount * (atual / alvo) ** 3)
+
+
+def convergencia(est, fatores=(1.0, 0.7, 0.5), ordem="2nd", progresso=None, forcar=False):
     """Recalcula com malhas cada vez mais finas e compara tensão e deslocamento máximos.
 
+    Parte sempre do tamanho base do estudo (rodar de novo não refina a partir da última malha). Se a malha
+    mais fina passar de LIMITE_NOS_CONVERGENCIA nós, para com aviso, salvo forcar=True.
     Retorna lista de dicionários {tamanho, nos, svm, u}. A última malha (a mais fina) fica no estudo.
     Grava o resultado em UsinixConvergencia (JSON) para o relatório.
     """
@@ -847,22 +904,30 @@ def convergencia(est, fatores=(1.0, 0.7, 0.5), ordem="2nd", progresso=None):
     m = est.malha
     if m is None:
         raise RuntimeError("Gere a malha antes de verificar a convergência.")
-    base = _q(str(m.CharacteristicLengthMax), "mm") or 1.0
+    base = tamanho_base(est)
+    previstos = nos_estimados(est, fatores)
+    if previstos > LIMITE_NOS_CONVERGENCIA and not forcar:
+        raise RuntimeError("A malha mais fina da convergência teria uns %s nós (elemento de %s): o cálculo pode "
+                           "travar o programa por vários minutos. Aumente o tamanho do elemento ou confirme para "
+                           "seguir assim." % (("%d" % previstos).replace(",", "."), fmt(base * min(fatores), 2, "mm")))
     est._em_convergencia = True
     linhas = []
-    for i, f in enumerate(fatores):
-        if progresso:
-            progresso(i, len(fatores))
-        tam = base * f
-        ok, msg = gerar_malha(est, tam, ordem)
-        if not ok:
-            raise RuntimeError("Malha de {} falhou: {}".format(fmt(tam, 2, "mm"), msg))
-        ok, erro, _dt = calcular(est)
-        if not ok:
-            raise RuntimeError(erro)
-        e = estatisticas(est)
-        linhas.append({"tamanho": tam, "nos": est.malha.FemMesh.NodeCount, "svm": e.get("svm_max"),
-                       "u": e.get("u_max")})
+    try:
+        for i, f in enumerate(fatores):
+            if progresso:
+                progresso(i, len(fatores))
+            tam = base * f
+            ok, msg = gerar_malha(est, tam, ordem)
+            if not ok:
+                raise RuntimeError("Malha de {} falhou: {}".format(fmt(tam, 2, "mm"), msg))
+            ok, erro, _dt = calcular(est)
+            if not ok:
+                raise RuntimeError(erro)
+            e = estatisticas(est)
+            linhas.append({"tamanho": tam, "nos": est.malha.FemMesh.NodeCount, "svm": e.get("svm_max"),
+                           "u": e.get("u_max")})
+    finally:
+        est._em_convergencia = False
     est.put("UsinixConvergencia", json.dumps(linhas))
     return linhas
 
@@ -1778,10 +1843,15 @@ class Assistente(QtWidgets.QWidget):
 
     def _convergencia(self):
         est = self.est()
+        previstos = nos_estimados(est)
+        extra = ""
+        if previstos > LIMITE_NOS_CONVERGENCIA:
+            extra = ("\n\nAtenção: a malha mais fina terá uns %s nós e o programa pode ficar travado vários "
+                     "minutos. Considere aumentar o tamanho do elemento antes." % ("%d" % previstos))
         r = QtWidgets.QMessageBox.question(
             self, "Convergência da malha",
-            "O modelo será calculado mais duas vezes, com elementos 30% e 50% menores. "
-            "Pode levar alguns minutos. Continuar?")
+            "O modelo será calculado com o tamanho base do estudo (%s) e com elementos 30%% e 50%% menores. "
+            "Pode levar alguns minutos. Continuar?%s" % (fmt(tamanho_base(est), 2, "mm"), extra))
         if r != QtWidgets.QMessageBox.Yes:
             return
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
@@ -1790,7 +1860,7 @@ class Assistente(QtWidgets.QWidget):
                 self.lb_conv.setText("Calculando malha {} de {}…".format(i + 1, n))
                 self.lb_conv.setVisible(True)
                 QtWidgets.QApplication.processEvents()
-            convergencia(est, ordem=getattr(est.malha, "ElementOrder", "2nd"), progresso=prog)
+            convergencia(est, ordem=getattr(est.malha, "ElementOrder", "2nd"), progresso=prog, forcar=True)
             mostrar_campo(est, "tensao")
         except Exception as exc:
             QtWidgets.QApplication.restoreOverrideCursor()

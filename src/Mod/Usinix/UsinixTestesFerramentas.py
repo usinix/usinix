@@ -13078,7 +13078,8 @@ class T89NovidadesDoZW3D(unittest.TestCase):
             self.assertEqual(et["folha"], "%d / 2" % k)
             self.assertIn(obj.Label, page.Label)
             cotas = [v for v in page.Views if v.TypeId == "TechDraw::DrawViewDimension"]
-            self.assertEqual(len(cotas), 3, page.Label)
+            # pino (torneado): comprimento e Ø, sem repetir o Ø na vista do círculo (1.25.0); chapa: 3 cotas
+            self.assertEqual(len(cotas), 2 if V.revolucao([obj]) else 3, page.Label)
         self.assertIn("(2×)", dict(feitas[0][0].Template.EditableTexts)["titulo"])
         pdfs = sorted(f for f in os.listdir(pasta) if f.endswith(".pdf"))
         self.assertEqual(pdfs, ["DES-01.pdf", "DES-02.pdf"])
@@ -20240,3 +20241,248 @@ class T156AchadosDaSegundaBateria(unittest.TestCase):
         self.assertTrue(bs)
         b = bs[0][0]
         self.assertEqual(b.getTypeIdOfProperty(UsinixBaloes.PROP), "App::PropertyXLink")
+
+
+class T157AchadosT15aT18(unittest.TestCase):
+    """1.25.0: reteste da 1.24.0 e achados T15 a T18 — peça com objeto de apoio continua de topo, fixador só em
+    furo, massa da legenda sem componentes, X só de tração com vento, peça torneada com trechos e deitada,
+    cotas de 3 mm, convergência pelo tamanho base, material das placas, material antigo e transação da IA."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteT157")
+
+    def tearDown(self):
+        try:
+            if self.doc.Name in FreeCAD.listDocuments():
+                fechar(self.doc)
+        except ReferenceError:
+            pass
+
+    def test_objeto_de_apoio_nao_tira_a_peca_das_raizes(self):
+        import UsinixUtil as U
+        import UsinixFolhaPeca as FP
+        cx = self.doc.addObject("Part::Box", "Calha")
+        pl = self.doc.addObject("Part::FeaturePython", "Planificacao")
+        FP.Planificacao(pl, cx)
+        self.doc.recompute()
+        self.assertIn(pl, cx.InList)
+        self.assertIn(cx, U.raizes(self.doc))
+        self.assertNotIn(pl, U.raizes(self.doc))
+
+    def test_estrutura_com_analise_continua_de_topo(self):
+        import UsinixUtil as U
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        sk = esboco_linhas(self.doc, [((0, 0), (3000, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A36")
+        an = A.criar(self.doc, est)
+        self.doc.recompute()
+        r = U.raizes(self.doc)
+        self.assertIn(est, r)
+        self.assertNotIn(an, r)
+
+    def test_fixador_recusa_arco_do_canto_e_aceita_furo(self):
+        import Part
+        import UsinixFixadores as F
+        b = Part.makeBox(200, 100, 10)
+        b = b.makeFillet(10, [e for e in b.Edges if abs(e.Vertexes[0].Point.z - e.Vertexes[1].Point.z) > 5])
+        b = b.cut(Part.makeCylinder(10, 10, FreeCAD.Vector(100, 50, 0)))
+        o = self.doc.addObject("Part::Feature", "Placa")
+        o.Shape = b
+        self.doc.recompute()
+        canto = furo = None
+        for k, e in enumerate(o.Shape.Edges):
+            if hasattr(e.Curve, "Radius") and abs(e.Vertexes[0].Point.z - 10) < 1e-6:
+                if e.isClosed():
+                    furo = "Edge%d" % (k + 1)
+                else:
+                    canto = "Edge%d" % (k + 1)
+        self.assertIsNotNone(canto)
+        self.assertIsNotNone(furo)
+        self.assertEqual(F.posicao_no_furo(o, canto), (None, None))
+        pl, d = F.posicao_no_furo(o, furo)
+        self.assertIsNotNone(pl)
+        self.assertAlmostEqual(d, 20.0, places=6)
+
+    def test_massa_da_legenda_sem_componentes(self):
+        import UsinixComponentes as C
+        import UsinixMassa
+        import UsinixFolhas
+        cx = self.doc.addObject("Part::Box", "Base")
+        cx.Length = cx.Width = cx.Height = 100
+        comp = C.inserir(self.doc, "compressor_pistao", "200")
+        self.doc.recompute()
+        r = UsinixMassa.calcular([cx, comp])
+        self.assertEqual(r.de_catalogo, [comp.Label])
+        so_caixa = UsinixMassa.calcular([cx]).massa
+        self.assertAlmostEqual(r.massa, so_caixa, places=6)
+        self.assertTrue(UsinixFolhas.texto_massa(r).endswith("+ catálogo"))
+        self.assertEqual(UsinixFolhas.texto_massa(UsinixMassa.calcular([comp])), "ver catálogo")
+        self.assertGreater(UsinixMassa.calcular([comp], com_catalogo=True).massa, 0.0)
+
+    def _x(self):
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        L = [((0, 0), (0, 4000)), ((3000, 0), (3000, 4000)), ((0, 4000), (3000, 4000)), ((0, 0), (3000, 4000)),
+             ((3000, 0), (1500, 2000)), ((1500, 2000), (0, 4000))]
+        sk = esboco_linhas(self.doc, L, "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A36")
+        self.doc.recompute()
+        ap = {A._chave_no((0, 0, 0)): "Engaste", A._chave_no((3000, 0, 0)): "Engaste"}
+        _m, _l, mapa = A.montar_modelo(est, [A.caso_padrao()], ap, {})
+        diag = [i for i, (_p0, t, _L) in mapa["linhas"].items() if abs(t.x) > 1e-3 and abs(t.z) > 1e-3]
+        self.assertEqual(len(diag), 3)
+        return est, ap, {i: "Só tração (contraventamento)" for i in diag}, diag, mapa
+
+    def test_x_so_de_tracao_com_vento_nas_duas_direcoes(self):
+        import UsinixAnaliseEstrutura as A
+        est, ap, lib, diag, mapa = self._x()
+        continua = max(diag, key=lambda i: mapa["linhas"][i][2])
+        for sentido in ("+X", "−X"):
+            casos = [{"nome": "Vento", "tipo": "Vento", "cargas": [
+                {"alvo": "no", "no": A._chave_no((0, 0, 4000)), "direcao": sentido, "valor": 20.0}]}]
+            m, lista, mp = A.montar_modelo(est, casos, ap, lib)
+            r = m.resolver(lista[0])                       # antes: mecanismo no nó do cruzamento
+            N = {i: max(r.esforcos(nb, 1.0)["N"] for nb, _a in mp["barras"][i]) for i in diag}
+            tracionada = [i for i in diag if N[i] > 1000.0]
+            if sentido == "+X":
+                self.assertEqual(tracionada, [continua], N)
+            else:
+                self.assertEqual(sorted(tracionada), sorted(i for i in diag if i != continua), N)
+            for i in tracionada:
+                self.assertAlmostEqual(N[i] / 1000.0, 20.0 / 0.6, delta=3.0)      # H / cos θ
+            # cálculo completo (2ª ordem + verificação) sem erro; com 20 kN o pilar W 200 (eixo fraco, sem
+            # travamento fora do plano) passa da carga crítica de verdade: 5 kN de vento
+            casos[0]["cargas"][0]["valor"] = 5.0
+            calc = A.calcular(est, [A.caso_padrao()] + casos, ap, liberacoes=lib)
+            self.assertIsNone(calc.erro, calc.erro)
+
+    def _eixo(self, ax):
+        import Part
+        a = Part.makeCylinder(20, 120, FreeCAD.Vector(), ax)
+        b = Part.makeCylinder(12.5, 80, ax * 120, ax)
+        c = Part.makeCylinder(8, 30, ax * 200, ax)
+        o = self.doc.addObject("Part::Feature", "Eixo")
+        o.Shape = a.fuse(b).fuse(c).removeSplitter()
+        self.doc.recompute()
+        return o
+
+    def test_peca_torneada_com_trechos_e_sem_diametro_repetido(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import UsinixFolhas as F
+        import UsinixVistas as V
+        for ax in (FreeCAD.Vector(1, 0, 0), FreeCAD.Vector(0, 0, 1)):
+            o = self._eixo(ax)
+            p = F.nova_folha(self.doc, "A4", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+            g = V.grupo_da_peca(p, [o])
+            self.assertEqual(sorted(v.Type for v in g.Views), ["Front", "Left"])     # a superior repetia a frontal
+            self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+            self.assertAlmostEqual(float(p.Scale), 0.5, places=6)                     # em pé: deitado, 1:2
+            cotas = V.cotas_gerais(p, [o], furos=True)
+            self.doc.recompute()
+            rot = sorted((d.Label, round(d.getRawValue(), 1)) for d in cotas)
+            trechos = sorted(v for k, v in rot if k.startswith("Trecho"))
+            self.assertEqual(trechos, [30.0, 80.0, 120.0], rot)
+            self.assertEqual(len([k for k, v in rot if k.startswith("Ø 40")]), 1, rot)  # sem repetir no círculo
+            frente = [v for v in g.Views if v.Type == "Front"][0]
+            comp = [d for d in cotas if d.Label == "Comprimento total"][0]
+            self.assertEqual(comp.Type, "DistanceX")                                   # eixo na horizontal
+            self.assertIs(comp.References2D[0][0], frente)
+            self.doc.removeObject(p.Name)
+
+    def test_cotas_com_texto_de_3_mm(self):
+        import UsinixFolhas as F
+        import UsinixUtil
+        g = FreeCAD.ParamGet(UsinixUtil.PARAM_PATH)
+        p = FreeCAD.ParamGet(F.COTAS_PATH)
+        antes, flag = p.GetFloat("FontSize", -1.0), g.GetBool("CotasTexto3mm", False)
+        try:
+            g.SetBool("CotasTexto3mm", False)
+            p.SetFloat("FontSize", 5.0)
+            F.aplicar_preferencias()
+            self.assertAlmostEqual(F.texto_cotas(), 3.0)
+            p.SetFloat("FontSize", 4.0)             # escolha da pessoa depois: não volta para 3
+            F.aplicar_preferencias()
+            self.assertAlmostEqual(F.texto_cotas(), 4.0)
+        finally:
+            g.SetBool("CotasTexto3mm", flag)
+            if antes >= 0:
+                p.SetFloat("FontSize", antes)
+
+    def test_convergencia_parte_do_tamanho_base(self):
+        import UsinixFEM as F
+
+        class Est:
+            def __init__(self):
+                self.d = {}
+                self.malha = None
+
+            def get(self, k, padrao=""):
+                return self.d.get(k, padrao)
+
+            def put(self, k, v, tipo=None):
+                self.d[k] = v
+        e = Est()
+
+        class Malha:
+            CharacteristicLengthMax = "4 mm"
+
+            class FemMesh:
+                NodeCount = 40000
+        e.malha = Malha()
+        self.assertAlmostEqual(F.tamanho_base(e), 4.0)        # sem base gravada: a da malha
+        e.put("UsinixMalhaBase", 8.0)
+        self.assertAlmostEqual(F.tamanho_base(e), 8.0)        # rodada anterior refinou até 4: volta para 8
+        # 40 mil nós com 4 mm → 4 mm na malha mais fina (8 × 0,5): os mesmos 40 mil
+        self.assertEqual(F.nos_estimados(e), 40000)
+        e.put("UsinixMalhaBase", 4.0)                          # base 4 → fina de 2 mm: 8 × mais nós
+        self.assertEqual(F.nos_estimados(e), 320000)
+        with self.assertRaises(RuntimeError) as cm:
+            F.convergencia(e)
+        self.assertIn("nós", str(cm.exception))
+
+    def test_placa_de_base_com_o_material_da_estrutura(self):
+        import UsinixEstrutura as E
+        import UsinixEstruturaExtras as X
+        sk = esboco_linhas(self.doc, [((0, 0), (0, 3000))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A572 Gr 50")
+        self.doc.recompute()
+        b = E.barras_de(est)[0]
+        pb = X.criar_placa_base(b, "Início")
+        self.assertEqual(pb.Material, "ASTM A572 Gr 50")
+        pb2 = X.criar_placa_base(b, "Fim", Material="ASTM A36")
+        self.assertEqual(pb2.Material, "ASTM A36")                       # escolhido à mão fica
+
+    def test_material_antigo_do_estudo_gera_aviso(self):
+        import UsinixFEM as F
+        d = dict(F.achar_material("ASTM A36")["props"])
+        self.assertIsNone(F.material_desatualizado(d))
+        d["YoungsModulus"] = "203000 MPa"
+        txt = F.material_desatualizado(d)
+        self.assertIsNotNone(txt)
+        self.assertIn("203", txt)
+        self.assertIn("200", txt)
+
+    def test_ia_fecha_e_abre_documento_na_mesma_chamada(self):
+        import UsinixIA
+        FreeCAD.setActiveDocument(self.doc.Name)
+        nome = self.doc.Name
+        antigo = UsinixIA.permitir_codigo
+        UsinixIA.permitir_codigo = lambda: True
+        try:
+            codigo = ("FreeCAD.closeDocument(%r)\nd = FreeCAD.newDocument(%r)\nresultado = d.Name" % (nome, nome))
+            r = UsinixIA.executar("executar_python", {"codigo": codigo})
+        finally:
+            UsinixIA.permitir_codigo = antigo
+        self.assertEqual(r["resultado"], nome)
+        self.doc = FreeCAD.getDocument(nome)
+        self.assertNotIn("Unnamed", FreeCAD.listDocuments())
+
+    def test_descricao_do_estado_nao_afirma_desligado(self):
+        import usinix_mcp
+        import inspect
+        src = inspect.getsource(usinix_mcp._ferramentas)
+        self.assertNotIn("+ AVISO_DESLIGADO", src)

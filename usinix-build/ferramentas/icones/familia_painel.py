@@ -296,11 +296,13 @@ def line_angle():
 
 @icon("Std_ToggleVisibility")
 def eye():
+    """Olho amendoado com íris amarela grande e brilho (escolhido em 21/11/2026)."""
     g = flat()
-    raw(g, '<path d="M 4 32 Q 32 6 60 32 Q 32 58 4 32 Z" fill="#FFFFFF" stroke="%s" stroke-width="3.4" '
-           'stroke-linejoin="round"/>' % NAVY)
-    raw(g, '<circle cx="32" cy="32" r="11" fill="%s" stroke="%s" stroke-width="2.4"/>' % (YEL[0], OUT))
-    raw(g, '<circle cx="32" cy="32" r="4.5" fill="%s"/>' % OUT)
+    raw(g, '<path d="M 4 32 C 13 17 22 11 32 11 C 42 11 51 17 60 32 C 51 47 42 53 32 53 C 22 53 13 47 4 32 Z" '
+           'fill="#FFFFFF" stroke="%s" stroke-width="4" stroke-linejoin="round"/>' % NAVY)
+    raw(g, '<circle cx="32" cy="32" r="14" fill="%s" stroke="%s" stroke-width="2.6"/>' % (YEL[0], NAVY))
+    raw(g, '<circle cx="32" cy="32" r="6.5" fill="%s"/>' % OUT)
+    raw(g, '<circle cx="37.5" cy="26.5" r="3.6" fill="#FFFFFF"/>')
     return g
 
 
@@ -341,17 +343,17 @@ def tree_invisible():
 
 @icon("Document")
 def tree_document():
+    """Arquivo na árvore do projeto: quadrado azul com o cubo amarelo, para se destacar dos objetos dentro
+    dele (escolhido em 21/11/2026)."""
     g = flat()
-    raw(g, '<path d="M 10 4 h 30 l 14 14 v 42 h -44 z" fill="#FFFFFF" stroke="%s" stroke-width="3" '
-           'stroke-linejoin="round"/>' % OUT)
-    raw(g, '<path d="M 40 4 v 14 h 14 z" fill="%s" stroke="%s" stroke-width="3" stroke-linejoin="round"/>' % (YEL[0], OUT))
-    c, s = 0.866 * 3, 0.5 * 3
+    raw(g, '<rect x="4" y="4" width="56" height="56" rx="10" fill="%s" stroke="%s" stroke-width="2.2"/>' % (NAVY, OUT))
+    c, s = 0.866 * 4.0, 0.5 * 4.0
     def P(x, y, z):
-        return "%.1f,%.1f" % (31 + (x - y) * c, 34 + (x + y) * s - z * 3)
-    for f, col in (([(0, 5, 0), (6, 5, 0), (6, 5, 4), (0, 5, 4)], SOLID[1]),
-                   ([(6, 0, 0), (6, 5, 0), (6, 5, 4), (6, 0, 4)], SOLID[2]),
-                   ([(0, 0, 4), (6, 0, 4), (6, 5, 4), (0, 5, 4)], SOLID[0])):
-        raw(g, '<polygon points="%s" fill="%s" stroke="%s" stroke-width="2.4" stroke-linejoin="round"/>'
+        return "%.1f,%.1f" % (31 + (x - y) * c, 32 + (x + y) * s - z * 4.0)
+    for f, col in (([(0, 5, 0), (6, 5, 0), (6, 5, 4), (0, 5, 4)], AMBER),
+                   ([(6, 0, 0), (6, 5, 0), (6, 5, 4), (6, 0, 4)], "#B98500"),
+                   ([(0, 0, 4), (6, 0, 4), (6, 5, 4), (0, 5, 4)], YEL[0])):
+        raw(g, '<polygon points="%s" fill="%s" stroke="%s" stroke-width="2.6" stroke-linejoin="round"/>'
             % (" ".join(P(*v) for v in f), col, OUT))
     return g
 

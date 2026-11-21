@@ -35,9 +35,13 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.24.0** (20/11/2026): validação do cálculo por casos clássicos de solução conhecida, com
-relatório em PDF; cotas automáticas de peça torneada por diâmetros, escala maior na folha, tabela da lista de
-materiais sem texto vazando, balões sem sobrepor, rosca fora da interferência e bronzes na biblioteca.
+**Versão atual: 1.25.0** (21/11/2026): peça torneada desenhada deitada, com o comprimento de cada trecho;
+cotas com texto de 3 mm; contraventamento só de tração estável com vento; convergência da malha a partir do
+tamanho escolhido; peça de chapa de volta à lista e ao DXF; ícones novos de arquivo e de mostrar/ocultar.
+
+Na 1.24.0: validação do cálculo por casos clássicos de solução conhecida, com relatório em PDF; cotas
+automáticas de peça torneada por diâmetros, escala maior na folha, tabela da lista de materiais sem texto
+vazando, balões sem sobrepor, rosca fora da interferência e bronzes na biblioteca.
 
 Na 1.23.0: relatório completo, em PDF, de uma análise feita à mão na bancada Simulação; bancada Simulação no
 tema Usinix; aviso de tração em barra com furos no cálculo por barras; correções na conexão com IA.

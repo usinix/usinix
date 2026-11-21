@@ -79,9 +79,16 @@ def txt(g, x, y, s, size=14, color=NAVY, weight="800"):
 # ============================================================ arquivo
 @icon("document-new", "Std_New")
 def doc_new():
+    """Folha com linhas de texto e o + amarelo grande no canto (escolhido em 21/11/2026)."""
     g = flat()
-    page(g)
-    g.badge("plus")
+    raw(g, '<path d="M 12 5 h 26 l 12 12 v 42 h -38 z" fill="%s" stroke="%s" stroke-width="2.4" '
+           'stroke-linejoin="round"/>' % (PAPER, OUT))
+    raw(g, '<path d="M 38 5 v 12 h 12" fill="%s" stroke="%s" stroke-width="2.4" stroke-linejoin="round"/>'
+        % (SOLID[1], OUT))
+    raw(g, '<path d="M 19 27 h 22 M 19 35 h 22 M 19 43 h 12" stroke="%s" stroke-width="3.2" '
+           'stroke-linecap="round"/>' % SOLID[1])
+    raw(g, '<circle cx="46" cy="46" r="14" fill="%s" stroke="%s" stroke-width="2.4"/>' % (YEL[0], OUT))
+    raw(g, '<path d="M 39 46 h 14 M 46 39 v 14" stroke="%s" stroke-width="4.4" stroke-linecap="round"/>' % NAVY)
     return g
 
 

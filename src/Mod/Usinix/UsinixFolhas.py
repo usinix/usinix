@@ -79,6 +79,7 @@ def aplicar_estilo_desenho(forcar=False):
 COTAS_PATH = "User parameter:BaseApp/Preferences/Mod/TechDraw/Dimensions"
 ROTULOS_PATH = "User parameter:BaseApp/Preferences/Mod/TechDraw/Labels"
 TEXTO_PADRAO_FREECAD = 5.0          # mm: o TechDraw usa 5 quando a preferência nunca foi gravada
+TEXTO_COTAS_USINIX = 3.0            # mm: padrão das cotas nas folhas do Usinix (gravado na 1ª abertura)
 
 
 def texto_cotas():
@@ -176,6 +177,12 @@ def aplicar_preferencias(forcar=False):
     except Exception as exc:
         FreeCAD.Console.PrintLog("Usinix: estilo do desenho: %s\n" % exc)
     g = FreeCAD.ParamGet(UsinixUtil.PARAM_PATH)
+    if not g.GetBool("CotasTexto3mm", False):
+        # 1.25.0: cotas com texto de 3 mm (antes, o padrão de 5 mm do FreeCAD). Uma vez só: depois vale a
+        # escolha da pessoa nas Preferências; as cotas abertas no tamanho antigo acompanham (observador)
+        acompanhar_texto_cotas()
+        definir_texto_cotas(TEXTO_COTAS_USINIX)
+        g.SetBool("CotasTexto3mm", True)
     f = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/TechDraw/Files")
     atual = f.GetString("TemplateFile", "")
     padrao = arquivo(FORMATO_PADRAO)
@@ -248,14 +255,22 @@ def campos_padrao(doc, objs=None):
         try:
             import UsinixMassa
             r = UsinixMassa.calcular(objs)
-            if r.massa > 0:
-                v["massa"] = UsinixUtil.fmt(r.massa, 3)
+            v["massa"] = texto_massa(r)
             mats = {it[1] for it in r.itens if it[5]}
             if len(mats) == 1:
                 v["material"] = mats.pop()
         except Exception:
             pass
     return v
+
+
+def texto_massa(r):
+    """Massa para a legenda: só o que tem massa calculada; componentes da biblioteca ficam fora, avisados."""
+    if r.massa > 0 and r.de_catalogo:
+        return "%s + catálogo" % UsinixUtil.fmt(r.massa, 3)
+    if r.massa > 0:
+        return UsinixUtil.fmt(r.massa, 3)
+    return "ver catálogo" if r.de_catalogo else ""
 
 
 def lembrar_campos(campos):
@@ -401,9 +416,10 @@ def _cabe_no_canto(bb, e, larg_util, alt_util, projecoes, iso):
     return gl <= larg_util and ga <= alt_util and iw * e <= sobra_l and ih * e <= sobra_a
 
 
-def escala_que_cabe(objs, larg_util, alt_util, projecoes=("Front", "Top", "Left"), iso=True):
-    """Maior escala normalizada em que as vistas do arranjo cabem (isométrica ao lado ou no canto vazio)."""
-    bb = _caixa(objs)
+def escala_que_cabe(objs, larg_util, alt_util, projecoes=("Front", "Top", "Left"), iso=True, caixa=None):
+    """Maior escala normalizada em que as vistas do arranjo cabem (isométrica ao lado ou no canto vazio).
+    caixa: BoundBox no lugar da caixa das peças (peça deitada na folha)."""
+    bb = caixa if caixa is not None else _caixa(objs)
     if bb is None:
         return 1.0
     for e in ESCALAS_NORMAIS:
@@ -427,9 +443,11 @@ def posicionar(page, fontes, grupo=None, iso=None, escala=None):
     larg, alt = _tamanho_folha(page)
     projecoes = tuple(v.Type for v in grupo.Views) if grupo is not None else ()
     com_iso = iso is not None
-    e = escala or escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, com_iso)
-    page.Scale = e
     bb = _caixa(fontes)
+    if bb is not None and grupo is not None and _deitar(fontes):
+        bb = FreeCAD.BoundBox(0, 0, 0, bb.ZLength, bb.YLength, bb.XLength)     # peça desenhada deitada
+    e = escala or escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, com_iso, bb)
+    page.Scale = e
     canto = bool(bb is not None and com_iso and not _cabe_ao_lado(bb, e, larg - 30, alt - 20 - 60, projecoes, com_iso)
                  and _cabe_no_canto(bb, e, larg - 30, alt - 20 - 60, projecoes, com_iso))
     topo = 28.0                               # do alto da folha até o alto das vistas
@@ -518,14 +536,51 @@ def escrever_escala(page):
         pass
 
 
-def novo_grupo(doc, page, fontes, projecoes=("Front",)):
+def _deitar(fontes):
+    """Peça torneada com o eixo em pé (Z) e mais comprida que larga: desenha deitada (eixo na horizontal da
+    frontal), que cabe em escala maior."""
+    try:
+        import UsinixVistas
+        rev = UsinixVistas.revolucao(fontes)
+    except Exception:
+        return False
+    if rev is None or abs(rev[0].z) < 0.999:
+        return False
+    bb = _caixa(fontes)
+    return bb is not None and bb.ZLength > max(bb.XLength, bb.YLength)
+
+
+def _torneada_deitada(fontes, deitar):
+    """Peça torneada cujo eixo fica na horizontal da frontal (eixo X, ou Z desenhado deitado)."""
+    if deitar:
+        return True
+    try:
+        import UsinixVistas
+        rev = UsinixVistas.revolucao(fontes)
+    except Exception:
+        return False
+    return rev is not None and abs(rev[0].x) > 0.999
+
+
+def novo_grupo(doc, page, fontes, projecoes=("Front",), xdir=None):
+    """Grupo de projeção. xdir: direção X da frontal (peça deitada); vem antes das outras projeções, que
+    giram junto com a frontal."""
     grupo = doc.addObject("TechDraw::DrawProjGroup", "Vistas")
     grupo.Label = "Vistas"
     page.addView(grupo)
     grupo.Source = fontes
     grupo.ProjectionType = "First angle"
     grupo.ScaleType = "Page"
+    if xdir is not None:
+        frente = grupo.addProjection("Front")
+        try:
+            frente.XDirection = xdir
+        except Exception:
+            pass
+        doc.recompute()
     for pr in projecoes:     # no 1º diedro a vista lateral esquerda fica à direita da frontal
+        if xdir is not None and pr == "Front":
+            continue
         grupo.addProjection(pr)
     grupo.AutoDistribute = True
     return grupo
@@ -548,12 +603,22 @@ def _vistas(doc, page, objs, escala=None, arranjo=ARRANJO_PADRAO):
     _rot, projecoes, com_iso = ARRANJOS.get(arranjo, ARRANJOS[ARRANJO_PADRAO])
     # escala ANTES de criar as vistas: as projeções feitas com a folha ainda em 1:1 guardavam a geometria em
     # tamanho natural (estrutura de 6 m estourava a folha, só a frontal se refazia na escala certa)
+    deitar = _deitar(fontes) if projecoes else False
+    if "Top" in projecoes and "Left" in projecoes and _torneada_deitada(fontes, deitar):
+        # peça torneada deitada: a superior repete a frontal; ficam a frontal e a do círculo
+        projecoes = tuple(p for p in projecoes if p != "Top")
     if not escala:
         larg, alt = _tamanho_folha(page)
-        escala = escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, com_iso)
+        caixa = None
+        if deitar:
+            bb = _caixa(fontes)
+            caixa = FreeCAD.BoundBox(0, 0, 0, bb.ZLength, bb.YLength, bb.XLength)
+        escala = escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, com_iso, caixa)
     page.Scale = escala
     doc.recompute()
-    grupo = novo_grupo(doc, page, fontes, projecoes) if projecoes else None
+    # eixo em pé (Z): a frontal mostra o eixo deitado, como se desenha peça torneada
+    grupo = novo_grupo(doc, page, fontes, projecoes, FreeCAD.Vector(0, 0, 1) if deitar else None) \
+        if projecoes else None
     iso = nova_iso(doc, page, fontes) if com_iso else None
     posicionar(page, fontes, grupo, iso, escala)
     doc.recompute()

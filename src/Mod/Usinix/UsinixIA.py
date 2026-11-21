@@ -585,7 +585,8 @@ def f_fixador(peca, aresta, tipo, rosca=None, comprimento=0.0, material=""):
     o = _obj(doc, peca)
     pl, diam = F.posicao_no_furo(o, aresta)
     if pl is None:
-        raise ValueError("a aresta %s de %s não é a borda circular de um furo" % (aresta, o.Label))
+        raise ValueError("a aresta %s de %s não é a borda de um furo (precisa ser um círculo fechado com parede "
+                         "côncava; arco de canto arredondado não vale)" % (aresta, o.Label))
     m = rosca or F.diametro_para_furo(diam)
     if m not in F.diametros(tipo):
         raise ValueError("rosca %s não existe para %s; opções: %s" % (m, F.TIPOS[tipo], ", ".join(F.diametros(tipo))))
@@ -732,21 +733,34 @@ def executar(nome, argumentos):
     argumentos = dict(argumentos or {})
     doc = FreeCAD.ActiveDocument if t["muda"] else None
     nome_doc = doc.Name if doc is not None else None
+    uid = getattr(doc, "Uid", None) if doc is not None else None
     if doc is not None:
         doc.openTransaction("IA: %s" % nome)
 
     def aberto():
-        # a ferramenta pode ter fechado o documento (executar_python com closeDocument)
-        return nome_doc is not None and nome_doc in FreeCAD.listDocuments()
+        # a ferramenta pode ter fechado o documento (executar_python com closeDocument), e até aberto outro
+        # com o mesmo nome na mesma chamada: só vale o mesmo documento, ainda vivo
+        try:
+            d = FreeCAD.listDocuments().get(nome_doc) if nome_doc is not None else None
+            return d is not None and getattr(d, "Uid", None) == uid
+        except Exception:
+            return False
     try:
         r = t["funcao"](**argumentos)
     except Exception:
         if aberto():
-            doc.abortTransaction()
-            _refazer_formas(doc)
+            try:
+                doc.abortTransaction()
+                _refazer_formas(doc)
+            except Exception as exc:
+                FreeCAD.Console.PrintLog("Usinix IA: desfazer: %s\n" % exc)
         raise
     if aberto():
-        doc.commitTransaction()
+        try:
+            doc.commitTransaction()
+        except Exception as exc:
+            # a transação já foi fechada pelo próprio código (ex.: documento fechado e reaberto): não é erro
+            FreeCAD.Console.PrintLog("Usinix IA: fechar a transação: %s\n" % exc)
     _estado["chamadas"] += 1
     _estado["ultima"] = nome
     return r

@@ -469,8 +469,11 @@ class _ObservadorResultado:
 
     def slotFinishRestoreDocument(self, doc):
         # resultados escondidos no arquivo continuavam desenhando a barra de cores: refaz o hide() deles
+        # (o pipeline remonta a barra depois do restauro e da 1ª pintura da vista: repete mais tarde também)
         try:
-            QtCore.QTimer.singleShot(0, lambda d=doc: esconder_legendas(d))
+            nome = doc.Name
+            for ms in (0, 800, 2500, 6000):
+                QtCore.QTimer.singleShot(ms, lambda n=nome: esconder_legendas(FreeCAD.listDocuments().get(n)))
         except Exception:
             pass
 

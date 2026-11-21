@@ -249,6 +249,8 @@ class BarraReta:
     """Cópia da barra deitada no eixo X (alma virada para -Y, "cima" em +Z, ponta inicial em x = 0), para a
     folha: o TechDraw só interrompe vistas ao longo de X, Y ou Z. Acompanha a barra quando ela muda."""
 
+    AUXILIAR = True      # cópia para a folha: não é peça (UsinixUtil.raizes)
+
     def __init__(self, obj, barra=None):
         obj.Proxy = self
         obj.addProperty("App::PropertyLink", "Barra", "Folha", "Barra da estrutura desenhada na folha")
@@ -510,6 +512,8 @@ def dobras_da_chapa(sh):
 
 class Planificacao:
     """Planificação de uma peça de chapa, para a folha: acompanha a peça (recalcula quando ela muda)."""
+
+    AUXILIAR = True      # não é peça: não entra na lista nem tira a chapa das raízes (UsinixUtil.raizes)
 
     def __init__(self, obj, chapa=None, material="Aço carbono"):
         obj.Proxy = self

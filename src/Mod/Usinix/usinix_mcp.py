@@ -64,8 +64,11 @@ def _ferramentas():
         _lista["ao_vivo"] = True
     except Exception:
         _lista["ao_vivo"] = False
-        lista = _guardada() or [{"name": "estado", "description": "Situação da conexão com o Usinix. "
-                                 + AVISO_DESLIGADO, "inputSchema": {"type": "object", "properties": {}}}]
+        # a descrição não afirma que está desligada: o Usinix pode ser ligado depois, com a lista já vista
+        lista = _guardada() or [{"name": "estado", "description": "Situação do Usinix e da conexão. Se a resposta "
+                                 "disser que a conexão está desligada: abra o Usinix e clique em Usinix › "
+                                 "Conectar IA › Ligar a conexão.", "inputSchema": {"type": "object",
+                                                                                   "properties": {}}}]
     _lista["vista"] = [t.get("name") for t in lista]
     return lista
 

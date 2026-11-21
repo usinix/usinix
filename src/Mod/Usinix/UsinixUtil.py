@@ -100,8 +100,11 @@ def rotulo_unico(doc, base):
 
 
 def auxiliar(obj):
-    """Objeto que não é peça: grupos de apoio (e o que está neles), folhas, simulação, planilhas e textos."""
+    """Objeto que não é peça: grupos de apoio (e o que está neles), folhas, simulação, planilhas e textos, e
+    objetos de apoio do Usinix cujo Proxy declara AUXILIAR = True (planificação da folha da chapa...)."""
     try:
+        if getattr(getattr(obj, "Proxy", None), "AUXILIAR", False):
+            return True
         if obj.Name in GRUPOS_AUXILIARES or any(p.Name in GRUPOS_AUXILIARES for p in obj.InList):
             return True
         t = obj.TypeId
@@ -116,7 +119,22 @@ def _so_referencia(pai):
     t = pai.TypeId
     if t.startswith("TechDraw::"):
         return True
-    return t.startswith("Fem::") and not pai.isDerivedFrom("Fem::FemAnalysis")
+    if t.startswith("Fem::"):
+        return not pai.isDerivedFrom("Fem::FemAnalysis")
+    # objeto de apoio (planificação, dados de folha...): aponta para a peça, não a consome
+    return bool(getattr(getattr(pai, "Proxy", None), "AUXILIAR", False))
+
+
+def componente_de_catalogo(obj):
+    """Componente da biblioteca (compressor, motor, extintor...): o sólido é só representativo, a massa vem do
+    catálogo do fabricante. Resolve vínculos."""
+    try:
+        base = obj.getLinkedObject(True) if hasattr(obj, "getLinkedObject") else obj
+    except Exception:
+        base = obj
+    base = base or obj
+    return type(getattr(base, "Proxy", None)).__name__ == "Componente" and \
+        all(p in base.PropertiesList for p in ("Modelo", "Tamanho", "Categoria"))
 
 
 def raizes(doc):

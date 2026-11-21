@@ -72,9 +72,15 @@ def legenda_de(obj):
     mat = material(obj)
     if mat:
         v["material"] = mat
-    m = massa(obj)
-    if m > 0:
-        v["massa"] = UsinixUtil.fmt(m, 3)
+    try:
+        import UsinixMassa
+        import UsinixFolhas
+        txt = UsinixFolhas.texto_massa(UsinixMassa.calcular([obj]))
+    except Exception:
+        m = massa(obj)
+        txt = UsinixUtil.fmt(m, 3) if m > 0 else ""
+    if txt:
+        v["massa"] = txt
     return v
 
 

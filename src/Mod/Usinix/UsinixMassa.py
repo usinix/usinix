@@ -32,6 +32,7 @@ class Resultado:
         self.eixos = (FreeCAD.Vector(1, 0, 0), FreeCAD.Vector(0, 1, 0), FreeCAD.Vector(0, 0, 1))
         self.itens = []         # (rótulo, material, densidade, volume mm³, massa kg, definido)
         self.sem_material = []  # rótulos das peças sem material (entraram como densidade padrão)
+        self.de_catalogo = []   # componentes da biblioteca: fora da soma (massa no catálogo do fabricante)
 
 
 def _tensor(matriz):
@@ -70,13 +71,18 @@ def _autovalores(t):
     return tuple(p[0] for p in pares), tuple(p[1] for p in pares)
 
 
-def calcular(objs, densidade_padrao=None):
-    """Propriedades de massa do conjunto de objetos (peças, corpos, partes, montagens)."""
+def calcular(objs, densidade_padrao=None, com_catalogo=False):
+    """Propriedades de massa do conjunto de objetos (peças, corpos, partes, montagens). Componentes da
+    biblioteca ficam fora da soma (o sólido é só representativo) e vão para r.de_catalogo, a mesma regra da
+    lista de materiais; com_catalogo=True soma pelo volume, como antes."""
     if densidade_padrao is None:
         densidade_padrao = UsinixUtil.densidade_padrao()
     r = Resultado()
     partes = []  # (massa kg, cg, tensor no cg da própria peça kg·mm²)
     for obj, sh in UsinixUtil.pecas(objs):
+        if not com_catalogo and UsinixUtil.componente_de_catalogo(obj):
+            r.de_catalogo.append(obj.Label)
+            continue
         nome, dens, definido = UsinixUtil.material(obj)
         if not definido:
             dens = densidade_padrao
@@ -117,6 +123,9 @@ def texto(r):
     """Relatório em texto (para copiar)."""
     linhas = ["Propriedades de massa — Usinix", ""]
     linhas.append("Massa: %s" % fmt(r.massa, 3, "kg"))
+    if r.de_catalogo:
+        linhas.append("Fora da soma (componentes da biblioteca, massa no catálogo do fabricante): %s"
+                      % ", ".join(r.de_catalogo))
     linhas.append("Volume: %s (%s)" % (fmt(r.volume / 1000.0, 2, "cm³"), fmt(r.volume, 0, "mm³")))
     linhas.append("Área de superfície: %s" % fmt(r.area, 1, "mm²"))
     linhas.append("Centro de gravidade: X = %s   Y = %s   Z = %s" % (

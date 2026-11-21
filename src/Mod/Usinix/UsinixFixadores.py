@@ -344,10 +344,40 @@ class VPFixador:
         return None
 
 
+def _concava(f, eixo_pt, eixo_dir):
+    """Face cilíndrica côncava (parede de furo): a normal aponta para o eixo."""
+    u0, u1, v0, v1 = f.ParameterRange
+    u, v = (u0 + u1) / 2.0, (v0 + v1) / 2.0
+    p = f.valueAt(u, v)
+    n = f.normalAt(u, v)
+    d = p - eixo_pt
+    d = d - eixo_dir * d.dot(eixo_dir)
+    return n.dot(d) < 0.0
+
+
+def borda_de_furo(sh, e):
+    """A aresta circular é a borda de um furo? Círculo fechado (ou metade de um furo partido em duas, ≥ 180°)
+    com parede cilíndrica côncava. O arco de um canto arredondado (convexo, 90°) não é furo."""
+    import math
+    import Part
+    c = e.Curve
+    arco = abs(e.LastParameter - e.FirstParameter)
+    fechado = e.isClosed() or arco >= 2.0 * math.pi - 1e-6
+    eixo = FreeCAD.Vector(c.Axis).normalize()
+    cil = [f for f in sh.ancestorsOfType(e, Part.Face) if f.Surface.__class__.__name__ == "Cylinder"]
+    if not cil:
+        # furo passante numa chapa sem a parede (forma 2D) ou forma importada: só o círculo fechado vale
+        return fechado
+    if not any(_concava(f, c.Center, eixo) for f in cil):
+        return False                                   # parede convexa: canto arredondado, eixo, pino
+    return fechado or arco >= math.pi - 1e-6
+
+
 def posicao_no_furo(obj, nome_aresta):
     """Placement que apoia o fixador na face do furo, com o corpo entrando no material.
 
-    Retorna (placement, diâmetro do furo) ou (None, None) se a aresta não for circular."""
+    Retorna (placement, diâmetro do furo) ou (None, None) se a aresta não for a borda de um furo (círculo
+    fechado com parede côncava; ver borda_de_furo)."""
     import Part
     # nome_aresta pode ser um caminho ("Parte.Corpo.Edge3", seleção não resolvida): a forma vem
     # posicionada no espaço global, com as posições dos contêineres e vínculos
@@ -360,6 +390,8 @@ def posicao_no_furo(obj, nome_aresta):
     except Exception:
         return None, None
     if not hasattr(e, "Curve") or e.Curve.__class__.__name__ != "Circle":
+        return None, None
+    if not borda_de_furo(sh, e):
         return None, None
     centro = e.Curve.Center
     eixo = FreeCAD.Vector(e.Curve.Axis).normalize()

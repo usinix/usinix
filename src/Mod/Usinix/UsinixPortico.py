@@ -465,13 +465,19 @@ class Modelo:
             for nb, (R, L, T, k, fe, _d, _p, idx, lib) in enumerate(info):
                 k2, f2, rec = _condensar(k + kgs[nb], fe, lib)
                 if not ativos[nb]:
-                    # barra só de tração comprimida: sai do modelo (o peso dela ainda vai aos nós). Fica um resto
-                    # de rigidez (RESTO_TRACAO) para não deixar a estrutura instável quando as duas diagonais de um
-                    # X comprimem juntas (só carga vertical: o encurtamento dos pilares comprime as duas) e nenhuma
-                    # carga lateral as estica; com carga lateral, a diagonal tracionada volta inteira.
-                    K[np.ix_(idx, idx)] += T.T @ (k2 * RESTO_TRACAO) @ T
+                    # barra só de tração comprimida: sai o esforço normal (o peso dela ainda vai aos nós). Fica a
+                    # flexão (a barra continua lá e segura de lado o nó do cruzamento de um X, que senão vira
+                    # mecanismo quando a diagonal comprimida é a contínua) e um resto da rigidez axial
+                    # (RESTO_TRACAO), para as duas diagonais comprimidas juntas só pelo peso não soltarem o
+                    # quadro. Com carga lateral, a diagonal tracionada volta inteira.
+                    ax = np.ix_([0, 6], [0, 6])
+                    k2i = k2.copy()
+                    k2i[ax] *= RESTO_TRACAO
+                    K[np.ix_(idx, idx)] += T.T @ k2i @ T
                     F[idx] -= T.T @ f2
-                    cond.append((np.zeros((12, 12)), f2, rec))     # esforço da barra fora: só o peso
+                    k2r = k2.copy()
+                    k2r[[0, 6], :] = 0.0                            # normal nulo; a flexão do peso continua
+                    cond.append((k2r, f2, rec))
                     continue
                 K[np.ix_(idx, idx)] += T.T @ k2 @ T
                 F[idx] -= T.T @ f2
@@ -525,20 +531,57 @@ class Modelo:
         # barras só de tração: tira as comprimidas e devolve as que voltam a esticar, até estabilizar
         self.ciclos_tracao = 0
         if any(b.so_tracao for b in self.barras):
+            # a barra do Usinix (vários elementos: trechos e divisões) liga e desliga inteira; senão um elemento
+            # desligado no meio corta a diagonal tracionada
+            grupos = {}
+            for nb, b in enumerate(self.barras):
+                if b.so_tracao:
+                    chave = ("barra", b.origem[0]) if b.origem is not None else ("elem", nb)
+                    grupos.setdefault(chave, []).append(nb)
+            # duas barras alinhadas que se encontram num nó (meia diagonal de um X partida no cruzamento) são a
+            # mesma diagonal: ligam e desligam juntas
+            chaves = list(grupos)
+
+            def _dir(ch):
+                b0 = self.barras[grupos[ch][0]]
+                d = np.array(self.nos[b0.j], dtype=float) - np.array(self.nos[b0.i], dtype=float)
+                return d / max(np.linalg.norm(d), 1e-12)
+
+            def _nos(ch):
+                return {self.barras[nb].i for nb in grupos[ch]} | {self.barras[nb].j for nb in grupos[ch]}
+            juntou = True
+            while juntou:
+                juntou = False
+                for a in range(len(chaves)):
+                    for c in range(a + 1, len(chaves)):
+                        ka, kc = chaves[a], chaves[c]
+                        if abs(float(np.dot(_dir(ka), _dir(kc)))) > 0.9999 and _nos(ka) & _nos(kc):
+                            grupos[ka] = grupos[ka] + grupos.pop(kc)
+                            chaves.pop(c)
+                            juntou = True
+                            break
+                    if juntou:
+                        break
             for self.ciclos_tracao in range(1, 31):
                 mudou = False
-                for nb, (R, L, T, k, fe, _d, _p, idx, lib) in enumerate(info):
-                    if not self.barras[nb].so_tracao:
-                        continue
-                    ul = T @ u[idx]
-                    if ativos[nb]:
-                        k2, f2, _rec = cond[nb]
-                        Nb = -(k2 @ ul + f2)[0]
-                        if Nb < -1e-6 * max(1.0, abs(k[0, 0])):
-                            ativos[nb] = False
+                for membros in grupos.values():
+                    alonga, normais, kmax = 0.0, [], 1.0
+                    for nb in membros:
+                        R, L, T, k, fe, _d, _p, idx, lib = info[nb]
+                        ul = T @ u[idx]
+                        alonga += ul[6] - ul[0]
+                        kmax = max(kmax, abs(k[0, 0]))
+                        if ativos[nb]:
+                            k2, f2, _rec = cond[nb]
+                            normais.append(-(k2 @ ul + f2)[0])
+                    if ativos[membros[0]]:
+                        if normais and sum(normais) / len(normais) < -1e-6 * kmax:
+                            for nb in membros:
+                                ativos[nb] = False
                             mudou = True
-                    elif ul[6] - ul[0] > 1e-9:
-                        ativos[nb] = True
+                    elif alonga > 1e-9:
+                        for nb in membros:
+                            ativos[nb] = True
                         mudou = True
                 if not mudou:
                     break
@@ -572,12 +615,20 @@ class Modelo:
                     ok = np.all(np.isfinite(novo))
                 except np.linalg.LinAlgError:
                     ok = False
+                onde = ""
                 if ok:
-                    ok = np.min(np.linalg.eigvalsh((Ktf + Ktf.T) / 2.0)) > 0
+                    w, vv = np.linalg.eigh((Ktf + Ktf.T) / 2.0)
+                    ok = w[0] > 0
+                    if not ok:
+                        g = int(np.where(livres)[0][int(np.argmax(np.abs(vv[:, 0])))])
+                        q = self.nos[g // 6]
+                        onde = " (o primeiro a ceder é o nó (%.0f; %.0f; %.0f), em %s)" % (
+                            q[0], q[1], q[2], ("X", "Y", "Z", "giro X", "giro Y", "giro Z")[g % 6])
+                        self._diag_instab = (g, float(w[0]))
                 if not ok:
                     raise ValueError("instabilidade global na análise de 2ª ordem: as cargas passam da carga "
-                                     "crítica da estrutura. Confira os travamentos fora do plano (um pórtico plano só com "
-                                     "apoios na base gira de lado) e os perfis")
+                                     "crítica da estrutura%s. Confira os travamentos fora do plano (um pórtico plano só "
+                                     "com apoios na base gira de lado) e os perfis" % onde)
                 dif = np.max(np.abs(novo - u[livres])) if novo.size else 0.0
                 u[livres] = novo
                 cond = cond_t

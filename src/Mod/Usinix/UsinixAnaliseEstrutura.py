@@ -585,6 +585,11 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
                 any(t in ("Rótula", "Rolete (vertical)") for t in apoios.values()):
             calc.erro += (". Numa viga apoiada, use \"Apoio simples (garfo)\" numa ponta e \"Rolete com garfo "
                           "(vertical)\" na outra: eles seguram o giro da viga no próprio eixo e o deslocamento de lado")
+        # carga absurda (digitada em N) costuma ser a causa da instabilidade na 2ª ordem: avisa já no erro
+        suspeitas = cargas_suspeitas(casos)
+        if suspeitas:
+            calc.erro += ". Antes de mexer nos travamentos: " + "; ".join(suspeitas)
+        calc.avisos.extend("ATENÇÃO: " + t + "." for t in suspeitas)
         calc.resultados = {}
         return calc
     for txt in cargas_suspeitas(casos):
@@ -821,6 +826,8 @@ def _ponta_do_membro(r, elementos, m, t):
 
 # ------------------------------------------------------------------ objeto na árvore
 class Analise:
+    AUXILIAR = True      # cálculo, não peça: não tira a estrutura das raízes (UsinixUtil.raizes)
+
     def __init__(self, obj):
         obj.Proxy = self
         self._props(obj)
