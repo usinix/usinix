@@ -101,7 +101,9 @@ jobs:
             fi
             # tag criada à mão sem versão publicada (a regra do repositório não deixa apagar tag): segue se o
             # código da tag for o mesmo do main (a diferença só pode estar em .github/, como esta ação)
+            # sem a tag, o gh api escreve o erro ({"message":"Not Found"...}) na saída: só vale um hash de verdade
             tag_sha=$(gh api "repos/${REPO}/commits/v${v}" --jq .sha 2>/dev/null || true)
+            [[ "$tag_sha" =~ ^[0-9a-f]{40}$ ]] || tag_sha=""
             if [[ -n "$tag_sha" && "$tag_sha" != "$SHA" ]]; then
               fora=$(gh api "repos/${REPO}/compare/${tag_sha}...${SHA}" --jq '.files[].filename' 2>/dev/null \
                      | grep -v '^\.github/' || true)
