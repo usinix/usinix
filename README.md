@@ -35,9 +35,12 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.26.0** (21/11/2026): vista de detalhe com letra, círculo e legenda de escala; texto da
-cota por modelo ("4× {valor}", "{valor} H7"); dados de fabricação da chapa na folha e espessura na legenda;
-contraventamento só de tração pela carga de flambagem; eixo comprido em escala maior.
+**Versão atual: 1.26.1** (21/11/2026): título comprido da capa dos relatórios sem cortar e cabeçalho das
+páginas sem passar por baixo da logo.
+
+Na 1.26.0: vista de detalhe com letra, círculo e legenda de escala; texto da cota por modelo ("4× {valor}",
+"{valor} H7"); dados de fabricação da chapa na folha e espessura na legenda; contraventamento só de tração pela
+carga de flambagem; eixo comprido em escala maior.
 
 Na 1.25.0: peça torneada desenhada deitada, com o comprimento de cada trecho;
 cotas com texto de 3 mm; contraventamento só de tração estável com vento; convergência da malha a partir do

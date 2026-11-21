@@ -20732,3 +20732,49 @@ class T158DesenhoEPendencias(unittest.TestCase):
         self.assertTrue(m.ViewObject.Visibility)
         self.assertEqual(B.esconder_resultados_grandes(self.doc, limite=10), [m.Name])
         self.assertFalse(m.ViewObject.Visibility)
+
+
+class T159CapaDoRelatorio(unittest.TestCase):
+    """1.26.1: título comprido da capa diminui a fonte até caber na faixa (a 3ª linha saía cortada) e o
+    cabeçalho das páginas internas termina em reticências antes da logo."""
+
+    def _pintor(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        from PySide import QtGui, QtCore
+        k = 6.0
+        img = QtGui.QImage(int(210 * k), int(297 * k), QtGui.QImage.Format_ARGB32)
+        img.fill(QtCore.Qt.white)
+        return img, QtGui.QPainter(img), k
+
+    def test_titulo_comprido_cabe_na_faixa(self):
+        from PySide import QtGui, QtCore
+        import UsinixFEMRelatorio as R
+        img, p, k = self._pintor()
+        W = img.width()
+        try:
+            curto = R.titulo_capa(p, W, k, "Análise estrutural por elementos finitos")
+            longo = ("MEF NR-38 – 250 kg no ponto mais distante da plataforma de manutenção – Caso B (parafuso "
+                     "rótula pura com arruela de pressão e porca autotravante)")
+            tam = R.titulo_capa(p, W, k, longo)
+        finally:
+            p.end()
+        self.assertEqual(curto, R.TITULO_CAPA_MAX)                    # título curto não muda
+        self.assertLess(tam, R.TITULO_CAPA_MAX)
+        f = R._fonte(tam * k, QtGui.QFont.Bold)
+        larg = W - 2 * R.MARGEM_MM * k
+        alt = QtGui.QFontMetricsF(f).boundingRect(QtCore.QRectF(0, 0, larg, 1e6),
+                                                  int(QtCore.Qt.TextWordWrap), longo).height()
+        self.assertLessEqual(alt, 37.0 * k)                            # dentro da faixa, acima da linha amarela
+
+    def test_cabecalho_com_reticencias(self):
+        import UsinixFEMRelatorio as R
+        img, p, k = self._pintor()
+        try:
+            p.setFont(R._fonte(3.2 * k))
+            curto = R.titulo_cabecalho(p, img.width(), k, "Relatório de simulação · Suporte")
+            longo = R.titulo_cabecalho(p, img.width(), k, "Relatório de simulação · " + "Plataforma " * 20)
+        finally:
+            p.end()
+        self.assertEqual(curto, "Relatório de simulação · Suporte")
+        self.assertTrue(longo.endswith("…"), longo)

@@ -15,6 +15,15 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.26.1 — 21/11/2026
+
+### Correções
+
+- **Capa dos relatórios em PDF:** título comprido diminui a fonte até caber na faixa da capa; a terceira linha
+  saía cortada.
+- **Cabeçalho das páginas do relatório:** nome de peça ou estrutura comprido termina em reticências antes da
+  logo do canto direito, em vez de passar por baixo dela.
+
 ## 1.26.0 — 21/11/2026
 
 ![Folha de uma placa com o detalhe A ampliado em 2:1, letra no círculo e legenda embaixo](.github/images/novidades/1.26.0.webp)

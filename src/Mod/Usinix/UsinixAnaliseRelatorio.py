@@ -257,9 +257,7 @@ def gerar_pdf(analise, caminho):
 def _capa(p, W, H, k, analise):
     M = R.MARGEM_MM
     mc = R.faixa_capa(p, W, k)
-    p.setFont(R._fonte(8.5 * k, QtGui.QFont.Bold))
-    p.drawText(QtCore.QRectF(M * k, 55 * k, W - 2 * M * k, 30 * k), QtCore.Qt.TextWordWrap,
-               "Memória de cálculo — estrutura metálica")
+    R.titulo_capa(p, W, k, "Memória de cálculo — estrutura metálica")
     p.setPen(QtGui.QColor(R.INK))
     p.setFont(R._fonte(5.0 * k, QtGui.QFont.DemiBold))
     p.drawText(QtCore.QRectF(M * k, 112 * k, W, 12 * k), "Verificação por barras · NBR 8800:2024 · NBR 8681:2025")
@@ -284,8 +282,7 @@ def _cabecalho(p, W, k, analise):
     M = R.MARGEM_MM
     p.setPen(QtGui.QColor(R.NAVY))
     p.setFont(R._fonte(3.2 * k, QtGui.QFont.DemiBold))
-    p.drawText(QtCore.QRectF(M * k, 8 * k, W - 60 * k, 6 * k), QtCore.Qt.AlignVCenter,
-               "Memória de cálculo · " + analise.Estrutura.Label)
+    R.titulo_cabecalho(p, W, k, "Memória de cálculo · " + analise.Estrutura.Label)
     p.setPen(QtGui.QColor(R.INK2))
     p.setFont(R._fonte(3.0 * k))
     R.cabecalho_direita(p, W, k)

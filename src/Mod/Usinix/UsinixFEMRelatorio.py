@@ -318,13 +318,33 @@ def faixa_capa(p, W, k):
     return mc
 
 
+TITULO_CAPA_MAX = 8.5      # mm: corpo do título da capa
+TITULO_CAPA_MIN = 5.0
+
+
+def titulo_capa(p, W, k, titulo, y=55.0, alt=37.0, maximo=TITULO_CAPA_MAX):
+    """Título da capa dentro da faixa colorida (de y até y + alt, em mm): diminui a fonte até caber inteiro.
+    Antes ficava em 8,5 mm com caixa de 30 mm e a 3ª linha saía cortada. Devolve o corpo usado (mm)."""
+    larg = W - 2 * MARGEM_MM * k
+    caixa = QtCore.QRectF(MARGEM_MM * k, y * k, larg, alt * k)
+    tam = maximo
+    while True:
+        f = _fonte(tam * k, QtGui.QFont.Bold)
+        r = QtGui.QFontMetricsF(f).boundingRect(QtCore.QRectF(0, 0, larg, 1e6), int(QtCore.Qt.TextWordWrap),
+                                                titulo or "")
+        if r.height() <= alt * k or tam <= TITULO_CAPA_MIN:
+            break
+        tam = round(tam - 0.25, 2)
+    p.setFont(f)
+    p.drawText(caixa, int(QtCore.Qt.TextWordWrap | QtCore.Qt.AlignTop), titulo or "")
+    return tam
+
+
 def _capa(p, W, H, k, est):
     """k = pixels do dispositivo por mm."""
     tit = est.get("UsinixRelTitulo", "") or "Análise estrutural por elementos finitos"
     mc = faixa_capa(p, W, k)
-    p.setFont(_fonte(8.5 * k, QtGui.QFont.Bold))
-    p.drawText(QtCore.QRectF(MARGEM_MM * k, 55 * k, W - 2 * MARGEM_MM * k, 30 * k),
-               QtCore.Qt.TextWordWrap, tit)
+    titulo_capa(p, W, k, tit)
     p.setPen(QtGui.QColor(INK))
     p.setFont(_fonte(5.0 * k, QtGui.QFont.DemiBold))
     p.drawText(QtCore.QRectF(MARGEM_MM * k, 112 * k, W, 12 * k),
@@ -357,10 +377,19 @@ def _cabecalho(p, W, k, est):
     p.setFont(_fonte(3.2 * k, QtGui.QFont.DemiBold))
     tit = (est.get("UsinixRelCabecalho", "") or "Relatório de simulação") + " · " + \
         (est.get("UsinixRelPeca", "") or (est.peca.Label if est.peca else ""))
-    p.drawText(QtCore.QRectF(MARGEM_MM * k, 8 * k, W - 60 * k, 6 * k), QtCore.Qt.AlignVCenter, tit)
+    titulo_cabecalho(p, W, k, tit)
     p.setPen(QtGui.QColor(INK2))
     p.setFont(_fonte(3.0 * k))
     cabecalho_direita(p, W, k)
+
+
+def titulo_cabecalho(p, W, k, texto):
+    """Texto do cabeçalho das páginas internas, com a fonte e a cor já postas: nome comprido termina em
+    reticências antes da logo do canto direito (antes passava por baixo dela)."""
+    caixa = QtCore.QRectF(MARGEM_MM * k, 8 * k, W - (2 * MARGEM_MM + 64) * k, 6 * k)
+    texto = QtGui.QFontMetricsF(p.font()).elidedText(texto or "", QtCore.Qt.ElideRight, caixa.width())
+    p.drawText(caixa, QtCore.Qt.AlignVCenter, texto)
+    return texto
 
 
 def cabecalho_direita(p, W, k):
