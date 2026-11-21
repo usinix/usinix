@@ -70,6 +70,15 @@ def legenda_de(obj):
     v = {"titulo": ler(obj, "Denominacao", obj.Label).upper(), "numero": ler(obj, "Codigo"),
          "revisao": ler(obj, "Revisao", "0")}
     mat = material(obj)
+    try:
+        # peça de chapa (SheetMetal): a espessura vai junto do material na legenda
+        import UsinixChapa
+        import UsinixFolhaPeca
+        t, _r = UsinixChapa.espessura_raio(obj)
+        if t:
+            mat = UsinixFolhaPeca.texto_material_chapa(obj)
+    except Exception:
+        pass
     if mat:
         v["material"] = mat
     try:

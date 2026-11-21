@@ -20350,7 +20350,9 @@ class T157AchadosT15aT18(unittest.TestCase):
             else:
                 self.assertEqual(sorted(tracionada), sorted(i for i in diag if i != continua), N)
             for i in tracionada:
-                self.assertAlmostEqual(N[i] / 1000.0, 20.0 / 0.6, delta=3.0)      # H / cos θ
+                # diagonal W 200: a compressão fica abaixo de Euler e a comprimida segue trabalhando (1.26.0);
+                # metade do vento em cada uma. Diagonal esbelta: ver T158 (H / cos θ só na tracionada)
+                self.assertAlmostEqual(N[i] / 1000.0, 20.0 / 0.6 / 2.0, delta=3.0)
             # cálculo completo (2ª ordem + verificação) sem erro; com 20 kN o pilar W 200 (eixo fraco, sem
             # travamento fora do plano) passa da carga crítica de verdade: 5 kN de vento
             casos[0]["cargas"][0]["valor"] = 5.0
@@ -20486,3 +20488,247 @@ class T157AchadosT15aT18(unittest.TestCase):
         import inspect
         src = inspect.getsource(usinix_mcp._ferramentas)
         self.assertNotIn("+ AVISO_DESLIGADO", src)
+
+
+class T158DesenhoEPendencias(unittest.TestCase):
+    """1.26.0: vista de detalhe com letra e escala, dados da chapa na folha e na legenda, texto da cota por
+    modelo, contraventamento só de tração pela flambagem, eixo com chanfro (corrente e escala), material das
+    placas antigas, base de estudo FEM antigo e resultado grande escondido."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteT158")
+
+    def tearDown(self):
+        try:
+            if self.doc.Name in FreeCAD.listDocuments():
+                fechar(self.doc)
+        except ReferenceError:
+            pass
+
+    def _td(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+
+    def _eixo_chanfrado(self):
+        import Part
+        ax = FreeCAD.Vector(1, 0, 0)
+        a = Part.makeCylinder(20, 120, FreeCAD.Vector(), ax)
+        b = Part.makeCylinder(15, 145, ax * 120, ax)
+        c = Part.makeCylinder(12.5, 50, ax * 265, ax)
+        f = a.fuse(b).fuse(c).removeSplitter()
+        ext = [e for e in f.Edges if hasattr(e.Curve, "Radius") and abs(e.Curve.Radius - 12.5) < 1e-6
+               and abs((e.Vertexes[0].Point - ax * 315).dot(ax)) < 1e-6]
+        o = self.doc.addObject("Part::Feature", "Eixo")
+        o.Shape = f.makeChamfer(1.0, ext)
+        self.doc.recompute()
+        return o
+
+    def test_letra_e_escala_do_detalhe(self):
+        import UsinixDetalhe as D
+        self.assertEqual(D.escala_do_detalhe(1.0), 2.0)
+        self.assertEqual(D.escala_do_detalhe(0.2), 0.5)
+        self.assertEqual(D.escala_do_detalhe(0.5, 3.0), 2.0)
+        self.assertEqual(D.texto_escala(2.0), "2:1")
+        self.assertEqual(D.texto_escala(0.5), "1:2")
+        self.assertEqual(D.proxima_letra(self.doc), "A")
+
+    def test_detalhe_com_letra_legenda_e_lugar_livre(self):
+        self._td()
+        import UsinixFolhas as F
+        import UsinixVistas as V
+        import UsinixDetalhe as D
+        o = self._eixo_chanfrado()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        g = V.grupo_da_peca(p, [o])
+        self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+        frente = [v for v in g.Views if v.Type == "Front"][0]
+        d1 = D.criar_detalhe(frente)
+        d2 = D.criar_detalhe(frente)
+        self.assertEqual((d1.Reference, d2.Reference), ("A", "B"))
+        self.assertEqual(D.proxima_letra(self.doc), "C")
+        esc = D.escala_do_detalhe(float(frente.getScale()))
+        self.assertAlmostEqual(float(d1.Scale), esc)
+        self.assertEqual(list(d1.UsinixLegenda.Text), ["DETALHE A", "ESC. %s" % D.texto_escala(esc)])
+        self.assertLessEqual(float(getattr(d1.Radius, "Value", d1.Radius)) * esc, D.DIAMETRO_MAX_PAPEL / 2 + 1e-6)
+        # os dois detalhes não se sobrepõem, e nenhum cai em cima da legenda da folha
+        r1 = float(getattr(d1.Radius, "Value", d1.Radius)) * float(d1.Scale)
+        r2 = float(getattr(d2.Radius, "Value", d2.Radius)) * float(d2.Scale)
+        dist = ((float(d1.X) - float(d2.X)) ** 2 + (float(d1.Y) - float(d2.Y)) ** 2) ** 0.5
+        self.assertGreater(dist, r1 + r2)
+        larg = F._tamanho_folha(p)[0]
+        for d, r in ((d1, r1), (d2, r2)):
+            dentro_legenda = float(d.X) + r > larg - 190 and float(d.Y) - r < 72
+            self.assertFalse(dentro_legenda, (d.Label, float(d.X), float(d.Y), r))
+
+    def test_texto_da_cota_por_modelo(self):
+        self._td()
+        import UsinixFolhas as F
+        import UsinixVistas as V
+        import UsinixDetalhe as D
+        o = self._eixo_chanfrado()
+        p = F.nova_folha(self.doc, "A4", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        V.esperar_vistas(list(V.grupo_da_peca(p, [o]).Views), 60)
+        cotas = V.cotas_gerais(p, [o], furos=True)
+        self.doc.recompute()
+        c = [x for x in cotas if x.Label == "Comprimento total"][0]
+        original = c.FormatSpec
+        D.aplicar_modelo([c], "4× {valor} (ref.)")
+        self.assertEqual(c.FormatSpec, "4× " + original + " (ref.)")
+        D.aplicar_modelo([c], "{valor} ±0,1%")                      # % do texto escapado
+        self.assertEqual(c.FormatSpec, original + " ±0,1%%")
+        D.aplicar_modelo([c], "{valor}")
+        self.assertEqual(c.FormatSpec, original)
+        with self.assertRaises(ValueError):
+            D.aplicar_modelo([c], "sem número")
+
+    def _chapa_l(self):
+        import Part
+        t, r = 3.0, 2.0
+        base = Part.makeBox(80, 60, t)
+        eixo = FreeCAD.Vector(0, 1, 0)
+        tubo = Part.makeCylinder(r + t, 60, FreeCAD.Vector(80, 0, t + r), eixo).cut(
+            Part.makeCylinder(r, 60, FreeCAD.Vector(80, 0, t + r), eixo))
+        dob = tubo.common(Part.makeBox(r + t, 60, r + t, FreeCAD.Vector(80, 0, 0)))
+        aba = Part.makeBox(t, 60, 45, FreeCAD.Vector(80 + r, 0, t + r))
+        o = self.doc.addObject("Part::Feature", "Suporte")
+        o.Shape = base.fuse([dob, aba]).removeSplitter()
+        self.doc.recompute()
+        return o
+
+    def test_dados_da_chapa_e_legenda(self):
+        import UsinixFolhaPeca as FP
+        ch = self._chapa_l()
+        dados = dict(FP.dados_da_chapa(ch, "Aço carbono", ch.Shape.BoundBox))
+        self.assertEqual(dados["Espessura"], "3 mm")
+        self.assertEqual(dados["Dobras"], "1")
+        self.assertEqual(dados["Raio interno de dobra"], "2 mm")
+        self.assertIn("Fator K", dados)
+        self.assertIn("r/t = 0,67", dados["Regra do fator K"])
+        self.assertIn("Planificada", dados)
+        # sem material escolhido a legenda mostra só a espessura (não "Não definido (aço)")
+        self.assertEqual(FP.texto_material_chapa(ch), "Chapa 3 mm")
+
+    def _x(self, perfil):
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        L = [((0, 0), (0, 4000)), ((3000, 0), (3000, 4000)), ((0, 4000), (3000, 4000)), ((0, 0), (3000, 4000)),
+             ((3000, 0), (0, 4000))]
+        sk = esboco_linhas(self.doc, L, "XZ")
+        est = E.criar(self.doc, sk, perfil, material="ASTM A36")
+        self.doc.recompute()
+        ap = {A._chave_no((0, 0, 0)): "Engaste", A._chave_no((3000, 0, 0)): "Engaste"}
+        _m, _l, mapa = A.montar_modelo(est, [A.caso_padrao()], ap, {})
+        diag = [i for i, (_p0, t, _L) in mapa["linhas"].items() if abs(t.x) > 1e-3 and abs(t.z) > 1e-3]
+        return est, ap, {i: "Só tração (contraventamento)" for i in diag}, diag
+
+    def test_diagonal_rigida_nao_sai_pela_compressao_do_peso(self):
+        import UsinixAnaliseEstrutura as A
+        est, ap, lib, diag = self._x("W 200 x 22,5")
+        casos = [{"nome": "Peso", "tipo": "Permanente", "cargas": [
+            {"alvo": "no", "no": A._chave_no((0, 0, 4000)), "direcao": "−Z", "valor": 50.0},
+            {"alvo": "no", "no": A._chave_no((3000, 0, 4000)), "direcao": "−Z", "valor": 50.0}]}]
+        m, lista, mp = A.montar_modelo(est, casos, ap, lib)
+        r = m.resolver(lista[0])
+        self.assertFalse(m.tracao_sem_convergir)
+        self.assertLessEqual(m.ciclos_tracao, 2)                     # sem liga/desliga
+        N = [min(r.esforcos(nb, 1.0)["N"] for nb, _a in mp["barras"][i]) for i in diag]
+        self.assertTrue(all(n < 0 for n in N), N)                    # comprimidas abaixo de Euler: ficam
+
+    def test_diagonal_esbelta_sai_quando_comprimida(self):
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        if not UsinixPerfis_tem("L 50 x 5"):
+            self.skipTest("sem cantoneira L 50 x 5 no catálogo")
+        est, ap, lib, diag = self._x("W 200 x 22,5")
+        _m, _l, mapa = A.montar_modelo(est, [A.caso_padrao()], ap, {})
+        barras = E.barras_de(est)
+        E.trocar_perfil([b for b in barras if b.Indice in diag] or
+                        [barras[i] for i in diag if i < len(barras)], "L 50 x 5")
+        self.doc.recompute()
+        casos = [{"nome": "Vento", "tipo": "Vento", "cargas": [
+            {"alvo": "no", "no": A._chave_no((0, 0, 4000)), "direcao": "+X", "valor": 10.0}]}]
+        m, lista, mp = A.montar_modelo(est, casos, ap, lib)
+        r = m.resolver(lista[0])
+        N = {i: max(r.esforcos(nb, 1.0)["N"] for nb, _a in mp["barras"][i]) for i in diag}
+        tracionada = [i for i in diag if N[i] > 100.0]
+        self.assertEqual(len(tracionada), 1, N)
+        # L 50 x 5 com 5 m: Euler ≈ 3,5 kN, a comprimida sai (esforço ~0) e a tracionada leva quase todo o
+        # vento (o resto vai pelos pilares engastados)
+        for i in diag:
+            if i not in tracionada:
+                self.assertLess(max(abs(r.esforcos(nb, 1.0)["N"]) for nb, _a in mp["barras"][i]), 300.0, N)
+        self.assertGreater(N[tracionada[0]] / 1000.0, 0.75 * 10.0 / 0.6)
+        self.assertFalse(m.tracao_sem_convergir)
+
+    def test_corrente_do_eixo_chanfrado_fecha_e_sem_iso(self):
+        self._td()
+        import UsinixFolhas as F
+        import UsinixVistas as V
+        o = self._eixo_chanfrado()
+        p = F.nova_folha(self.doc, "A4", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        g = V.grupo_da_peca(p, [o])
+        self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+        self.assertAlmostEqual(float(p.Scale), 0.5, places=6)        # com a iso saía 1:5
+        self.assertFalse([v for v in p.Views if v.Name.startswith("Isometrica")])
+        cotas = V.cotas_gerais(p, [o], furos=True)
+        self.doc.recompute()
+        trechos = sorted(round(d.getRawValue(), 1) for d in cotas if d.Label.startswith("Trecho"))
+        self.assertEqual(trechos, [50.0, 120.0, 145.0])               # antes 49: o chanfro tomava a ponta
+
+    def test_placa_antiga_sem_material_usa_o_da_estrutura(self):
+        import UsinixEstrutura as E
+        import UsinixEstruturaExtras as X
+        import UsinixBOM
+        sk = esboco_linhas(self.doc, [((0, 0), (0, 3000))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A572 Gr 50")
+        self.doc.recompute()
+        pb = X.criar_placa_base(E.barras_de(est)[0], "Início")
+        pb.Material = ""                                             # como as feitas antes da 1.25.0
+        self.doc.recompute()
+        self.assertEqual(UsinixBOM._prop(pb, "Material"), "ASTM A572 Gr 50")
+        linhas = UsinixBOM.coletar([est])
+        self.assertFalse([ln for ln in linhas if "a definir" in (ln.obs or "")], [(ln.denominacao, ln.obs)
+                                                                                  for ln in linhas])
+
+    def test_estudo_antigo_toma_a_base_da_convergencia(self):
+        import json
+        import UsinixFEM as F
+
+        class Est:
+            def __init__(self):
+                self.d = {}
+
+                class Malha:
+                    CharacteristicLengthMax = "2 mm"
+                self.malha = Malha()
+
+            def get(self, k, padrao=""):
+                return self.d.get(k, padrao)
+
+            def put(self, k, v, tipo=None):
+                self.d[k] = v
+        e = Est()
+        self.assertAlmostEqual(F.tamanho_base(e), 2.0)
+        e.put("UsinixConvergencia", json.dumps([{"tamanho": 4.0}, {"tamanho": 2.8}, {"tamanho": 2.0}]))
+        self.assertAlmostEqual(F.tamanho_base(e), 4.0)               # não a malha refinada de 2 mm
+        e.put("UsinixMalhaBase", 6.0)
+        self.assertAlmostEqual(F.tamanho_base(e), 6.0)
+
+    def test_resultado_grande_escondido_ao_abrir(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import Fem
+        import UsinixFEMBancada as B
+        m = self.doc.addObject("Fem::FemMeshObject", "Malha")
+        fm = Fem.FemMesh()
+        for k in range(30):
+            fm.addNode(k, 0, 0, k + 1)
+        m.FemMesh = fm
+        self.doc.recompute()
+        m.ViewObject.Visibility = True
+        self.assertEqual(B.esconder_resultados_grandes(self.doc, limite=1000), [])
+        self.assertTrue(m.ViewObject.Visibility)
+        self.assertEqual(B.esconder_resultados_grandes(self.doc, limite=10), [m.Name])
+        self.assertFalse(m.ViewObject.Visibility)

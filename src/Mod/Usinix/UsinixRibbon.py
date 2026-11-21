@@ -218,7 +218,7 @@ TABS = [
             ("TechDraw_FillTemplateFields", S, "Preencher carimbo"), ("TechDraw_RedrawPage", S, "Redesenhar"),
         ]),
         ("Vistas", [
-            ("TechDraw_View", L, "Vista"), ("TechDraw_SectionGroup", L, "Corte"), ("TechDraw_DetailView", L, "Detalhe"),
+            ("TechDraw_View", L, "Vista"), ("TechDraw_SectionGroup", L, "Corte"), ("Usinix_VistaDetalhe", L, "Detalhe"),
             ("TechDraw_GeometricHatch", S, "Hachura"), ("TechDraw_ShowAll", S, "Arestas ocultas"),
             ("TechDraw_BrokenView", S, "Vista interrompida"), ("TechDraw_ActiveView", S, "Vista da tela"),
             ("TechDraw_DraftView", S, "Vista 2D"), ("TechDraw_ClipGroup", S, "Recorte"),
@@ -227,7 +227,7 @@ TABS = [
         ]),
         ("Cotas", [
             ("TechDraw_CompDimensionTools", L, "Cota"), ("Usinix_CotasGerais", L, "Cotas\ngerais"),
-            ("Usinix_CotasCorte", S, "Cotas do corte"),
+            ("Usinix_CotasCorte", S, "Cotas do corte"), ("Usinix_TextoCota", S, "Texto da cota"),
             ("Usinix_Baloes", L, "Balões\nda lista"), ("TechDraw_Balloon", S, "Balão avulso"),
             ("TechDraw_AxoLengthDimension", S, "Cota axonométrica"), ("TechDraw_DimensionRepair", S, "Reparar cotas"),
             ("TechDraw_ExtensionInsertPrefixGroup", S, "Prefixo ⌀"),

@@ -437,6 +437,40 @@ def tema_icones_fem():
     _obs["icones"] = True
 
 
+def esconder_resultados_grandes(doc, limite=None):
+    """Arquivo salvo com um resultado de malha enorme à mostra (convergência forçada): abrir já desenhando
+    tudo deixava o programa parado. Esconde malha e resultados quando a malha passa do limite e avisa.
+    Retorna os nomes escondidos."""
+    if doc is None or not FreeCAD.GuiUp:
+        return []
+    limite = limite or F.LIMITE_NOS_CONVERGENCIA
+    grandes = []
+    for o in doc.Objects:
+        try:
+            if o.isDerivedFrom("Fem::FemMeshObject") and o.FemMesh.NodeCount > limite:
+                grandes.append((o, o.FemMesh.NodeCount))
+        except Exception:
+            continue
+    if not grandes:
+        return []
+    escondidos = []
+    for o in doc.Objects:
+        try:
+            pesado = o.isDerivedFrom("Fem::FemMeshObject") or o.isDerivedFrom("Fem::FemPostObject") or \
+                o.isDerivedFrom("Fem::FemResultObject")
+            if pesado and o.ViewObject is not None and o.ViewObject.Visibility:
+                o.ViewObject.Visibility = False
+                escondidos.append(o.Name)
+        except Exception:
+            continue
+    if escondidos:
+        n = max(c for _o, c in grandes)
+        FreeCAD.Console.PrintWarning(
+            "Usinix: a malha de \"%s\" tem %s nós; o resultado foi escondido ao abrir para não travar o "
+            "programa. Mostre-o pela árvore quando quiser.\n" % (grandes[0][0].Label, ("{:,}".format(n)).replace(",", ".")))
+    return escondidos
+
+
 class _ObservadorResultado:
     """Grava a assinatura quando um resultado termina de carregar (cálculo pela bancada ou pelo assistente)
     e pinta no tema Usinix os símbolos das restrições criadas."""
@@ -470,6 +504,10 @@ class _ObservadorResultado:
     def slotFinishRestoreDocument(self, doc):
         # resultados escondidos no arquivo continuavam desenhando a barra de cores: refaz o hide() deles
         # (o pipeline remonta a barra depois do restauro e da 1ª pintura da vista: repete mais tarde também)
+        try:
+            esconder_resultados_grandes(doc)
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: resultado grande: %s\n" % exc)
         try:
             nome = doc.Name
             for ms in (0, 800, 2500, 6000):

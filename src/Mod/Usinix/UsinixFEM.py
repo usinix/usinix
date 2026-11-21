@@ -878,6 +878,14 @@ def tamanho_base(est):
         b = 0.0
     if b > 0:
         return b
+    # estudo de versão antiga (sem a base gravada) que já passou pela convergência: a malha guardada é a mais
+    # fina; a base é a primeira da série (fator 1,0), senão rodar de novo refinaria a partir da refinada
+    try:
+        t0 = float((linhas_convergencia(est) or [{}])[0].get("tamanho") or 0.0)
+    except (TypeError, ValueError, AttributeError):
+        t0 = 0.0
+    if t0 > 0:
+        return t0
     m = est.malha
     return (_q(str(m.CharacteristicLengthMax), "mm") if m is not None else 0.0) or 1.0
 

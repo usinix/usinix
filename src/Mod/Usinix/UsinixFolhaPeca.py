@@ -579,6 +579,54 @@ def espessura(chapa):
     return None
 
 
+def dados_da_chapa(chapa, material=None, plana=None):
+    """Dados de fabricação da peça de chapa, para a tabela da folha: material, espessura, raio interno de dobra,
+    fator K e a regra (tabela) de onde ele sai, medida planificada e dobras. plana: BoundBox da planificação
+    (sem ela, a medida planificada fica de fora)."""
+    import UsinixChapa
+    if material is None:
+        try:
+            material = UsinixChapa.familia_do_material(UsinixUtil.material(chapa)[0])
+        except Exception:
+            material = "Aço carbono"
+    t = espessura(chapa)
+    dobras = dobras_da_chapa(chapa.Shape)
+    linhas = [("Peça", chapa.Label), ("Material", UsinixUtil.material(chapa)[0] or "—"),
+              ("Espessura", "%s mm" % _f(t, 2) if t else "—")]
+    if plana is not None:
+        linhas.append(("Planificada", "%s × %s mm" % (_f(plana.XLength), _f(plana.YLength))))
+    linhas.append(("Dobras", str(len(dobras)) if dobras else "sem dobras"))
+    raios = sorted({round(r, 2) for _a, r in dobras})
+    if len(raios) == 1:
+        linhas.append(("Raio interno de dobra", "%s mm" % _f(raios[0], 2)))
+    for k, (ang, r) in enumerate(dobras, 1):
+        linhas.append(("Dobra %d" % k, "%s°" % UsinixUtil.fmt_dim(ang) if len(raios) == 1 else
+                       "%s° · raio interno %s mm" % (UsinixUtil.fmt_dim(ang), _f(r, 2))))
+    if dobras and t:
+        _t, r = UsinixChapa.espessura_raio(chapa)
+        r = r if r is not None else (raios[0] if raios else None)
+        if r is not None:
+            linhas.append(("Fator K", UsinixUtil.fmt(UsinixChapa.k_fator(material, r, t), 3)))
+            tab = UsinixChapa.TABELAS_K.get(material, UsinixChapa.TABELAS_K["DIN 6935 (geral)"])
+            linhas.append(("Regra do fator K", "%s, r/t = %s (%s)" % (
+                material if material in UsinixChapa.TABELAS_K else "DIN 6935 (geral)",
+                UsinixUtil.fmt(r / t, 2), tab[1].split(" (")[0].split(",")[0])))
+    return linhas
+
+
+def texto_material_chapa(chapa):
+    """Material para a legenda de uma peça de chapa: "ASTM A36 · chapa 3,00 mm"."""
+    nome, _dens, definido = UsinixUtil.material(chapa)
+    nome = (nome or "") if definido else ""        # sem material escolhido: só a espessura
+    try:
+        t = espessura(chapa)
+    except Exception:
+        t = None
+    if not t:
+        return nome
+    return ("%s · chapa %s mm" % (nome, _f(t, 2))) if nome else "Chapa %s mm" % _f(t, 2)
+
+
 def folha_da_chapa(doc, chapa, formato="A3", norma=None, campos=None, material=None):
     """Folha ABNT da chapa planificada: vista de frente cotada (geral e furação), linhas de dobra, isométrica
     da peça e tabela (espessura, desenvolvimento, dobras). Devolve a folha."""
@@ -603,6 +651,8 @@ def folha_da_chapa(doc, chapa, formato="A3", norma=None, campos=None, material=N
     if pl.Shape.isNull():
         doc.removeObject(pl.Name)
         raise ValueError("Não foi possível planificar %s." % chapa.Label)
+    campos = dict(campos or {})
+    campos.setdefault("material", texto_material_chapa(chapa))      # espessura na legenda
     page = UsinixFolhas.nova_folha(doc, formato, norma, False, campos, [chapa], arranjo="so_iso")
     page.Label = "Chapa %s" % chapa.Label
     bb = pl.Shape.BoundBox
@@ -636,18 +686,8 @@ def folha_da_chapa(doc, chapa, formato="A3", norma=None, campos=None, material=N
         UsinixVistas.cotas_de_furos(page, plana)
     except Exception as exc:
         FreeCAD.Console.PrintLog("Usinix: furos na folha da chapa: %s\n" % exc)
-    t = espessura(chapa)
-    dobras = dobras_da_chapa(chapa.Shape)
-    linhas = [("Peça", chapa.Label), ("Material", UsinixUtil.material(chapa)[0] or "—"),
-              ("Espessura", "%s mm" % _f(t, 2) if t else "—"),
-              ("Desenvolvimento", "%s × %s mm" % (_f(bb.XLength), _f(bb.YLength))),
-              ("Dobras", str(len(dobras)) if dobras else "sem dobras")]
-    for k, (ang, r) in enumerate(dobras, 1):
-        linhas.append(("Dobra %d" % k, "%s° · raio interno %s mm" % (UsinixUtil.fmt_dim(ang), _f(r, 2))))
-    if dobras:
-        _t, r = UsinixChapa.espessura_raio(chapa)
-        if t and r is not None:
-            linhas.append(("Fator K (%s)" % material, UsinixUtil.fmt(UsinixChapa.k_fator(material, r, t), 3)))
+    linhas = dados_da_chapa(chapa, material, bb)
+    if any(n == "Dobras" and v != "sem dobras" for n, v in linhas):
         linhas.append(("Linhas de dobra", "traço fino na planificação"))
     UsinixVistas.arrumar_arvore([plana])
     tabela_na_folha(page, "DadosChapa_%s" % page.Name, "Chapa %s" % chapa.Label, linhas)

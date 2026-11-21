@@ -40,6 +40,20 @@ UUID_SEM_MATERIAL = "7f9fd73b-50c9-41d8-b7b2-575a030c1eeb"   # "Default" do Free
 NOMES_SEM_MATERIAL = ("", "Default", "Sem material (padrão)")
 
 
+def material_da_estrutura(obj):
+    """Material (texto) da estrutura que contém a peça; "" quando não está numa estrutura com material."""
+    for pai in getattr(obj, "InList", []) or []:
+        try:
+            if pai.TypeId == "App::DocumentObjectGroupPython" and "Esqueleto" in pai.PropertiesList \
+                    and "Uniao" in pai.PropertiesList:
+                m = str(getattr(pai, "Material", "") or "").strip()
+                if m:
+                    return m
+        except Exception:
+            continue
+    return ""
+
+
 def material(obj):
     """(nome, densidade em kg/m³, definido) do material da peça.
 

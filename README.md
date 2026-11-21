@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.25.0** (21/11/2026): peça torneada desenhada deitada, com o comprimento de cada trecho;
+**Versão atual: 1.26.0** (21/11/2026): vista de detalhe com letra, círculo e legenda de escala; texto da
+cota por modelo ("4× {valor}", "{valor} H7"); dados de fabricação da chapa na folha e espessura na legenda;
+contraventamento só de tração pela carga de flambagem; eixo comprido em escala maior.
+
+Na 1.25.0: peça torneada desenhada deitada, com o comprimento de cada trecho;
 cotas com texto de 3 mm; contraventamento só de tração estável com vento; convergência da malha a partir do
 tamanho escolhido; peça de chapa de volta à lista e ao DXF; ícones novos de arquivo e de mostrar/ocultar.
 

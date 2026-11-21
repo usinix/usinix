@@ -553,12 +553,19 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
     calc.combinacoes = _com_imperfeicoes(calc, m, casos, lista)
     try:
         partes_de = {}
+        sem_convergir = []
+
+        def resolver(nome, partes, **kw):
+            r = m.resolver(partes, **kw)
+            if getattr(m, "tracao_sem_convergir", False) and nome not in sem_convergir:
+                sem_convergir.append(nome)
+            return r
         for nome, tipo, fatores in calc.combinacoes:
             partes = [(lista[k], f) for k, f in fatores if f]
             if nome in calc.imperfeicoes:
                 partes.append((calc.imperfeicoes[nome][1], 1.0))
             partes_de[nome] = partes
-            calc.resultados[nome] = m.resolver(partes, segunda_ordem=(segunda_ordem and tipo == "ELU"))
+            calc.resultados[nome] = resolver(nome, partes, segunda_ordem=(segunda_ordem and tipo == "ELU"))
         if segunda_ordem:
             calc.amplificacao = max([r.amplificacao for n2, r in calc.resultados.items()
                                      if n2 in partes_de and dict((x[0], x[1]) for x in calc.combinacoes)[n2] == "ELU"]
@@ -578,7 +585,7 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
             calc.rigidez = 0.8
             for nome, tipo, _f in calc.combinacoes:
                 if tipo == "ELU":
-                    calc.resultados[nome] = m.resolver(partes_de[nome], segunda_ordem=True, rigidez=0.8)
+                    calc.resultados[nome] = resolver(nome, partes_de[nome], segunda_ordem=True, rigidez=0.8)
     except ValueError as ex:
         calc.erro = str(ex)
         if "mecanismo" in calc.erro and "garfo" not in calc.erro and \
@@ -594,6 +601,11 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
         return calc
     for txt in cargas_suspeitas(casos):
         calc.avisos.append("ATENÇÃO: " + txt + ".")
+    if sem_convergir:
+        calc.avisos.append("ATENÇÃO: os contraventamentos só de tração não chegaram a um estado estável em %s "
+                           "(30 ciclos liga/desliga): os resultados dessas combinações podem estar errados. Confira "
+                           "os travamentos ou use \"Barra de treliça\" nas diagonais"
+                           % ", ".join(sem_convergir[:4]) + ("…" if len(sem_convergir) > 4 else ""))
     try:
         import UsinixEstrutura as E
         novas = E.linhas_sem_barra_desenhada(est)

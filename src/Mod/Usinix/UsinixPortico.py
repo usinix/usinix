@@ -530,6 +530,7 @@ class Modelo:
         u[livres] = uf
         # barras só de tração: tira as comprimidas e devolve as que voltam a esticar, até estabilizar
         self.ciclos_tracao = 0
+        self.tracao_sem_convergir = False
         if any(b.so_tracao for b in self.barras):
             # a barra do Usinix (vários elementos: trechos e divisões) liga e desliga inteira; senão um elemento
             # desligado no meio corta a diagonal tracionada
@@ -562,9 +563,21 @@ class Modelo:
                             break
                     if juntou:
                         break
+            # a diagonal só sai quando a compressão passa da carga de flambagem dela (Euler, biarticulada, no
+            # comprimento todo): o pouco de compressão do encurtamento dos pilares não a tira, e o ciclo
+            # liga/desliga fecha. Diagonal que troca de estado mais de 3 vezes fica ligada (lado seguro).
+            ncr, trocas = {}, {}
+            for chave, membros in grupos.items():
+                Ltot = sum(info[nb][1] for nb in membros)
+                sec = self.barras[membros[0]].secao
+                ncr[chave] = math.pi ** 2 * sec.E * min(sec.Iy, sec.Iz) / max(Ltot, 1e-9) ** 2
+                trocas[chave] = 0
+            self.tracao_sem_convergir = False
             for self.ciclos_tracao in range(1, 31):
                 mudou = False
-                for membros in grupos.values():
+                for chave, membros in grupos.items():
+                    if trocas[chave] > 3:
+                        continue
                     alonga, normais, kmax = 0.0, [], 1.0
                     for nb in membros:
                         R, L, T, k, fe, _d, _p, idx, lib = info[nb]
@@ -575,16 +588,20 @@ class Modelo:
                             k2, f2, _rec = cond[nb]
                             normais.append(-(k2 @ ul + f2)[0])
                     if ativos[membros[0]]:
-                        if normais and sum(normais) / len(normais) < -1e-6 * kmax:
+                        if normais and sum(normais) / len(normais) < -max(ncr[chave], 1e-6 * kmax):
                             for nb in membros:
                                 ativos[nb] = False
+                            trocas[chave] += 1
                             mudou = True
-                    elif alonga > 1e-9:
+                    elif alonga > 1e-9 or trocas[chave] >= 3:
                         for nb in membros:
                             ativos[nb] = True
+                        trocas[chave] += 1
                         mudou = True
                 if not mudou:
                     break
+                if self.ciclos_tracao == 30:
+                    self.tracao_sem_convergir = True
                 K, F, cond = montar(kgs)
                 if molas is not None:
                     K = K + molas

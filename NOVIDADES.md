@@ -15,6 +15,40 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.26.0 — 21/11/2026
+
+![Folha de uma placa com o detalhe A ampliado em 2:1, letra no círculo e legenda embaixo](.github/images/novidades/1.26.0.webp)
+
+### Desenho
+
+- **Vista de detalhe** (aba Desenho): escolha uma aresta ou vértice da vista e o Usinix cria o detalhe
+  ampliado com a letra seguinte (A, B, C…, sem I e O), o círculo na vista de origem e a legenda "DETALHE A /
+  ESC. 2:1" embaixo. O detalhe vai para o lugar livre da folha mais perto da vista, sem cair sobre vistas,
+  cotas ou a legenda; se não houver espaço, sai menor.
+- **Texto da cota:** acrescenta texto em volta do número medido por modelo — "4× {valor}", "{valor} (ref.)",
+  "{valor} ±0,1", "{valor} H7"… O número continua medido; "{valor}" sozinho volta ao original.
+- **Folha da chapa com os dados de fabricação:** tabela com espessura, medida planificada, número de dobras,
+  raio interno, fator K e a tabela de onde ele saiu (família e r/t). Na legenda, o material vem com a espessura
+  ("ASTM A36 · chapa 3 mm").
+- **Peça torneada comprida:** sem a isométrica quando ela derrubava a escala (eixo de 315 mm sai 1:2 num A4,
+  antes 1:5). A corrente de trechos fecha com o comprimento total mesmo com chanfro na ponta.
+
+### Estruturas
+
+- **Contraventamento só de tração:** a diagonal só sai quando a compressão passa da carga de flambagem dela
+  (Euler, no comprimento todo). Diagonal rígida (perfil W, por exemplo) continua trabalhando com a pouca
+  compressão do encurtamento dos pilares, e o cálculo não fica mais trocando diagonais até o limite de ciclos.
+  Se ainda assim não estabilizar, o resultado traz um aviso.
+- **Placas e reforços antigos sem material** passam a usar o material da estrutura na lista de materiais e no
+  Excel (antes, "material a definir").
+
+### Simulação
+
+- **Estudo salvo em versão anterior** que já passou pela convergência: a nova rodada parte do tamanho da
+  primeira malha da série, não da malha mais fina guardada.
+- **Arquivo com resultado de malha muito grande** (mais de 150 mil nós) abre com o resultado escondido, para o
+  programa não ficar parado desenhando; aparece pela árvore quando quiser.
+
 ## 1.25.0 — 21/11/2026
 
 ![Folha de um eixo modelado em pé, desenhado deitado, com diâmetros, trechos e comprimento total](.github/images/novidades/1.25.0.webp)

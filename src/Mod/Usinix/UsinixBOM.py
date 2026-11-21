@@ -54,6 +54,11 @@ def _prop(obj, *nomes):
             v = getattr(obj, n)
             if v not in (None, ""):
                 return v
+            if n == "Material":
+                # chapa/reforço feito antes de herdar o material: vale o da estrutura em que está
+                v = UsinixUtil.material_da_estrutura(obj)
+                if v:
+                    return v
     return None
 
 

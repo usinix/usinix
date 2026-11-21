@@ -604,7 +604,8 @@ def _vistas(doc, page, objs, escala=None, arranjo=ARRANJO_PADRAO):
     # escala ANTES de criar as vistas: as projeções feitas com a folha ainda em 1:1 guardavam a geometria em
     # tamanho natural (estrutura de 6 m estourava a folha, só a frontal se refazia na escala certa)
     deitar = _deitar(fontes) if projecoes else False
-    if "Top" in projecoes and "Left" in projecoes and _torneada_deitada(fontes, deitar):
+    torneada = "Top" in projecoes and "Left" in projecoes and _torneada_deitada(fontes, deitar)
+    if torneada:
         # peça torneada deitada: a superior repete a frontal; ficam a frontal e a do círculo
         projecoes = tuple(p for p in projecoes if p != "Top")
     if not escala:
@@ -614,6 +615,12 @@ def _vistas(doc, page, objs, escala=None, arranjo=ARRANJO_PADRAO):
             bb = _caixa(fontes)
             caixa = FreeCAD.BoundBox(0, 0, 0, bb.ZLength, bb.YLength, bb.XLength)
         escala = escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, com_iso, caixa)
+        if torneada and com_iso:
+            # eixo comprido: a isométrica não acrescenta nada a uma peça de revolução e derrubava a escala
+            # (eixo de 315 mm saía 1:5 num A4); sem ela, se couber maior, fica sem
+            sem = escala_que_cabe(fontes, larg - 30, alt - 20 - 60, projecoes, False, caixa)
+            if sem > escala + 1e-9:
+                escala, com_iso = sem, False
     page.Scale = escala
     doc.recompute()
     # eixo em pé (Z): a frontal mostra o eixo deitado, como se desenha peça torneada

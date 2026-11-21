@@ -397,12 +397,14 @@ def cotas_de_revolucao(page, por_tipo, rev):
             pos = [ex[0][k_ax], ex[1][k_ax]]
             for _m, _d, _p, (p0, p1) in trechos:
                 pos += [p0, p1]
-            pos = sorted(pos)
             junto = max(1.0, 0.01 * L)
-            marcos = []
-            for x in pos:
-                if not marcos or x - marcos[-1] > junto:
+            # os extremos da peça mandam: um chanfro junto da ponta não pode roubar o lugar do fim do eixo
+            # (a corrente somava 49 num trecho de 50 e não fechava com o total)
+            marcos = sorted({ex[0][k_ax], ex[1][k_ax]})
+            for x in sorted(pos[2:]):
+                if all(abs(x - m) > junto for m in marcos):
                     marcos.append(x)
+            marcos.sort()
             if len(marcos) > 2:
                 lado = "baixo" if a == "x" else "dir"
                 for x0, x1 in zip(marcos[:-1], marcos[1:]):
