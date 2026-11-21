@@ -420,6 +420,10 @@ def cotas_de_revolucao(page, por_tipo, rev):
                         cota.Y = (x0 + x1) / 2.0 * e
                     cota.recompute()
                     criadas.append(cota)
+    try:
+        nota_de_usinagem(page, longitudinal[0] if longitudinal else None, rev, feitos)   # anotação, não cota
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: nota de usinagem: %s\n" % exc)
     if circular is not None and ext and round(ext[0], 2) not in feitos:
         circ = [c for c in circulos_do_corte(circular) if c[3] and abs(2 * c[1] - ext[0]) < 1e-2]
         if circ:
@@ -440,6 +444,150 @@ def cotas_de_revolucao(page, por_tipo, rev):
             d.recompute()
             criadas.append(d)
     return criadas, circular
+
+
+def detalhes_de_usinagem(objs, rev):
+    """O que a corrente de trechos e os diâmetros não mostram numa peça torneada, medido no modelo: chanfros
+    (tamanho × ângulo), rasgo de chaveta (largura, comprimento, profundidade) e furos axiais (rosca, ⌀,
+    profundidade, ponta). Devolve [linhas de texto]."""
+    import Part
+    pecas = UsinixUtil.pecas(objs)
+    if len(pecas) != 1:
+        return []
+    obj, sh = pecas[0]
+    eixo, ext, inn = rev
+    eixo = FreeCAD.Vector(eixo).normalize()
+    cil = [f for f in sh.Faces if isinstance(f.Surface, Part.Cylinder)
+           and abs(abs(FreeCAD.Vector(f.Surface.Axis).normalize().dot(eixo)) - 1) < 1e-6]
+    if not cil:
+        return []
+    centro = FreeCAD.Vector(max(cil, key=lambda f: f.Area).Surface.Center)
+
+    def ao_longo(bb_pts):
+        return [(p - centro).dot(eixo) for p in bb_pts]
+
+    def faixa(f):
+        vals = ao_longo([v.Point for v in f.Vertexes]) or [0.0]
+        return min(vals), max(vals)
+    tot = ao_longo([v.Point for v in sh.Vertexes])
+    zmin, zmax = min(tot), max(tot)
+    linhas = []
+    # chanfros: cones coaxiais curtos
+    chanf = {}
+    for f in sh.Faces:
+        if not isinstance(f.Surface, Part.Cone):
+            continue
+        a, b = faixa(f)
+        comp = b - a
+        ang = math.degrees(f.Surface.SemiAngle)
+        if comp <= 0 or comp > 0.25 * max(ext or [1.0]):
+            continue
+        raios = []
+        for v in f.Vertexes:
+            r = v.Point - centro
+            raios.append((r - eixo * r.dot(eixo)).Length)
+        if not raios or min(raios) < 0.05:
+            continue                       # ponta da broca (cone até o eixo), não chanfro
+        chave = (round(comp, 2), round(abs(ang)))
+        chanf[chave] = chanf.get(chave, 0) + 1
+    for (comp, ang), n in sorted(chanf.items()):
+        linhas.append("%sChanfro %s × %d°" % ("%d× " % n if n > 1 else "", UsinixUtil.fmt_dim(comp), ang))
+    # rasgo de chaveta: planos paralelos ao eixo
+    planos = [f for f in sh.Faces if isinstance(f.Surface, Part.Plane)
+              and abs(FreeCAD.Vector(f.Surface.Axis).normalize().dot(eixo)) < 1e-6]
+    if planos:
+        normais = [FreeCAD.Vector(f.Surface.Axis).normalize() for f in planos]
+        lados = []
+        for i in range(len(planos)):
+            for j in range(i + 1, len(planos)):
+                if abs(normais[i].dot(normais[j])) > 0.999:
+                    dist = abs((planos[j].Vertexes[0].Point - planos[i].Vertexes[0].Point).dot(normais[i]))
+                    if dist > 1e-3:
+                        lados.append((dist, i, j))
+        fundo = None
+        if lados:
+            _w, i0, _j0 = min(lados)
+            for k, f in enumerate(planos):
+                if abs(normais[k].dot(normais[i0])) < 1e-6:
+                    p0 = f.Vertexes[0].Point - centro
+                    dist = abs(p0.dot(normais[k]))
+                    if dist > 1e-3 and (fundo is None or dist < fundo[0]):
+                        fundo = (dist, k)
+        if lados:
+            larg, i, j = min(lados)
+            a = min(faixa(planos[i])[0], faixa(planos[j])[0])
+            b = max(faixa(planos[i])[1], faixa(planos[j])[1])
+            # rasgo de ponta arredondada: as faces cilíndricas das pontas aumentam o comprimento
+            pontas = [f for f in sh.Faces if isinstance(f.Surface, Part.Cylinder)
+                      and abs(FreeCAD.Vector(f.Surface.Axis).normalize().dot(eixo)) < 1e-6
+                      and abs(2 * f.Surface.Radius - larg) < 1e-3]
+            for f in pontas:
+                fa, fb = faixa(f)
+                a, b = min(a, fa), max(b, fb)
+            txt = "Rasgo de chaveta %s × %s" % (UsinixUtil.fmt_dim(larg), UsinixUtil.fmt_dim(b - a))
+            if fundo is not None:
+                meio = (a + b) / 2.0
+                d_local = max([2 * f.Surface.Radius for f in cil if faixa(f)[0] - 1e-6 <= meio <= faixa(f)[1] + 1e-6
+                               and (f.normalAt(0, 0).dot(f.valueAt(0, 0) - centro - eixo * (f.valueAt(0, 0) - centro).dot(eixo)) > 0)]
+                              or [max(ext)])
+                txt += ", prof. %s" % UsinixUtil.fmt_dim(d_local / 2.0 - fundo[0])
+            linhas.append(txt)
+    # furos axiais (internos) com rosca ou profundidade
+    roscas = {}
+    for o in getattr(obj, "Group", []) or []:
+        if o.TypeId == "PartDesign::Hole" and getattr(o, "Threaded", False):
+            try:
+                roscas[round(float(o.Diameter), 2)] = str(o.ThreadSize)
+            except Exception:
+                pass
+    for f in cil:
+        u0, u1, v0, v1 = f.ParameterRange
+        pt = f.valueAt((u0 + u1) / 2.0, (v0 + v1) / 2.0)
+        nrm = f.normalAt((u0 + u1) / 2.0, (v0 + v1) / 2.0)
+        rad = pt - centro
+        rad = rad - eixo * rad.dot(eixo)
+        if nrm.dot(rad) > 0:
+            continue                       # externo
+        d = 2 * f.Surface.Radius
+        a, b = faixa(f)
+        passante = a <= zmin + 1e-3 and b >= zmax - 1e-3
+        lado = "" if passante else (" (ponta esquerda)" if abs(a - zmin) < abs(zmax - b) else " (ponta direita)")
+        rosca = roscas.get(round(d, 2)) or next((t for dd, t in roscas.items() if 0 <= dd - d < 1.6), None)
+        if rosca:
+            linhas.append("Furo roscado %s, prof. %s%s" % (rosca, UsinixUtil.fmt_dim(b - a), lado))
+        elif not passante:
+            linhas.append("Furo ⌀%s, prof. %s%s" % (UsinixUtil.fmt_dim(d), UsinixUtil.fmt_dim(b - a), lado))
+    return list(dict.fromkeys(linhas))
+
+
+def nota_de_usinagem(page, vista, rev, feitos=()):
+    """Anotação com os detalhes de usinagem (ver detalhes_de_usinagem) ao lado da vista longitudinal."""
+    if vista is None:
+        return None
+    objs = list(getattr(vista, "Source", []) or [])
+    linhas = detalhes_de_usinagem(objs, rev)
+    if not linhas:
+        return None
+    doc = page.Document
+    n = doc.addObject("TechDraw::DrawViewAnnotation", "NotaUsinagem")
+    n.Label = UsinixUtil.rotulo_unico(doc, "Nota de usinagem")
+    page.addView(n)
+    n.Text = linhas
+    n.TextSize = _alt_texto()
+    try:
+        import UsinixDetalhe as D
+        cx, cy = D._xy_na_folha(vista)
+        tam = float(getattr(n.TextSize, "Value", n.TextSize))
+        larg = max(len(t) for t in linhas) * tam * 0.58
+        alt = len(linhas) * tam * 1.35
+        _x0, _x1, y0, _y1 = D._caixa_da_vista(vista)
+        abaixo = cy + y0 * float(vista.getScale()) - 22.0 - alt / 2.0      # embaixo da corrente de trechos
+        x, y = D.lugar_livre(page, larg / 2.0 + 2.0, (cx, abaixo), ignorar=(n,), meia_y=alt / 2.0 + 2.0)
+        n.X, n.Y = x, y
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: posição da nota de usinagem: %s\n" % exc)
+        n.X, n.Y = 60.0, 40.0
+    return n
 
 
 def cotas_gerais(page, objs, furos=False):

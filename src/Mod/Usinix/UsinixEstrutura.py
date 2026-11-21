@@ -1178,6 +1178,7 @@ class Barra:
         obj.MassaLinear = float(it["massa"])
         obj.Massa = it["massa"] * comp / 1000.0
         obj.Material = est.Material
+        aplicar_material(obj, est.Material)
         obj.SituacaoDados = "confirmado" if UsinixPerfis.confiavel(it) else "a conferir"
         fu = descricao_furacao(est, obj.Indice, eds)
         if obj.Furacao != fu:
@@ -1188,6 +1189,44 @@ class Barra:
 
     def loads(self, state):
         return None
+
+
+_uuid_material = {}
+
+
+def uuid_do_material(nome):
+    """UUID do material da biblioteca do Usinix com esse nome (ex.: "ASTM A36"), ou None."""
+    nome = (nome or "").strip()
+    if not nome:
+        return None
+    if nome not in _uuid_material:
+        uuid = None
+        try:
+            import UsinixPropriedades
+            lst = UsinixPropriedades.materiais_usinix()
+            exatos = [u for n, u in lst if n.lower() == nome.lower()]
+            parecidos = [u for n, u in lst if nome.lower() in n.lower() or n.lower() in nome.lower()]
+            uuid = (exatos or (parecidos if len(parecidos) == 1 else [None]))[0]
+        except Exception:
+            uuid = None
+        _uuid_material[nome] = uuid
+    return _uuid_material[nome]
+
+
+def aplicar_material(barra, nome):
+    """Material da estrutura também como material do FreeCAD da barra (ShapeMaterial): a massa, a lista e a
+    conferência da folha leem esse; só o texto ficava, e a barra aparecia "sem material"."""
+    uuid = uuid_do_material(nome)
+    if uuid is None or "ShapeMaterial" not in barra.PropertiesList:
+        return False
+    if getattr(barra.ShapeMaterial, "UUID", "") == uuid:
+        return False
+    try:
+        import UsinixPropriedades
+        UsinixPropriedades.definir_material(barra, uuid)
+        return True
+    except Exception:
+        return False
 
 
 class VPEstrutura:

@@ -21021,3 +21021,317 @@ class T160PendenciasDaGrade(unittest.TestCase):
         for nome in ("grupo_das_barras", "esqueleto_mef", "conferir_folha", "isolar_solido", "duplicar_analise",
                      "carga_ponto_mais_distante", "salvar", "grupo_de_vistas"):
             self.assertIn(nome, UsinixIA.FERRAMENTAS)
+
+
+class T161RetesteDa127(unittest.TestCase):
+    """1.27.x: reteste da 1.27.0 — rotinas de abertura (o FreeCAD 1.1 não avisa o fim da restauração), escala
+    automática normalizada, rótulos da análise duplicada, legenda das figuras em MPa, seção sem linhas, material
+    da barra, conferência de vistas sobrepostas e sem material, esqueleto no eixo real, lista de ferramentas da IA,
+    detalhes de usinagem da peça torneada e caixa das vistas fora da escala 1:1."""
+
+    _grade = T151RelatorioMEFDaBancadaEIA._grade
+    _calculada = T151RelatorioMEFDaBancadaEIA._calculada
+    _quadro = T160PendenciasDaGrade._quadro
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteT161")
+
+    def tearDown(self):
+        try:
+            if self.doc.Name in FreeCAD.listDocuments():
+                fechar(self.doc)
+        except ReferenceError:
+            pass
+
+    @staticmethod
+    def _eventos(seg=1.0):
+        import time
+        if not FreeCAD.GuiUp:
+            return
+        from PySide import QtWidgets
+        fim = time.time() + seg
+        while time.time() < fim:
+            QtWidgets.QApplication.processEvents()
+            time.sleep(0.02)
+
+    # ------------------------------------------------------------------ abertura
+    def test_rotina_de_abertura_roda_uma_vez(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixUtil
+        caminho = os.path.join(tempfile.mkdtemp(), "abrir.FCStd")
+        self.doc.addObject("App::FeaturePython", "Algo")
+        self.doc.saveAs(caminho)
+        fechar(self.doc)
+        chamadas = []
+
+        class Obs:
+            def slotCreatedDocument(self, doc):
+                UsinixUtil.depois_de_abrir(self, doc, lambda d: chamadas.append(d.Name))
+
+            def slotFinishRestoreDocument(self, doc):
+                UsinixUtil.depois_de_abrir(self, doc, lambda d: chamadas.append(d.Name))
+        o = Obs()
+        FreeCAD.addDocumentObserver(o)
+        try:
+            self.doc = FreeCAD.openDocument(caminho)
+            self._eventos(0.5)
+        finally:
+            FreeCAD.removeDocumentObserver(o)
+        self.assertEqual(chamadas, [self.doc.Name])
+        # documento novo (sem arquivo) não chama
+        chamadas.clear()
+        FreeCAD.addDocumentObserver(o)
+        try:
+            d2 = novo_doc("UsinixTesteT161b")
+            self._eventos(0.3)
+        finally:
+            FreeCAD.removeDocumentObserver(o)
+            fechar(d2)
+        self.assertEqual(chamadas, [])
+
+    def test_observadores_usam_a_rotina_de_abertura(self):
+        import inspect
+        import UsinixGui
+        import UsinixFEMBancada
+        import UsinixPropriedades
+        for m in (UsinixGui, UsinixFEMBancada, UsinixPropriedades):
+            self.assertIn("depois_de_abrir", inspect.getsource(m), m.__name__)
+
+    # ------------------------------------------------------------------ desenho
+    def test_escala_automatica_vira_normalizada(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import Part
+        import UsinixFolhas as F
+        import UsinixGui
+        o = self.doc.addObject("Part::Feature", "Caixa")
+        o.Shape = Part.makeBox(1330, 400, 300)
+        self.doc.recompute()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [o])
+        self.doc.recompute()
+        v = [x for x in p.Views if x.isDerivedFrom("TechDraw::DrawViewPart") or
+             x.TypeId == "TechDraw::DrawProjGroup"][0]
+        v.ScaleType = "Automatic"
+        self.doc.recompute()
+        UsinixGui._normalizar_escala(self.doc.Name, v.Name)
+        e = float(v.Scale)
+        self.assertAlmostEqual(F.escala_normal(e), e, places=9)
+
+    def test_caixa_da_vista_sem_escala(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import Part
+        import UsinixDetalhe as D
+        import UsinixVistas as V
+        o = self.doc.addObject("Part::Feature", "Eixo")
+        o.Shape = Part.makeCylinder(15, 100)
+        self.doc.recompute()
+        import UsinixFolhas as F
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        g = V.grupo_da_peca(p, [o])
+        self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+        for v in g.Views:
+            x0, x1, y0, y1 = D._caixa_da_vista(v)
+            self.assertLessEqual(max(x1 - x0, y1 - y0), 100.0 + 1e-6, (v.Label, v.getScale()))
+
+    def test_conferir_vistas_sobrepostas_e_sem_material(self):
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import Part
+        import UsinixConferirFolha as C
+        import UsinixFolhas as F
+        import UsinixVistas as V
+        a = self.doc.addObject("Part::Feature", "A")
+        a.Shape = Part.makeBox(100, 60, 40)
+        b = self.doc.addObject("Part::Feature", "B")
+        b.Shape = Part.makeBox(80, 50, 30)
+        self.doc.recompute()
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [a])
+        g2 = V.grupo_na_folha(p, [b], ("Front",), 0, 0, 1.0)
+        g1 = [x for x in p.Views if x.TypeId == "TechDraw::DrawProjGroup" and x is not g2][0]
+        V.esperar_vistas(list(g1.Views) + list(g2.Views), 60)
+        g2.X, g2.Y = float(g1.X), float(g1.Y)
+        et = dict(p.Template.EditableTexts)
+        et["material"] = "ASTM A36"
+        p.Template.EditableTexts = et
+        self.doc.recompute()
+        avisos = C.conferir(p)
+        self.assertTrue(any("fica em cima de" in x for x in avisos), avisos)
+        self.assertTrue(any("não tem material definido" in x for x in avisos), avisos)
+
+    def _eixo_usinado(self):
+        import Part
+        V3 = FreeCAD.Vector
+        s = Part.makeCylinder(15, 60).fuse(Part.makeCylinder(10, 40, V3(0, 0, 60))).removeSplitter()
+        eds = [e for e in s.Edges if isinstance(e.Curve, Part.Circle) and
+               min(abs(e.Vertexes[0].Point.z), abs(e.Vertexes[0].Point.z - 100)) < 1e-6]
+        s = s.makeChamfer(1.0, eds)
+        s = s.cut(Part.makeBox(6, 10, 40, V3(-3, 11.5, 10)))           # chaveta 6 × 40, prof. 3,5
+        s = s.cut(Part.makeCylinder(3.4, 20, V3(0, 0, 80))).removeSplitter()
+        o = self.doc.addObject("Part::Feature", "Eixo")
+        o.Shape = s
+        self.doc.recompute()
+        return o
+
+    def test_detalhes_de_usinagem_da_peca_torneada(self):
+        import UsinixVistas as V
+        o = self._eixo_usinado()
+        rev = V.revolucao([o])
+        self.assertIsNotNone(rev)
+        linhas = V.detalhes_de_usinagem([o], rev)
+        self.assertIn("2× Chanfro 1 × 45°", linhas)
+        self.assertIn("Rasgo de chaveta 6 × 40, prof. 3,5", linhas)
+        self.assertIn("Furo ⌀6,8, prof. 20 (ponta direita)", linhas)
+        try:
+            import TechDraw  # noqa: F401
+        except ImportError:
+            return
+        import UsinixConferirFolha as C
+        import UsinixFolhas as F
+        p = F.nova_folha(self.doc, "A3", "NBR16752", False, {}, [o], arranjo="3vistas_iso")
+        g = V.grupo_da_peca(p, [o])
+        self.assertTrue(V.esperar_vistas(list(g.Views), 60))
+        cotas = V.cotas_gerais(p, [o], furos=True)
+        self.doc.recompute()
+        self.assertTrue(all(c.TypeId == "TechDraw::DrawViewDimension" for c in cotas))
+        notas = [v for v in p.Views if v.Name.startswith("NotaUsinagem")]
+        self.assertEqual(len(notas), 1)
+        self.assertEqual(list(notas[0].Text), linhas)
+        import UsinixDetalhe as D
+        lon = [v for v in g.Views if v.Type == "Front"][0]
+        cx, cy = D._xy_na_folha(lon)
+        self.assertLess(float(notas[0].Y), cy)                       # embaixo da vista longitudinal
+        self.assertLess(abs(float(notas[0].X) - cx), 60.0)
+        self.assertEqual(C.conferir(p), [])
+
+    def test_furo_roscado_pelo_recurso_hole(self):
+        import Part
+        import UsinixVistas as V
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        base = self.doc.addObject("Part::Feature", "Base")
+        base.Shape = Part.makeCylinder(15, 80)
+        body.BaseFeature = base
+        sk = body.newObject("Sketcher::SketchObject", "SkFuro")
+        sk.AttachmentSupport = [(body.Origin.OriginFeatures[3], "")]
+        sk.MapMode = "FlatFace"
+        sk.AttachmentOffset = FreeCAD.Placement(FreeCAD.Vector(0, 0, 80), FreeCAD.Rotation())
+        sk.addGeometry(Part.Circle(FreeCAD.Vector(), FreeCAD.Vector(0, 0, 1), 4), False)
+        self.doc.recompute()
+        h = body.newObject("PartDesign::Hole", "Hole")
+        h.Profile = sk
+        h.ThreadType = "ISOMetricProfile"
+        h.Threaded = True
+        h.ThreadSize = [t for t in h.getEnumerationsOfProperty("ThreadSize") if t.startswith("M8")][0]
+        h.Depth = 20
+        self.doc.recompute()
+        if body.Shape.Volume > Part.makeCylinder(15, 80).Volume - 1:
+            h.Reversed = True
+            self.doc.recompute()
+        linhas = V.detalhes_de_usinagem([body], V.revolucao([body]))
+        self.assertEqual(linhas, ["Furo roscado M8x1.25, prof. 20 (ponta direita)"])     # sem a ponta da broca
+
+    # ------------------------------------------------------------------ estrutura
+    def test_esqueleto_no_eixo_real(self):
+        import UsinixEsqueletoMEF as M
+        _sk, est = self._quadro("Meio direito")
+        o = M.criar(est)
+        self.assertTrue(o.EixoReal)
+        xs = {round(v.Point.x, 1) for v in o.Shape.Vertexes}
+        self.assertIn(20.0, xs)                 # contorno 20 mm para dentro (tubo de 40 com fixação no meio)
+        self.assertIn(2200.0, xs)
+        self.assertNotIn(0.0, xs)
+        for x in (585.0, 1150.0, 1715.0):
+            self.assertIn(x, xs)                # travessas internas centradas
+        # todos os nós ligados: cada vértice é ponta de pelo menos 2 linhas
+        pts = [v.Point for e in o.Shape.Edges for v in e.Vertexes]
+        for p in pts:
+            self.assertGreaterEqual(sum(1 for q in pts if (q - p).Length < 1e-3), 2, p)
+        o.EixoReal = False
+        self.doc.recompute()
+        self.assertIn(0.0, {round(v.Point.x, 1) for v in o.Shape.Vertexes})
+
+    def test_material_da_estrutura_na_barra(self):
+        import UsinixEstrutura as E
+        _sk, est = self._quadro("Centro")
+        import UsinixPropriedades
+        nomes = [n for n, _u in UsinixPropriedades.materiais_usinix()]
+        if not nomes:
+            self.skipTest("biblioteca de materiais do Usinix não carregada")
+        nome = next((n for n in nomes if "A36" in n), nomes[0])
+        est.Material = nome
+        self.doc.recompute()
+        uuid = E.uuid_do_material(nome)
+        self.assertIsNotNone(uuid)
+        for b in E.barras_de(est):
+            self.assertEqual(b.ShapeMaterial.UUID, uuid, b.Label)
+
+    # ------------------------------------------------------------------ simulação
+    def test_duplicar_mantem_os_rotulos(self):
+        import UsinixFEMBancada as B
+        a, _est = self._calculada()
+        n = B.duplicar_analise(a)
+        orig = {o.Label for o in a.Group}
+        for o in n.Group:
+            self.assertIn(o.Label, orig)
+
+    def test_secao_sem_linhas_vale_para_o_resto(self):
+        import UsinixFEMBancada as B
+        a, est = self._calculada()
+        g = B.secoes(est)[0]["obj"]
+        g.References = []
+        self.doc.recompute()
+        s = [x for x in B.secoes(est) if x["obj"] is g][0]
+        self.assertGreater(s["n"], 0)
+        self.assertGreater(s["comprimento"], 0.0)
+
+    def test_legenda_das_figuras_em_mpa(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        from PySide import QtGui
+        import UsinixFEMRelatorio as R
+        caminho = os.path.join(tempfile.mkdtemp(), "fig.png")
+        im = QtGui.QImage(800, 600, QtGui.QImage.Format_RGB32)
+        im.fill(QtGui.QColor("black"))
+        self.assertTrue(im.save(caminho))
+        self.assertTrue(R._trocar_legenda(caminho, 0.0, 40.6, "MPa"))
+        im = QtGui.QImage(caminho)
+        self.assertEqual(QtGui.QColor(im.pixel(795, 20)).name(), "#ffffff")       # faixa da direita trocada
+        self.assertEqual(QtGui.QColor(im.pixel(100, 300)).name(), "#000000")      # figura intacta
+        y = int(600 * 0.5)
+        x = int(800 * (1 - 0.135)) + int(800 * 0.012) + 5
+        self.assertNotEqual(QtGui.QColor(im.pixel(x, y)).name(), "#ffffff")       # barra de cores
+
+    # ------------------------------------------------------------------ IA
+    def test_lista_de_ferramentas_avisa_a_mudanca(self):
+        import importlib
+        import io
+        import sys
+        pasta = os.path.dirname(os.path.abspath(__import__("UsinixGui").__file__))
+        if pasta not in sys.path:
+            sys.path.append(pasta)
+        mcp = importlib.import_module("usinix_mcp")
+        antiga = [{"name": "estado", "inputSchema": {"type": "object"}}]
+        nova = antiga + [{"name": "esqueleto_mef", "inputSchema": {"type": "object"}}]
+        resp = {"lista": antiga}
+        orig = mcp._ponte
+        saida, sys_out = io.StringIO(), sys.stdout
+        try:
+            mcp._ponte = lambda *a, **k: {"ferramentas": resp["lista"]}
+            mcp._ferramentas()
+            mcp._lista["conferida"] = 0.0
+            resp["lista"] = nova
+            sys.stdout = saida
+            mcp._avisar_se_mudou()
+            mcp._avisar_se_mudou()              # 20 s de intervalo: não confere de novo
+        finally:
+            sys.stdout = sys_out
+            mcp._ponte = orig
+        self.assertEqual(saida.getvalue().count("notifications/tools/list_changed"), 1)
+        self.assertEqual(mcp._lista["vista"], ["estado", "esqueleto_mef"])

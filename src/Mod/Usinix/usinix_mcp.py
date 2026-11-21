@@ -70,19 +70,32 @@ def _ferramentas():
                                  "Conectar IA › Ligar a conexão.", "inputSchema": {"type": "object",
                                                                                    "properties": {}}}]
     _lista["vista"] = [t.get("name") for t in lista]
+    _lista["esquemas"] = json.dumps([t.get("inputSchema") for t in lista], sort_keys=True)
     return lista
 
 
 def _avisar_se_mudou():
-    """Com o Usinix ligado depois, a lista pode ter crescido: avisa o assistente para pedir de novo."""
-    if _lista["vista"] is None or _lista["ao_vivo"]:
+    """A lista pode ter mudado desde que o assistente a pediu: Usinix ligado depois, ou Usinix atualizado e aberto
+    de novo com o assistente ainda aberto (antes só o primeiro caso avisava, e as ferramentas de uma versão nova
+    não apareciam). Confere no máximo a cada 20 s e avisa o assistente para pedir de novo."""
+    import time
+    if _lista["vista"] is None:
         return
+    agora = time.time()
+    if agora - _lista.get("conferida", 0.0) < 20.0:
+        return
+    _lista["conferida"] = agora
     try:
-        nomes = [t.get("name") for t in _ponte("/ferramentas", {}, tempo=5)["ferramentas"]]
+        lista = _ponte("/ferramentas", {}, tempo=5)["ferramentas"]
     except Exception:
         return
     _lista["ao_vivo"] = True
-    if nomes != _lista["vista"]:
+    nomes = [t.get("name") for t in lista]
+    esquemas = json.dumps([t.get("inputSchema") for t in lista], sort_keys=True)
+    if _lista.get("esquemas") is None:
+        _lista["esquemas"] = esquemas
+    if nomes != _lista["vista"] or esquemas != _lista["esquemas"]:
+        _lista["esquemas"] = esquemas
         _lista["vista"] = nomes
         sys.stdout.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}) + "\n")
         sys.stdout.flush()

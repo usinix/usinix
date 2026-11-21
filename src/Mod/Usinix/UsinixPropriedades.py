@@ -205,7 +205,13 @@ class Observador:
     def slotDeletedDocument(self, doc):
         self._cache.pop(doc.Name, None)
 
+    def slotCreatedDocument(self, doc):
+        UsinixUtil.depois_de_abrir(self, doc, self._ao_abrir)
+
     def slotFinishRestoreDocument(self, doc):
+        UsinixUtil.depois_de_abrir(self, doc, self._ao_abrir)
+
+    def _ao_abrir(self, doc):
         self._cache.pop(doc.Name, None)
 
     def slotUndoDocument(self, doc):

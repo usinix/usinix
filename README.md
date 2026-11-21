@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.27.0** (21/11/2026): esqueleto da estrutura para o MEF ligado a ela; duplicar análise, carga na
+**Versão atual: 1.27.1** (21/11/2026): nota de usinagem na peça torneada (chanfros, rasgo de chaveta, furo roscado);
+rotinas de abertura de arquivo de volta; esqueleto do MEF no eixo real; material da estrutura na barra; conferência
+da folha com vistas sobrepostas.
+
+Na 1.27.0: esqueleto da estrutura para o MEF ligado a ela; duplicar análise, carga na
 ponta e reação por nó no relatório; escala do carimbo pelas vistas e conferência da folha antes do PDF; isolar
 sólido para desenho; travessas internas centradas.
 

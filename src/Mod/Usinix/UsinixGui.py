@@ -619,9 +619,13 @@ class _FolhaObserver:
             t = obj.TypeId
             if not (t.startswith("TechDraw::DrawView") or t in ("TechDraw::DrawProjGroup", "TechDraw::DrawPage")):
                 return
-            if prop == "Scale" and t != "TechDraw::DrawProjGroupItem" and getattr(obj, "ScaleType", "") == "Automatic":
+            if prop in ("Scale", "ScaleType") and t != "TechDraw::DrawProjGroupItem" and \
+                    getattr(obj, "ScaleType", "") == "Automatic":
+                # a escala automática é calculada no recálculo e não avisa os observadores (só a troca do tipo
+                # chega): confere depois do recálculo, mais de uma vez
                 ref = (obj.Document.Name, obj.Name)
-                QtCore.QTimer.singleShot(0, lambda r=ref: _normalizar_escala(*r))
+                for ms in (0, 400, 1500):
+                    QtCore.QTimer.singleShot(ms, lambda r=ref: _normalizar_escala(*r))
             page = obj if t == "TechDraw::DrawPage" else _pagina_da_vista(obj)
             if page is not None:
                 chave = (page.Document.Name, page.Name)
@@ -631,7 +635,15 @@ class _FolhaObserver:
         except Exception:
             pass
 
+    def slotCreatedDocument(self, doc):
+        import UsinixUtil
+        UsinixUtil.depois_de_abrir(self, doc, self._ao_abrir)
+
     def slotFinishRestoreDocument(self, doc):
+        import UsinixUtil
+        UsinixUtil.depois_de_abrir(self, doc, self._ao_abrir)
+
+    def _ao_abrir(self, doc):
         try:
             import UsinixNomeAntigo
             UsinixNomeAntigo.migrar_documento(doc)      # arquivos de até a 1.20.0 (nome antigo)
@@ -758,6 +770,11 @@ def _normalizar_escala(doc_name, obj_name):
         o = FreeCAD.getDocument(doc_name).getObject(obj_name)
         if o is None or getattr(o, "ScaleType", "") != "Automatic":
             return
+        try:
+            if "Touched" in o.State:
+                o.Document.recompute()
+        except Exception:
+            pass
         e = float(o.Scale)
         n = UsinixFolhas.escala_normal(e)
         if abs(n - e) > 1e-9 * max(1.0, e):

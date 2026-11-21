@@ -67,17 +67,13 @@ def _captura(est, modo, pasta):
         else:
             F.mostrar_campo(est, modo)
         escala = _unidade_do_relatorio(est, modo)
-        if escala:
-            est.pipeline.ViewObject.transformField(*escala)
-        try:
-            FreeCADGui.updateGui()
-            v.viewIsometric()
-            v.fitAll()
-            FreeCADGui.updateGui()
-            v.saveImage(caminho, 1800, 1150, "White")
-        finally:
-            if escala:
-                est.pipeline.ViewObject.transformField(escala[0], 1.0 / escala[1])
+        FreeCADGui.updateGui()
+        v.viewIsometric()
+        v.fitAll()
+        FreeCADGui.updateGui()
+        v.saveImage(caminho, 1800, 1150, "White")
+        if escala and os.path.isfile(caminho):
+            _trocar_legenda(caminho, escala[2], escala[3], "MPa" if modo == "tensao" else "mm")
         return caminho if os.path.isfile(caminho) else None
     except Exception as exc:
         FreeCAD.Console.PrintWarning("Usinix: captura '{}' falhou: {}\n".format(modo, exc))
@@ -101,11 +97,57 @@ def _unidade_do_relatorio(est, modo):
     if not ref or not vmax:
         return None
     r = vmax / abs(ref)
+    try:
+        lo, hi = arr.GetRange(-1 if arr.GetNumberOfComponents() > 1 else 0)
+    except Exception:
+        return None
     if modo == "tensao" and 1e5 < r < 1e7:
-        return campo, 1e-6                     # Pa → MPa
+        return campo, 1e-6, lo * 1e-6, hi * 1e-6           # Pa → MPa
     if modo == "deslocamento" and 1e-4 < r < 1e-2:
-        return campo, 1e3                      # m → mm
+        return campo, 1e3, lo * 1e3, hi * 1e3              # m → mm
     return None
+
+
+# cores da barra padrão do FreeCAD (Blue-Cyan-Green-Yellow-Red), de baixo para cima
+_CORES_BARRA = ((0, 0, 255), (0, 255, 255), (0, 255, 0), (255, 255, 0), (255, 0, 0))
+
+
+def _trocar_legenda(caminho, vmin, vmax, unidade, faixa=0.135):
+    """A barra de cores do FreeCAD mostra o número guardado no resultado (Pa e m no modelo de vigas) e não aceita
+    outra unidade: apaga a faixa da direita da figura e desenha a barra com as mesmas cores, em MPa ou mm, no
+    padrão do texto (vírgula decimal)."""
+    im = QtGui.QImage(caminho)
+    if im.isNull():
+        return False
+    W, H = im.width(), im.height()
+    p = QtGui.QPainter(im)
+    p.setRenderHint(QtGui.QPainter.Antialiasing)
+    x0 = int(W * (1 - faixa))
+    p.fillRect(x0, 0, W - x0, H, QtGui.QColor("white"))
+    topo, base = int(H * 0.2), int(H * 0.88)
+    larg = int(W * 0.032)
+    bx = x0 + int(W * 0.012)
+    grad = QtGui.QLinearGradient(0, base, 0, topo)
+    for i, c in enumerate(_CORES_BARRA):
+        grad.setColorAt(i / (len(_CORES_BARRA) - 1.0), QtGui.QColor(*c))
+    p.fillRect(bx, topo, larg, base - topo, grad)
+    p.setPen(QtGui.QPen(QtGui.QColor(INK), 1))
+    p.drawRect(bx, topo, larg, base - topo)
+    f = _fonte(H * 0.018)
+    p.setFont(f)
+    n = 10
+    dec = 1 if unidade == "MPa" else 3
+    for i in range(n + 1):
+        y = base - (base - topo) * i / float(n)
+        val = vmin + (vmax - vmin) * i / float(n)
+        p.drawLine(bx + larg, int(y), bx + larg + 6, int(y))
+        p.drawText(QtCore.QRectF(bx + larg + 10, y - H * 0.02, W - bx - larg - 12, H * 0.04),
+                   int(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter), F.fmt(val, dec))
+    p.setFont(_fonte(H * 0.02, QtGui.QFont.Bold))
+    p.drawText(QtCore.QRectF(bx - 4, topo - H * 0.06, W - bx, H * 0.04),
+               int(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter), unidade)
+    p.end()
+    return im.save(caminho)
 
 
 # ------------------------------------------------------------------ html

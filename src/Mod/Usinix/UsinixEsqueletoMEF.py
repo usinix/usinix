@@ -11,20 +11,96 @@ import UsinixUtil
 ROTULO = "Esqueleto MEF"
 
 
-def linhas(est):
-    """Linhas das barras da estrutura (só as que têm barra), partidas nos cruzamentos para os nós ligarem."""
+def _offset_centroide(est, ativas, i, normal):
+    """Vetor da linha do esboço até o centroide da seção da barra i (fixação, giro e espelhamento já aplicados)."""
+    import UsinixEstrutura as E
+    sec = E.Secao(est, ativas, i, normal)
+    cu, cv = E.deslocamento(sec.it, "Centroide", sec.espelhar)     # centro da caixa em relação ao centroide
+    return sec.u * (sec.du - cu) + sec.v * (sec.dv - cv)
+
+
+def _intersecao_no_plano(p0, d0, p1, d1, normal):
+    """Ponto da reta (p0, d0) onde ela cruza a reta (p1, d1), as duas vistas no plano de normal `normal`."""
+    n = FreeCAD.Vector(normal)
+    w = p1 - p0
+    a, b = d0 - n * d0.dot(n), d1 - n * d1.dot(n)
+    w = w - n * w.dot(n)
+    cr = a.cross(b)
+    den = cr.dot(n)
+    if abs(den) < 1e-9 * max(1.0, a.Length * b.Length):
+        return None
+    t = w.cross(b).dot(n) / den
+    return p0 + d0 * t
+
+
+def linhas(est, eixo_real=True):
+    """Linhas das barras da estrutura, partidas nos cruzamentos para os nós ligarem.
+
+    eixo_real: cada barra vai para o eixo do centroide da seção (no contorno com fixação "Meio direito" o tubo
+    fica 20 mm para dentro da linha do esboço); nas ligações a ponta encontra o eixo da barra vizinha no plano.
+    Diferença de altura entre os eixos (excentricidade fora do plano) não é modelada: fica em Excentricidades."""
     import Part
     import UsinixEstrutura as E
-    eds = [e for e in E.arestas_ativas(est) if e is not None]
-    if not eds:
-        return Part.Shape()
-    if len(eds) == 1:
-        return Part.Compound(eds)
+    ativas = E.arestas_ativas(est)
+    idx = [i for i, e in enumerate(ativas) if e is not None]
+    if not idx:
+        return Part.Shape(), []
+    normal = E._normal_esqueleto(ativas)
+    segs = []
+    excent = []
+    if eixo_real and normal is not None:
+        off = {}
+        for i in idx:
+            try:
+                off[i] = _offset_centroide(est, ativas, i, normal)
+            except Exception:
+                off[i] = FreeCAD.Vector()
+        n = FreeCAD.Vector(normal).normalize()
+        for i in idx:
+            e = ativas[i]
+            p0, p1 = e.Vertexes[0].Point, e.Vertexes[-1].Point
+            d = p1 - p0
+            if d.Length < E.TOL:
+                continue
+            d.normalize()
+            o = off[i]
+            novos = []
+            for p in (p0, p1):
+                q = p + o
+                vizinhas = [j for j in idx if j != i and
+                            ativas[j].distToShape(Part.Vertex(p))[0] < 1e-6]
+                melhor = None
+                for j in vizinhas:
+                    ej = ativas[j]
+                    dj = ej.Vertexes[-1].Point - ej.Vertexes[0].Point
+                    if dj.Length < E.TOL or abs(dj.normalize().dot(d)) > 0.999:
+                        continue                          # colinear: não define a ponta
+                    x = _intersecao_no_plano(p + o, d, ej.Vertexes[0].Point + off[j], dj, n)
+                    if x is not None and (melhor is None or (x - q).Length < (melhor - q).Length):
+                        melhor = x
+                novos.append(melhor if melhor is not None else q)
+            segs.append(Part.makeLine(novos[0], novos[1]))
+            h = o.dot(n)
+            if abs(h) > 0.5:
+                excent.append("Linha %d: %s mm fora do plano" % (i + 1, ("%.1f" % h).replace(".", ",")))
+    else:
+        segs = [ativas[i] for i in idx]
+    alturas = {round(s.Vertexes[0].Point.dot(FreeCAD.Vector(normal).normalize()), 1) for s in segs} \
+        if normal is not None else set()
+    if len(alturas) > 1:
+        # eixos em alturas diferentes não se cruzam: leva tudo para o plano do primeiro (a excentricidade fica
+        # registrada) para os nós ligarem
+        n = FreeCAD.Vector(normal).normalize()
+        h0 = segs[0].Vertexes[0].Point.dot(n)
+        segs = [Part.makeLine(sg.Vertexes[0].Point - n * (sg.Vertexes[0].Point.dot(n) - h0),
+                              sg.Vertexes[-1].Point - n * (sg.Vertexes[-1].Point.dot(n) - h0)) for sg in segs]
+    if len(segs) == 1:
+        return Part.Compound(segs), excent
     try:
-        partes = eds[0].generalFuse(eds[1:])[0]
-        return Part.Compound([e for e in partes.Edges if e.Length > E.TOL])
+        partes = segs[0].generalFuse(segs[1:], 1e-3)[0]
+        return Part.Compound([e for e in partes.Edges if e.Length > E.TOL]), excent
     except Exception:
-        return Part.Compound(eds)
+        return Part.Compound(segs), excent
 
 
 class EsqueletoMEF:
@@ -36,17 +112,33 @@ class EsqueletoMEF:
                         "Estrutura soldada de onde saem as linhas (acompanha as mudanças dela)")
         obj.addProperty("App::PropertyInteger", "Barras", "Esqueleto MEF", "Linhas depois de partir nos cruzamentos")
         obj.setEditorMode("Barras", 1)
+        self._props(obj)
         obj.Proxy = self
+
+    def _props(self, obj):
+        if "EixoReal" not in obj.PropertiesList:
+            obj.addProperty("App::PropertyBool", "EixoReal", "Esqueleto MEF",
+                            "Linhas no eixo do centroide de cada barra (desligado: as linhas do esboço)")
+            obj.EixoReal = True
+        if "Excentricidades" not in obj.PropertiesList:
+            obj.addProperty("App::PropertyStringList", "Excentricidades", "Esqueleto MEF",
+                            "Barras com o eixo fora do plano das outras (não modelado: confira)")
+            obj.setEditorMode("Excentricidades", 1)
 
     def execute(self, obj):
         est = obj.Estrutura
         if est is None:
             return
-        obj.Shape = linhas(est)
+        self._props(obj)
+        forma, exc = linhas(est, bool(obj.EixoReal))
+        obj.Shape = forma
         obj.Barras = len(obj.Shape.Edges)
+        if list(obj.Excentricidades) != exc:
+            obj.Excentricidades = exc
 
     def onDocumentRestored(self, obj):
         obj.Proxy = self
+        self._props(obj)
 
     def dumps(self):
         return None

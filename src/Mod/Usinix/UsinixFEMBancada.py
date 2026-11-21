@@ -158,11 +158,27 @@ def materiais(est):
     return out
 
 
+def _arestas_do_modelo(est):
+    """[(objeto, "EdgeN")] de todas as linhas da geometria do estudo (peça ou malha)."""
+    geo = est.peca
+    if geo is None and est.malha is not None:
+        geo = getattr(est.malha, "Shape", None)
+    try:
+        return [(geo, "Edge%d" % (i + 1)) for i in range(len(geo.Shape.Edges))]
+    except Exception:
+        return []
+
+
 def secoes(est):
     out = []
-    for g in _itens(est, "Fem::ElementGeometry1D"):
+    itens = _itens(est, "Fem::ElementGeometry1D")
+    # seção sem linhas escolhidas vale para as linhas que nenhuma outra seção pegou (é assim que o CalculiX lê);
+    # o relatório mostrava "0 trechos, 0,00 m" e a massa ficava sem conta
+    com_ref = {(ob.Name, sub) for g in itens for ob, sub in _subs(g)}
+    resto = [(ob, sub) for ob, sub in _arestas_do_modelo(est) if (ob.Name, sub) not in com_ref]
+    for g in itens:
         sp = secao(g)
-        subs = _subs(g)
+        subs = _subs(g) or resto
         comp = 0.0
         for ob, s in subs:
             try:
@@ -345,16 +361,15 @@ def duplicar_analise(analise, rotulo_novo=None):
     nova = doc.addObject(analise.TypeId, analise.Name)
     nova.Label = rotulo_novo or UsinixUtil.rotulo_unico(doc, analise.Label + " (cópia)")
     mapa = {}
-    for o in analise.Group:
-        if o.isDerivedFrom("Fem::FemResultObject") or o.isDerivedFrom("Fem::FemPostObject") or \
-                o.TypeId == "App::TextDocument" or (o.TypeId == "Fem::FemMeshObject" and o.Name.startswith("ResultMesh")):
-            continue                     # resultados e arquivos do solver: a cópia nasce para ser calculada
-        c = doc.copyObject(o, False)
-        if "UsinixRotulo" not in c.PropertiesList:
-            c.addProperty("App::PropertyString", "UsinixRotulo", "Usinix", "Rótulo no relatório (cópia de análise)")
-        c.UsinixRotulo = rotulo(o)
-        mapa[o] = c
-        nova.addObject(c)
+    # rótulos iguais aos do original: o FreeCAD põe "001" no rótulo repetido, a não ser que o documento aceite
+    # rótulo duplicado (preferência "DuplicateLabels"), ligada só durante a cópia
+    pref = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+    dup_antes = pref.GetBool("DuplicateLabels", False)
+    pref.SetBool("DuplicateLabels", True)
+    try:
+        _copiar_membros(analise, nova, mapa)
+    finally:
+        pref.SetBool("DuplicateLabels", dup_antes)
     for nome in nova.PropertiesList:
         if nome.startswith("Usinix") and nome in analise.PropertiesList and nome not in (
                 "UsinixCondAssin", "UsinixCondPontos", "UsinixCalculadoEm", "UsinixConvergencia", "UsinixRelTitulo"):
@@ -372,6 +387,24 @@ def duplicar_analise(analise, rotulo_novo=None):
                 pass
     doc.recompute()
     return nova
+
+
+def _copiar_membros(analise, nova, mapa):
+    doc = analise.Document
+    for o in analise.Group:
+        if o.isDerivedFrom("Fem::FemResultObject") or o.isDerivedFrom("Fem::FemPostObject") or \
+                o.TypeId == "App::TextDocument" or (o.TypeId == "Fem::FemMeshObject" and o.Name.startswith("ResultMesh")):
+            continue                     # resultados e arquivos do solver: a cópia nasce para ser calculada
+        c = doc.copyObject(o, False)
+        if "UsinixRotulo" not in c.PropertiesList:
+            c.addProperty("App::PropertyString", "UsinixRotulo", "Usinix", "Rótulo no relatório (cópia de análise)")
+        c.UsinixRotulo = rotulo(o)
+        try:
+            c.Label = o.Label
+        except Exception:
+            pass
+        mapa[o] = c
+        nova.addObject(c)
 
 
 def _dat(est):
@@ -663,7 +696,13 @@ class _ObservadorResultado:
         except Exception:
             pass
 
+    def slotCreatedDocument(self, doc):
+        UsinixUtil.depois_de_abrir(self, doc, self._ao_abrir)
+
     def slotFinishRestoreDocument(self, doc):
+        UsinixUtil.depois_de_abrir(self, doc, self._ao_abrir)
+
+    def _ao_abrir(self, doc):
         # resultados escondidos no arquivo continuavam desenhando a barra de cores: refaz o hide() deles
         # (o pipeline remonta a barra depois do restauro e da 1ª pintura da vista: repete mais tarde também)
         try:

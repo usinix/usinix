@@ -15,6 +15,44 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.27.1 — 21/11/2026
+
+![Eixo torneado cotado, com a nota de chanfros, rasgo de chaveta e furo embaixo da vista](.github/images/novidades/1.27.1.webp)
+
+### Geral
+
+- **Ao abrir um arquivo:** as rotinas de abertura (nome antigo, resultado grande escondido, cache das folhas e das
+  propriedades) voltam a rodar. O FreeCAD 1.1 não avisa o fim da abertura aos complementos em Python.
+
+### Estruturas
+
+- **Material da barra:** o material da estrutura também vai para o material da barra. Massa, lista e conferência
+  da folha não mostram mais "sem material".
+
+### Simulação
+
+- **Esqueleto no eixo real:** as linhas vão para o centroide de cada barra (contorno "Meio direito" 20 mm para
+  dentro) e os nós continuam ligados. A diferença de altura entre os eixos fica em Excentricidades.
+- **Duplicar análise:** a cópia mantém os mesmos rótulos, sem "001".
+- **Seção sem linhas escolhidas:** vale para as linhas que sobram, como lê o CalculiX. O relatório deixa de mostrar
+  "0 trechos".
+- **Figuras do relatório:** a barra de cores sai em MPa ou mm, com vírgula decimal.
+- **Verificador:** o aviso "material ligado só a parte da peça" não aparece mais no modelo de vigas.
+
+### Desenho
+
+- **Peça torneada:** a nota de usinagem traz os chanfros (1 × 45°), o rasgo de chaveta (largura × comprimento,
+  profundidade) e os furos axiais (rosca M8 do recurso Furo, ou ⌀ e profundidade).
+- **Escala automática:** passa para a escala normalizada também quando o TechDraw recalcula sozinho.
+- **Conferência da folha:** avisa vista em cima de outra vista (ou das cotas dela) e carimbo com material quando o
+  modelo não tem material.
+- **Vistas fora de 1:1:** a área ocupada por uma vista em 1:2, 1:5 etc. era calculada com o dobro do tamanho. Isso
+  afastava as anotações e mudava o centro dos detalhes.
+
+### Conexão com IA
+
+- A lista de ferramentas é atualizada no assistente quando o Usinix é atualizado com o assistente aberto.
+
 ## 1.27.0 — 21/11/2026
 
 ![Quadro de tubos com o contorno fixado pela lateral e as três travessas centradas, vãos iguais](.github/images/novidades/1.27.0.webp)

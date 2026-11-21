@@ -63,7 +63,12 @@ def _caixa_da_vista(vista):
         ys += [bb.YMin, bb.YMax]
     if not xs:
         return -10.0, 10.0, -10.0, 10.0
-    return min(xs), max(xs), min(ys), max(ys)
+    # o TechDraw devolve as arestas já na escala da vista (conferido no 1.1: Ø30 em 1:2 → 60): volta para o modelo
+    try:
+        e = float(vista.getScale()) or 1.0
+    except Exception:
+        e = 1.0
+    return min(xs) / e, max(xs) / e, min(ys) / e, max(ys) / e
 
 
 def _pagina(vista):
@@ -134,14 +139,16 @@ def _retangulos(page, ignorar=()):
 RESERVA = object()
 
 
-def lugar_livre(page, meia, perto, ignorar=(), reserva=RESERVA):
-    """Centro de um quadrado de meio-lado `meia` dentro da moldura que não cruza nada ocupado, o mais perto
-    possível de `perto`. Sem lugar livre: o canto de cima à esquerda da área útil (ou `reserva`)."""
+def lugar_livre(page, meia, perto, ignorar=(), reserva=RESERVA, meia_y=None):
+    """Centro de um quadrado de meio-lado `meia` (retângulo, com `meia_y` para a meia altura) dentro da moldura
+    que não cruza nada ocupado, o mais perto possível de `perto`. Sem lugar livre: o canto de cima à esquerda da
+    área útil (ou `reserva`)."""
+    my = meia if meia_y is None else meia_y
     try:
         larg, alt = float(page.Template.Width), float(page.Template.Height)
     except Exception:
         larg, alt = 420.0, 297.0
-    xmin, xmax, ymin, ymax = 25.0 + meia, larg - 10.0 - meia, 10.0 + meia, alt - 10.0 - meia
+    xmin, xmax, ymin, ymax = 25.0 + meia, larg - 10.0 - meia, 10.0 + my, alt - 10.0 - my
     rets = _retangulos(page, ignorar)
     melhor = None
     passo = 4.0
@@ -149,7 +156,7 @@ def lugar_livre(page, meia, perto, ignorar=(), reserva=RESERVA):
     while y <= ymax:
         x = xmin
         while x <= xmax:
-            livre = all(x + meia <= a or x - meia >= c or y + meia <= b or y - meia >= dd for a, b, c, dd in rets)
+            livre = all(x + meia <= a or x - meia >= c or y + my <= b or y - my >= dd for a, b, c, dd in rets)
             if livre:
                 dist = (x - perto[0]) ** 2 + (y - perto[1]) ** 2
                 if melhor is None or dist < melhor[0]:

@@ -50,6 +50,38 @@ def _cruza(a, b):
     return not (a[2] <= b[0] or a[0] >= b[2] or a[3] <= b[1] or a[1] >= b[3])
 
 
+def _cotas_por_vista(page):
+    cotas = {}
+    for v in page.Views:
+        if v.TypeId == "TechDraw::DrawViewDimension":
+            try:
+                cotas.setdefault(v.References2D[0][0].Name, []).append(v)
+            except Exception:
+                pass
+    return cotas
+
+
+def _com_cotas(v, caixa, cotas):
+    """Caixa da vista aumentada até o texto das cotas dela."""
+    import UsinixDetalhe as D
+    a, b, c, d = caixa
+    try:
+        cx, cy = D._xy_na_folha(v)
+    except Exception:
+        return caixa
+    for cota in cotas.get(v.Name, []):
+        px, py = cx + float(cota.X), cy + float(cota.Y)
+        a, b, c, d = min(a, px - 6.0), min(b, py - 3.0), max(c, px + 6.0), max(d, py + 3.0)
+    return a, b, c, d
+
+
+def _grupo(v):
+    for o in v.InList:
+        if o.TypeId == "TechDraw::DrawProjGroup":
+            return o.Name
+    return v.Name
+
+
 def _materiais_do_modelo(page):
     import UsinixMassa
     fontes = []
@@ -64,6 +96,10 @@ def _materiais_do_modelo(page):
         return {it[1] for it in r.itens if it[5] and it[1]}
     except Exception:
         return set()
+
+
+def _tem_pecas(page):
+    return any(getattr(v, "Source", None) for v in page.Views)
 
 
 def conferir(page):
@@ -90,6 +126,28 @@ def conferir(page):
         m = mats.pop()
         if m.lower() not in no_carimbo.lower():
             avisos.append("Material do carimbo \"%s\", mas o modelo usa \"%s\"." % (no_carimbo, m))
+    elif not mats and no_carimbo and _tem_pecas(page):
+        avisos.append("O carimbo diz \"%s\", mas o modelo não tem material definido (a massa sai pela densidade "
+                      "padrão): escolha o material da peça." % no_carimbo)
+    # vista sobre vista (ou sobre as cotas de outra vista)
+    cotas = _cotas_por_vista(page)
+    vistas = []
+    for v in page.Views:
+        for i in (list(v.Views) if v.TypeId == "TechDraw::DrawProjGroup" else [v]):
+            if i.isDerivedFrom("TechDraw::DrawViewPart"):
+                c = caixa_vista(i)
+                if c is not None:
+                    vistas.append((i, c, _com_cotas(i, c, cotas)))
+    ja = set()
+    for k, (va, ca, xa) in enumerate(vistas):
+        for vb, cb, xb in vistas[k + 1:]:
+            if _grupo(va) == _grupo(vb):
+                continue
+            if _cruza(ca, xb) or _cruza(cb, xa):
+                par = tuple(sorted((va.Label, vb.Label)))
+                if par not in ja:
+                    ja.add(par)
+                    avisos.append("\"%s\" fica em cima de \"%s\" (ou das cotas dela)." % par)
     # invasão da legenda e da margem
     larg, alt = _tamanho(page)
     leg = caixa_legenda(page)

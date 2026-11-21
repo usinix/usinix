@@ -547,7 +547,8 @@ def avaliar(est):
                                 "Os aços SAE da biblioteca vêm sem ele de propósito (a SAE J403 só fixa a "
                                 "composição; o escoamento depende da condição de fornecimento): escolha um aço "
                                 "estrutural (ASTM A36, A572...) ou informe o valor do certificado no material."))
-        if m.References:
+        if m.References and not eh_modelo_de_vigas(est):
+            # no modelo de barras cada trecho usa o material ligado a ele (o aviso confundia)
             msgs.append((AVISO, "O material está ligado só a parte da peça. O assistente usa material único "
                                 "para a peça inteira."))
         txt = material_desatualizado(m.Material)

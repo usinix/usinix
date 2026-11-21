@@ -307,3 +307,43 @@ def salvar(doc, tentativas=4, espera=1.5):
     raise IOError("Não foi possível salvar \"%s\" depois de %d tentativas: %s. Se o arquivo está numa pasta "
                   "sincronizada (Google Drive, OneDrive), espere a sincronização terminar; confira também se ele "
                   "não está aberto em outro programa e se a pasta permite gravar." % (caminho, tentativas, ultimo))
+
+
+_ja_abertos = set()
+
+
+def depois_de_abrir(observador, doc, funcao):
+    """Chama funcao(doc) uma vez quando o documento termina de abrir. O FreeCAD 1.1 não manda
+    slotFinishRestoreDocument aos observadores em Python (só slotCreatedDocument e slotActivateDocument): o que
+    o Usinix fazia ao abrir um arquivo (migrar o nome antigo, esconder resultado grande, cache das folhas)
+    nunca rodava. Use nos dois slots: em slotCreatedDocument a chamada fica para depois do carregamento (o
+    QTimer só roda quando o openDocument volta); em slotFinishRestoreDocument, se um dia vier, roda já; a
+    mesma abertura não roda duas vezes."""
+    try:
+        nome = doc.Name
+        chave = (id(observador), nome, getattr(doc, "Uid", ""))
+    except Exception:
+        return
+
+    def chama():
+        if chave in _ja_abertos:
+            return
+        d = FreeCAD.listDocuments().get(nome)
+        if d is None or not d.FileName:          # documento novo: não há o que restaurar
+            return
+        _ja_abertos.add(chave)
+        if len(_ja_abertos) > 500:
+            _ja_abertos.clear()
+            _ja_abertos.add(chave)
+        try:
+            funcao(d)
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: ao abrir %s: %s\n" % (nome, exc))
+    if getattr(doc, "Restoring", False) or not doc.Objects:
+        try:
+            from PySide import QtCore
+            QtCore.QTimer.singleShot(0, chama)
+            return
+        except Exception:
+            pass
+    chama()
