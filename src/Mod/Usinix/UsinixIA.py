@@ -1021,6 +1021,7 @@ def ligar(porta=None):
     except OSError:
         pass
     gravar_lista_ferramentas()
+    script_mcp()      # o servidor que o assistente roda é uma cópia: sem isto ficava a da 1ª conexão, sem as correções
     FreeCAD.Console.PrintMessage("Usinix: IA conectável na porta local %d.\n" % _estado["porta"])
     return _estado["porta"]
 

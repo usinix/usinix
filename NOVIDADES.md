@@ -15,6 +15,24 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.27.3 — 22/11/2026
+
+### Geral
+
+- **PDF com texto selecionável no Windows:** o Usinix instala a fonte Poppins na conta do usuário (sem pedir
+  administrador). O texto dos relatórios e das folhas em PDF saía como desenho, sem seleção nem busca. Vale a
+  partir da segunda abertura do Usinix nesta versão.
+
+### Simulação
+
+- **Figuras de resultado:** só o resultado aparece; a peça sólida não fica mais em cinza por cima das cores.
+
+### Conexão com IA
+
+- **Ferramentas novas no assistente:** o servidor que o assistente roda é atualizado sempre que a conexão liga.
+  Antes ficava a cópia da primeira conexão, e as ferramentas das versões novas não apareciam. Depois de atualizar,
+  feche e abra o assistente uma vez.
+
 ## 1.27.2 — 21/11/2026
 
 ### Simulação

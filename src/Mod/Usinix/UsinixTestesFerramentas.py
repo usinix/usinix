@@ -21350,6 +21350,33 @@ class T161RetesteDa127(unittest.TestCase):
         bom = os.path.getsize(os.path.join(pasta, "usinix.pdf"))
         self.assertGreater(bom, 1.5 * cru, (cru, bom))
 
+    def test_figura_de_resultado_sem_solido(self):
+        import Part
+        import UsinixFEMRelatorio as R
+        a, est = self._calculada()
+        cx = self.doc.addObject("Part::Feature", "SolidoVisivel")
+        cx.Shape = Part.makeBox(10, 10, 10)
+        self.doc.recompute()
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        cx.ViewObject.Visibility = True
+        R._esconder_solidos(est)
+        self.assertFalse(cx.ViewObject.Visibility)
+
+    def test_poppins_do_sistema_para_o_pdf(self):
+        import inspect
+        import sys
+        import UsinixEstilo as S
+        if sys.platform != "win32":
+            self.assertEqual(S.instalar_fontes_do_usuario(), 0)      # só no Windows
+        self.assertIn("instalar_fontes_do_usuario", inspect.getsource(S.garantir_fontes))
+        self.assertIn("_poppins_no_sistema", inspect.getsource(S.install_font))
+
+    def test_servidor_mcp_atualizado_ao_ligar(self):
+        import inspect
+        import UsinixIA
+        self.assertIn("script_mcp()", inspect.getsource(UsinixIA.ligar))
+
     # ------------------------------------------------------------------ IA
     def test_lista_de_ferramentas_avisa_a_mudanca(self):
         import importlib

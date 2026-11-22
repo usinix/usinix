@@ -66,6 +66,7 @@ def _captura(est, modo, pasta):
                 c.ViewObject.Visibility = False
         else:
             F.mostrar_campo(est, modo)
+            _esconder_solidos(est)
         escala = _unidade_do_relatorio(est, modo)
         FreeCADGui.updateGui()
         v.viewIsometric()
@@ -78,6 +79,21 @@ def _captura(est, modo, pasta):
     except Exception as exc:
         FreeCAD.Console.PrintWarning("Usinix: captura '{}' falhou: {}\n".format(modo, exc))
         return None
+
+
+def _esconder_solidos(est):
+    """Na figura do resultado só fica o resultado: no estudo de vigas a estrutura sólida (as barras) continuava
+    visível e aparecia em cinza por cima das cores (o gerador do relatório volta a visibilidade depois)."""
+    p = est.pipeline
+    for o in est.doc.Objects:
+        if o is p or o.TypeId.startswith("Fem::") or getattr(o, "ViewObject", None) is None:
+            continue
+        try:
+            if o.ViewObject.Visibility and getattr(o, "Shape", None) is not None and \
+                    (o.Shape.Solids or o.Shape.Faces):
+                o.ViewObject.Visibility = False
+        except Exception:
+            pass
 
 
 def _unidade_do_relatorio(est, modo):

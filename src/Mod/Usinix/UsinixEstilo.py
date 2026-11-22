@@ -243,6 +243,64 @@ _font_state = {"family": None}
 _fontes_registradas = {"ok": None}
 
 
+def instalar_fontes_do_usuario():
+    """Windows: instala a Poppins na conta do usuário (pasta de fontes do usuário + registro HKCU, sem
+    administrador). O Qt 6 só embute no PDF a fonte que tem arquivo no sistema: a registrada pelo programa
+    (addApplicationFont) vem sem nome de arquivo e o texto saía como desenho, sem seleção nem busca (conferido no
+    Windows: a Tahoma embutia e a Poppins não). Vale a partir da próxima abertura do Usinix.
+    Devolve quantos arquivos foram instalados agora."""
+    import sys
+    if sys.platform != "win32" or not os.path.isdir(FONT_DIR):
+        return 0
+    import shutil
+    import winreg
+    base = os.environ.get("LOCALAPPDATA")
+    if not base:
+        return 0
+    pasta = os.path.join(base, "Microsoft", "Windows", "Fonts")
+    os.makedirs(pasta, exist_ok=True)
+    chave = r"Software\Microsoft\Windows NT\CurrentVersion\Fonts"
+    feitos = 0
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, chave) as k:
+        for f in sorted(os.listdir(FONT_DIR)):
+            if not f.lower().endswith(".ttf"):
+                continue
+            origem = os.path.join(FONT_DIR, f)
+            destino = os.path.join(pasta, f)
+            nome = os.path.splitext(f)[0].replace("-", " ") + " (TrueType)"      # "Poppins Regular (TrueType)"
+            try:
+                atual = winreg.QueryValueEx(k, nome)[0]
+            except OSError:
+                atual = None
+            if atual == destino and os.path.isfile(destino) and os.path.getsize(destino) == os.path.getsize(origem):
+                continue
+            if not os.path.isfile(destino) or os.path.getsize(destino) != os.path.getsize(origem):
+                shutil.copyfile(origem, destino)
+            winreg.SetValueEx(k, nome, 0, winreg.REG_SZ, destino)
+            feitos += 1
+    return feitos
+
+
+def _poppins_no_sistema():
+    """A Poppins já existe como fonte do sistema (antes de o Usinix registrar a dele)."""
+    try:
+        return "Poppins" in QtGui.QFontDatabase.families() and not _font_state.get("app")
+    except Exception:
+        return False
+
+
+def _registrar_poppins_do_programa():
+    fams = []
+    for f in sorted(os.listdir(FONT_DIR)) if os.path.isdir(FONT_DIR) else []:
+        if f.lower().endswith(".ttf"):
+            fid = QtGui.QFontDatabase.addApplicationFont(os.path.join(FONT_DIR, f))
+            if fid >= 0:
+                fams += QtGui.QFontDatabase.applicationFontFamilies(fid)
+    if fams:
+        _font_state["app"] = True
+    return fams
+
+
 def garantir_fontes():
     """Registra a Poppins do Usinix no Qt (uma vez), sem mexer na fonte da interface. Os relatórios em PDF pedem
     "Poppins": com a preferência da interface desligada ela não estava registrada, o Qt trocava pela Tahoma e, no
@@ -250,30 +308,30 @@ def garantir_fontes():
     if _fontes_registradas["ok"] is not None:
         return _fontes_registradas["ok"]
     try:
+        if instalar_fontes_do_usuario():
+            FreeCAD.Console.PrintMessage("Usinix: fonte Poppins instalada na sua conta; os PDFs saem com texto "
+                                         "selecionável a partir da próxima abertura do Usinix.\n")
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: instalar a Poppins: %s\n" % exc)
+    try:
         if "Poppins" in QtGui.QFontDatabase.families():
             _fontes_registradas["ok"] = True
             return True
     except Exception:
         pass
-    fams = []
-    for f in sorted(os.listdir(FONT_DIR)) if os.path.isdir(FONT_DIR) else []:
-        if f.lower().endswith(".ttf"):
-            fid = QtGui.QFontDatabase.addApplicationFont(os.path.join(FONT_DIR, f))
-            if fid >= 0:
-                fams += QtGui.QFontDatabase.applicationFontFamilies(fid)
-    _fontes_registradas["ok"] = "Poppins" in fams
+    _fontes_registradas["ok"] = "Poppins" in _registrar_poppins_do_programa()
     return _fontes_registradas["ok"]
 
 
 def install_font():
+    try:
+        instalar_fontes_do_usuario()          # PDF com texto selecionável no Windows (ver a função)
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: instalar a Poppins: %s\n" % exc)
     if not _params().GetBool("FontePoppins", True):
         return None
-    fams = []
-    for f in sorted(os.listdir(FONT_DIR)) if os.path.isdir(FONT_DIR) else []:
-        if f.lower().endswith(".ttf"):
-            fid = QtGui.QFontDatabase.addApplicationFont(os.path.join(FONT_DIR, f))
-            if fid >= 0:
-                fams += QtGui.QFontDatabase.applicationFontFamilies(fid)
+    # a do sistema tem arquivo e o Qt embute no PDF; a registrada pelo programa por cima tomaria o lugar dela
+    fams = ["Poppins"] if _poppins_no_sistema() else _registrar_poppins_do_programa()
     if "Poppins" not in fams:
         FreeCAD.Console.PrintWarning("Usinix: fonte Poppins não carregada.\n")
         return None
