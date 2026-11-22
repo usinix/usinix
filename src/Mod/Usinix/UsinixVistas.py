@@ -472,6 +472,52 @@ def detalhes_de_usinagem(objs, rev):
     tot = ao_longo([v.Point for v in sh.Vertexes])
     zmin, zmax = min(tot), max(tot)
     linhas = []
+
+    def externo(f):
+        u0, u1, v0, v1 = f.ParameterRange
+        pt = f.valueAt((u0 + u1) / 2.0, (v0 + v1) / 2.0)
+        rad = pt - centro
+        rad = rad - eixo * rad.dot(eixo)
+        return f.normalAt((u0 + u1) / 2.0, (v0 + v1) / 2.0).dot(rad) > 0
+    trechos = sorted((faixa(f) + (2 * f.Surface.Radius,)) for f in cil if externo(f))
+
+    def diam_em(z):
+        """⌀ externo no ponto z do eixo (o maior trecho que passa por ali)."""
+        ds = [d for a, b, d in trechos if a - 1e-3 <= z <= b + 1e-3]
+        return max(ds) if ds else None
+
+    def na_ponta(z):
+        """Ponta pelo diâmetro, não por esquerda/direita: o lado no papel depende da vista."""
+        d = diam_da_ponta(z)
+        return " (na ponta do Ø%s)" % UsinixUtil.fmt_dim(d) if d else ""
+
+    def diam_da_ponta(z):
+        """⌀ do trecho que chega na ponta z (o chanfro tira o cilindro da ponta: vale o trecho mais perto)."""
+        if not trechos:
+            return None
+        return min(trechos, key=lambda t: min(abs(t[0] - z), abs(t[1] - z)))[2]
+
+    def referencia(a, b):
+        """Posição de [a, b] pela face mais perto: degrau (troca de ⌀) ou ponta da peça."""
+        refs = {round(zmin, 3): "ponta", round(zmax, 3): "ponta"}
+        # degrau: onde um trecho termina e outro de ⌀ diferente começa (a borda do chanfro não conta)
+        pontas = [(round(z, 3), d) for za, zb, d in trechos for z in (za, zb)]
+        for z, d in pontas:
+            if z not in refs and zmin + 1e-3 < z < zmax - 1e-3 and \
+                    any(abs(z2 - z) < 1e-3 and abs(d2 - d) > 1e-3 for z2, d2 in pontas):
+                refs[z] = "degrau"
+        cand = []
+        for z, tipo in refs.items():
+            if z <= a + 1e-3:
+                cand.append((a - z, 0 if tipo == "degrau" else 1, z, tipo))
+            elif z >= b - 1e-3:
+                cand.append((z - b, 0 if tipo == "degrau" else 1, z, tipo))
+        if not cand:
+            return ""
+        dist, _p, z, tipo = min(cand)
+        if tipo == "degrau":
+            return ", a %s do degrau" % UsinixUtil.fmt_dim(dist)
+        return ", a %s da ponta do Ø%s" % (UsinixUtil.fmt_dim(dist), UsinixUtil.fmt_dim(diam_da_ponta(z) or 0))
     # chanfros: cones coaxiais curtos
     chanf = {}
     for f in sh.Faces:
@@ -531,6 +577,7 @@ def detalhes_de_usinagem(objs, rev):
                                and (f.normalAt(0, 0).dot(f.valueAt(0, 0) - centro - eixo * (f.valueAt(0, 0) - centro).dot(eixo)) > 0)]
                               or [max(ext)])
                 txt += ", prof. %s" % UsinixUtil.fmt_dim(d_local / 2.0 - fundo[0])
+            txt += referencia(a, b)
             linhas.append(txt)
     # furos axiais (internos) com rosca ou profundidade
     roscas = {}
@@ -551,7 +598,7 @@ def detalhes_de_usinagem(objs, rev):
         d = 2 * f.Surface.Radius
         a, b = faixa(f)
         passante = a <= zmin + 1e-3 and b >= zmax - 1e-3
-        lado = "" if passante else (" (ponta esquerda)" if abs(a - zmin) < abs(zmax - b) else " (ponta direita)")
+        lado = "" if passante else na_ponta(zmin if abs(a - zmin) < abs(zmax - b) else zmax)
         rosca = roscas.get(round(d, 2)) or next((t for dd, t in roscas.items() if 0 <= dd - d < 1.6), None)
         if rosca:
             linhas.append("Furo roscado %s, prof. %s%s" % (rosca, UsinixUtil.fmt_dim(b - a), lado))
@@ -1006,8 +1053,35 @@ def nome_do_arquivo(page, extensao):
     return os.path.join(pasta, base + "." + extensao)
 
 
+def folha_desenhada(page, tempo=20.0):
+    """Abre a janela da folha e espera as vistas. O PDF de uma folha que nunca foi aberta sai com as vistas fora do
+    lugar e sem o modelo da legenda (o TechDraw só monta a cena da folha quando a janela existe)."""
+    if not FreeCAD.GuiUp:
+        return
+    import FreeCADGui
+    import time
+    try:
+        import UsinixFolhas
+        UsinixFolhas._abrir_folha(page)
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: abrir a folha: %s\n" % exc)
+    partes = []
+    for v in page.Views:
+        partes += list(v.Views) if v.TypeId == "TechDraw::DrawProjGroup" else [v]
+    partes = [v for v in partes if v.isDerivedFrom("TechDraw::DrawViewPart")]
+    try:
+        esperar_vistas(partes, tempo)
+    except Exception:
+        pass
+    fim = time.time() + 0.6
+    while time.time() < fim:                      # a cena da janela redesenha depois do recálculo
+        FreeCADGui.updateGui()
+        time.sleep(0.05)
+
+
 def salvar_pdf(page, caminho=None):
     import TechDrawGui
+    folha_desenhada(page)
     try:
         import UsinixConferirFolha
         UsinixConferirFolha.avisar(page)          # escala/material do carimbo, legenda e margem invadidas

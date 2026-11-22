@@ -672,6 +672,11 @@ def f_folha(objetos, formato="A3", vertical=False, titulo="", numero="", desenhi
     campos = {k: v for k, v in (("titulo", titulo), ("numero", numero), ("desenhista", desenhista)) if v}
     campos.update(SEM_REVISAO)
     page = F.nova_folha(doc, formato, F.NORMA_PADRAO, bool(vertical), campos, objs, arranjo=arranjo)
+    try:
+        import UsinixVistas
+        UsinixVistas.folha_desenhada(page)        # a folha já aberta sai certa no PDF, mesmo exportada direto
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: abrir a folha nova: %s\n" % exc)
     return {"folha": page.Name, "escala": F._texto_escala(page.Scale)}
 
 

@@ -21187,8 +21187,8 @@ class T161RetesteDa127(unittest.TestCase):
         self.assertIsNotNone(rev)
         linhas = V.detalhes_de_usinagem([o], rev)
         self.assertIn("2× Chanfro 1 × 45°", linhas)
-        self.assertIn("Rasgo de chaveta 6 × 40, prof. 3,5", linhas)
-        self.assertIn("Furo ⌀6,8, prof. 20 (ponta direita)", linhas)
+        self.assertIn("Rasgo de chaveta 6 × 40, prof. 3,5, a 10 do degrau", linhas)
+        self.assertIn("Furo ⌀6,8, prof. 20 (na ponta do Ø20)", linhas)       # pelo ⌀, não esquerda/direita
         try:
             import TechDraw  # noqa: F401
         except ImportError:
@@ -21235,7 +21235,7 @@ class T161RetesteDa127(unittest.TestCase):
             h.Reversed = True
             self.doc.recompute()
         linhas = V.detalhes_de_usinagem([body], V.revolucao([body]))
-        self.assertEqual(linhas, ["Furo roscado M8x1.25, prof. 20 (ponta direita)"])     # sem a ponta da broca
+        self.assertEqual(linhas, ["Furo roscado M8x1.25, prof. 20 (na ponta do Ø30)"])   # sem a ponta da broca
 
     # ------------------------------------------------------------------ estrutura
     def test_esqueleto_no_eixo_real(self):
@@ -21307,6 +21307,48 @@ class T161RetesteDa127(unittest.TestCase):
         y = int(600 * 0.5)
         x = int(800 * (1 - 0.135)) + int(800 * 0.012) + 5
         self.assertNotEqual(QtGui.QColor(im.pixel(x, y)).name(), "#ffffff")       # barra de cores
+
+    def test_legenda_larga_do_freecad_some(self):
+        """No Windows com escala de tela 125/150 % a barra do FreeCAD fica mais larga e mais para a esquerda: as
+        duas legendas saíam lado a lado."""
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        from PySide import QtGui
+        import UsinixFEMRelatorio as R
+        caminho = os.path.join(tempfile.mkdtemp(), "fig.png")
+        im = QtGui.QImage(800, 600, QtGui.QImage.Format_RGB32)
+        im.fill(QtGui.QColor("white"))
+        p = QtGui.QPainter(im)
+        p.fillRect(640, 120, 40, 400, QtGui.QColor(255, 0, 0))          # barra antiga em 80 % da largura
+        p.end()
+        self.assertTrue(im.save(caminho))
+        self.assertAlmostEqual(R._x_da_barra_do_freecad(QtGui.QImage(caminho)), 640, delta=2)
+        self.assertTrue(R._trocar_legenda(caminho, 0.0, 72.8, "MPa"))
+        im = QtGui.QImage(caminho)
+        vermelhos = sum(1 for y in range(120, 520) if QtGui.QColor(im.pixel(675, y)).name() == "#ff0000")
+        self.assertEqual(vermelhos, 0)
+
+    def test_pdf_de_folha_nunca_aberta(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        try:
+            import TechDrawGui
+        except ImportError:
+            self.skipTest("sem TechDraw")
+        import Part
+        import UsinixFolhas as F
+        self.assertTrue(getattr(TechDrawGui.exportPageAsPdf, "_usinix", False))
+        o = self.doc.addObject("Part::Feature", "Caixa")
+        o.Shape = Part.makeBox(100, 60, 40)
+        self.doc.recompute()
+        pasta = tempfile.mkdtemp()
+        a = F.nova_folha(self.doc, "A4", F.NORMA_PADRAO, False, {"titulo": "SEM ABRIR"}, [o])
+        TechDrawGui.exportPageAsPdf._original(a, os.path.join(pasta, "cru.pdf"))       # como o FreeCAD fazia
+        b = F.nova_folha(self.doc, "A4", F.NORMA_PADRAO, False, {"titulo": "SEM ABRIR"}, [o])
+        TechDrawGui.exportPageAsPdf(b, os.path.join(pasta, "usinix.pdf"))
+        cru = os.path.getsize(os.path.join(pasta, "cru.pdf"))
+        bom = os.path.getsize(os.path.join(pasta, "usinix.pdf"))
+        self.assertGreater(bom, 1.5 * cru, (cru, bom))
 
     # ------------------------------------------------------------------ IA
     def test_lista_de_ferramentas_avisa_a_mudanca(self):

@@ -15,6 +15,24 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.27.2 — 21/11/2026
+
+### Simulação
+
+- **Figuras do relatório:** a barra de cores do FreeCAD não aparece mais ao lado da nova em MPa ou mm quando o
+  Windows usa escala de tela de 125 % ou 150 %.
+
+### Desenho
+
+- **PDF de folha que nunca foi aberta:** o Usinix abre a folha e espera as vistas antes de gravar. O PDF saía com as
+  vistas fora do lugar e sem a legenda (também por macro ou pela conexão com IA).
+- **Nota de usinagem:** o furo axial é indicado pela ponta do diâmetro ("na ponta do Ø20"), não por esquerda ou
+  direita, e o rasgo de chaveta ganha a posição ("a 10 do degrau" ou "a 10 da ponta do Ø30").
+
+### Conexão com IA
+
+- A folha nova criada pela IA já fica aberta.
+
 ## 1.27.1 — 21/11/2026
 
 ![Eixo torneado cotado, com a nota de chanfros, rasgo de chaveta e furo embaixo da vista](.github/images/novidades/1.27.1.webp)

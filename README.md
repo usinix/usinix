@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.27.1** (21/11/2026): nota de usinagem na peça torneada (chanfros, rasgo de chaveta, furo roscado);
+**Versão atual: 1.27.2** (21/11/2026): PDF certo de folha que nunca foi aberta; legenda das figuras do relatório sem
+a barra antiga no Windows com escala de tela; nota de usinagem com a ponta pelo diâmetro e a posição do rasgo de
+chaveta.
+
+Na 1.27.1: nota de usinagem na peça torneada (chanfros, rasgo de chaveta, furo roscado);
 rotinas de abertura de arquivo de volta; esqueleto do MEF no eixo real; material da estrutura na barra; conferência
 da folha com vistas sobrepostas.
 

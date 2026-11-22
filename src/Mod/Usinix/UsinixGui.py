@@ -805,6 +805,31 @@ def install_folha_observer():
     if _folha_obs["obj"] is None:
         _folha_obs["obj"] = _FolhaObserver()
         FreeCAD.addDocumentObserver(_folha_obs["obj"])
+    _pdf_com_folha_aberta()
+
+
+def _pdf_com_folha_aberta():
+    """TechDrawGui.exportPageAsPdf de folha nunca aberta (macro, conexão de IA) gravava o PDF sem as vistas no lugar
+    e sem a legenda: abre a folha e espera as vistas antes de exportar."""
+    try:
+        import TechDrawGui
+    except Exception:
+        return
+    original = TechDrawGui.exportPageAsPdf
+    if getattr(original, "_usinix", False):
+        return
+
+    def exportar(page, caminho, *args, **kw):
+        try:
+            import UsinixVistas
+            UsinixVistas.folha_desenhada(page)
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: abrir a folha antes do PDF: %s\n" % exc)
+        return original(page, caminho, *args, **kw)
+    exportar._usinix = True
+    exportar._original = original
+    exportar.__doc__ = original.__doc__
+    TechDrawGui.exportPageAsPdf = exportar
 
 
 # ------------------------------------------------------------- splash por tempo mínimo

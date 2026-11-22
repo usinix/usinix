@@ -112,6 +112,29 @@ def _unidade_do_relatorio(est, modo):
 _CORES_BARRA = ((0, 0, 255), (0, 255, 255), (0, 255, 0), (255, 255, 0), (255, 0, 0))
 
 
+def _x_da_barra_do_freecad(im):
+    """Coluna da esquerda da barra de cores que o FreeCAD desenha na figura (faixa vertical colorida, contínua em
+    boa parte da altura, na metade direita), ou None."""
+    W, H = im.width(), im.height()
+    passo = 2
+    minimo = 0.4 * H / passo
+    achou = None
+    for x in range(W - 1, int(W * 0.5), -passo):
+        seguidos = melhor = 0
+        for y in range(0, H, passo):
+            c = QtGui.QColor(im.pixel(x, y))
+            if c.saturationF() > 0.5 and c.valueF() > 0.4:
+                seguidos += 1
+                melhor = max(melhor, seguidos)
+            else:
+                seguidos = 0
+        if melhor >= minimo:
+            achou = x
+        elif achou is not None and x < achou - int(W * 0.08):
+            break                      # passou da barra: o modelo, se encostar, não conta
+    return achou
+
+
 def _trocar_legenda(caminho, vmin, vmax, unidade, faixa=0.135):
     """A barra de cores do FreeCAD mostra o número guardado no resultado (Pa e m no modelo de vigas) e não aceita
     outra unidade: apaga a faixa da direita da figura e desenha a barra com as mesmas cores, em MPa ou mm, no
@@ -120,9 +143,14 @@ def _trocar_legenda(caminho, vmin, vmax, unidade, faixa=0.135):
     if im.isNull():
         return False
     W, H = im.width(), im.height()
+    x0 = int(W * (1 - faixa))
+    xb = _x_da_barra_do_freecad(im)
+    if xb is not None:
+        # no Windows com escala de tela 125/150 % a barra do FreeCAD fica mais larga e passava da faixa fixa:
+        # as duas legendas saíam lado a lado
+        x0 = min(x0, max(int(W * 0.55), xb - int(W * 0.01)))
     p = QtGui.QPainter(im)
     p.setRenderHint(QtGui.QPainter.Antialiasing)
-    x0 = int(W * (1 - faixa))
     p.fillRect(x0, 0, W - x0, H, QtGui.QColor("white"))
     topo, base = int(H * 0.2), int(H * 0.88)
     larg = int(W * 0.032)
