@@ -35,8 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.27.3** (22/11/2026): PDF com texto selecionável no Windows (Poppins instalada na conta do
-usuário); figuras de resultado sem a peça sólida por cima; ferramentas novas aparecendo no assistente de IA.
+**Versão atual: 1.28.0** (22/11/2026): botão Verificar atualizações na aba Usinix; pacotes externos podem se
+atualizar na mesma janela do Usinix.
+
+Na 1.27.3: PDF com texto selecionável no Windows (Poppins instalada na conta do usuário); figuras de resultado sem a
+peça sólida por cima; ferramentas novas aparecendo no assistente de IA.
 
 Na 1.27.2: PDF certo de folha que nunca foi aberta; legenda das figuras do relatório sem a barra antiga no Windows
 com escala de tela; nota de usinagem com a ponta pelo diâmetro e a posição do rasgo de chaveta.

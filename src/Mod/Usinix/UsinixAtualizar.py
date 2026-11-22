@@ -260,10 +260,13 @@ def janela_principal():
 class AvisoAtualizacao:
     """Janela "Usinix X disponível". Nunca atualiza sem o clique em "Atualizar agora"."""
 
-    def __init__(self, info, automatico=False, parent=None):
+    def __init__(self, info, automatico=False, parent=None, extras=()):
         QtCore, QtGui, QtWidgets = _qt()
         import UsinixUI as UI
         self.info = info
+        self.extras = list(extras or [])
+        # a janela aberta com uma versão do Usinix vale para ela, mesmo sem ser mais nova (teste, reinstalação)
+        self.principal = info is not None and (tem_novidade(info) or not self.extras)
         self.d = QtWidgets.QDialog(parent or janela_principal())
         d = self.d
         d.setObjectName("UsinixUI")
@@ -273,25 +276,41 @@ class AvisoAtualizacao:
         v = QtWidgets.QVBoxLayout(d)
         v.setContentsMargins(18, 16, 18, 14)
         v.setSpacing(10)
-        t = QtWidgets.QLabel("Usinix {} disponível".format(info["texto"]))
+        if self.principal:
+            titulo = "Usinix {} disponível".format(info["texto"])
+            if self.extras:
+                titulo += " + " + ", ".join("{} {}".format(r["nome"], i["versao"]) for r, i in self.extras)
+        else:
+            titulo = ", ".join("{} {}".format(r["nome"], i["versao"]) for r, i in self.extras) + " disponível"
+        t = QtWidgets.QLabel(titulo)
+        t.setWordWrap(True)
         t.setStyleSheet(UI.tema("color: #003A70; font-size: 13pt; font-weight: 700;"))
         v.addWidget(t)
-        sub = QtWidgets.QLabel("Você está usando a versão {}. A atualização é opcional.".format(
-            versao_atual().replace("-", " ")))
+        atuais = ["Usinix {}".format(versao_atual().replace("-", " "))] + [
+            "{} {}".format(r["nome"], i.get("atual", "")) for r, i in self.extras]
+        sub = QtWidgets.QLabel("Você está usando: {}. A atualização é opcional.".format(", ".join(atuais)))
         sub.setObjectName("UsinixSub")
+        sub.setWordWrap(True)
         v.addWidget(sub)
         notas = QtWidgets.QTextBrowser()
         notas.setOpenExternalLinks(True)
-        notas.setMarkdown(_resumo_notas(info["notas"]) or "Veja as novidades na página da versão.")
+        md = (_resumo_notas(info["notas"]) or "Veja as novidades na página da versão.") if self.principal else ""
+        for r, i in self.extras:
+            md += "\n\n**{} {}**\n\n{}".format(r["nome"], i["versao"], i.get("notas") or "")
+        notas.setMarkdown(md.strip())
         notas.setMinimumHeight(180)
         v.addWidget(notas, 1)
         self.modo = modo_instalacao()
-        self.ativo = ativo_do_sistema(info, self.modo)
-        comp = ativo_complemento(info)
+        self.ativo = ativo_do_sistema(info, self.modo) if self.principal else None
+        comp = ativo_complemento(info) if self.principal else None
         if comp is not None:
             completo = ativo_completo(info, self.modo)
             self.modo, self.ativo = "complemento", comp
+        if not self.principal:
+            self.modo = "extras"
         explica = {
+            "extras": "Ao atualizar, o Usinix baixa e instala o pacote; a versão nova vale quando o Usinix for "
+                      "aberto de novo.{}",
             "complemento": "Ao atualizar, o Usinix baixa só o complemento ({}" + (
                 ", em vez dos {:.0f} MB do pacote completo".format(completo / 1e6)
                 if comp is not None and completo else "") + "). A versão nova vale quando o Usinix for aberto "
@@ -302,7 +321,11 @@ class AvisoAtualizacao:
         }.get(self.modo, "Esta instalação não se atualiza sozinha: \"Atualizar agora\" abre a página da versão "
                          "para baixar.")
         tam = "{:.0f} MB".format(self.ativo["tamanho"] / 1e6) if self.ativo else ""
-        ex = QtWidgets.QLabel(explica.format(tam))
+        texto = explica.format(tam)
+        if self.principal and self.extras:
+            texto = ("Primeiro o Usinix instala {} (poucos segundos). ".format(
+                ", ".join(r["nome"] for r, _i in self.extras)) + texto)
+        ex = QtWidgets.QLabel(texto)
         ex.setObjectName("UsinixSub")
         ex.setWordWrap(True)
         v.addWidget(ex)
@@ -333,13 +356,57 @@ class AvisoAtualizacao:
         return self
 
     def _pular(self):
-        _params().SetString("PularVersao", self.info["tag"])
+        if self.principal:
+            _params().SetString("PularVersao", self.info["tag"])
+        for r, i in self.extras:
+            _params().SetString("PularVersao_" + _chave_extra(r["nome"]), str(i["versao"]))
         self.d.reject()
 
     def _atualizar(self):
         pai = self.d.parentWidget()
         self.d.accept()
-        atualizar(self.info, self.modo, self.ativo, parent=pai)
+        ok = instalar_extras(self.extras, parent=pai) if self.extras else True
+        if self.principal:
+            atualizar(self.info, self.modo, self.ativo, parent=pai)
+        elif ok:
+            QtWidgets = _qt()[2]
+            r = QtWidgets.QMessageBox.question(
+                pai or _pai_para_janela(), "Atualização do Usinix",
+                "Atualização instalada. Ela vale quando o Usinix abrir de novo.\n\nReabrir o Usinix agora?",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
+            if r == QtWidgets.QMessageBox.Yes:
+                reabrir()
+
+
+def _chave_extra(nome):
+    return "".join(c for c in nome if c.isalnum())
+
+
+def instalar_extras(extras, parent=None):
+    """Instala os pacotes que se atualizam junto (UsinixExtensoes.registrar_atualizacao). Devolve True se todos
+    deram certo; o erro de cada um aparece numa mensagem."""
+    QtCore, QtGui, QtWidgets = _qt()
+    espera = QtWidgets.QProgressDialog("Atualizando…", None, 0, 0, parent or _pai_para_janela())
+    espera.setWindowTitle("Atualização do Usinix")
+    espera.setMinimumDuration(0)
+    espera.setCancelButton(None)
+    espera.show()
+    erros = []
+
+    def progresso(texto):
+        espera.setLabelText(texto)
+        QtWidgets.QApplication.processEvents()
+    for reg, info in extras:
+        progresso("Atualizando {} para a versão {}…".format(reg["nome"], info["versao"]))
+        try:
+            reg["instalar"](info, progresso)
+        except Exception as exc:
+            erros.append("{}: {}".format(reg["nome"], exc))
+    espera.close()
+    if erros:
+        QtWidgets.QMessageBox.warning(parent or _pai_para_janela(), "Atualização do Usinix",
+                                      "Não foi possível atualizar:\n\n" + "\n".join(erros))
+    return not erros
 
 
 def atualizar(info, modo=None, ativo=None, parent=None):
@@ -794,6 +861,11 @@ class Verificacao:
             self.res["info"] = consultar()
         except Exception as exc:
             self.res["erro"] = exc
+        try:
+            import UsinixExtensoes
+            self.res["extras"] = UsinixExtensoes.consultar_atualizacoes()
+        except Exception:
+            self.res["extras"] = []
         self.res["fim"] = True
 
     def iniciar(self):
@@ -809,7 +881,12 @@ class Verificacao:
         if self in _vivos:
             _vivos.remove(self)
         try:
-            self.ao_terminar(self.res["info"], self.res["erro"])
+            try:
+                self.ao_terminar(self.res["info"], self.res["erro"], self.res.get("extras") or [])
+            except TypeError as exc:
+                if "positional" not in str(exc):
+                    raise
+                self.ao_terminar(self.res["info"], self.res["erro"])
         except Exception as exc:
             FreeCAD.Console.PrintWarning("Usinix: atualização: {}\n".format(exc))
 
@@ -823,9 +900,13 @@ def verificar_agora(parent=None):
     espera.setCancelButton(None)
     espera.show()
 
-    def fim(info, erro):
+    def fim(info, erro, extras=()):
         espera.close()
         _params().SetFloat("UltimaVerificacao", time.time())
+        if extras and (erro is not None or not tem_novidade(info)):
+            AvisoAtualizacao(None if erro is not None else info, automatico=False, parent=parent,
+                             extras=extras).mostrar()
+            return
         if erro is not None:
             QtWidgets.QMessageBox.information(
                 parent or janela_principal(), "Atualização do Usinix",
@@ -833,7 +914,7 @@ def verificar_agora(parent=None):
                 "Endereço: {}".format(PAGINA))
             return
         if tem_novidade(info):
-            AvisoAtualizacao(info, automatico=False, parent=parent).mostrar()
+            AvisoAtualizacao(info, automatico=False, parent=parent, extras=extras).mostrar()
         else:
             QtWidgets.QMessageBox.information(parent or janela_principal(), "Atualização do Usinix",
                                               "Você já está com a versão mais nova ({}).".format(
@@ -855,15 +936,33 @@ def verificar_ao_abrir():
     if not deve_verificar_ao_abrir():
         return None
 
-    def fim(info, erro):
+    def fim(info, erro, extras=()):
         _params().SetFloat("UltimaVerificacao", time.time())
-        if erro is not None or not tem_novidade(info):
+        extras = [(r, i) for r, i in extras
+                  if str(i["versao"]) != _params().GetString("PularVersao_" + _chave_extra(r["nome"]), "")]
+        principal = erro is None and tem_novidade(info) and info["tag"] != _params().GetString("PularVersao", "")
+        if not principal and not extras:
             return
-        if info["tag"] == _params().GetString("PularVersao", ""):
-            return
-        _estado["aviso"] = AvisoAtualizacao(info, automatico=True).mostrar()
+        _estado["aviso"] = AvisoAtualizacao(info if principal else None, automatico=True, extras=extras).mostrar()
 
     return Verificacao(fim).iniciar()
 
 
 _estado = {"aviso": None}
+
+
+class CmdVerificarAtualizacoes:
+    """Botão da aba Usinix: a mesma verificação do Sobre (Usinix e os pacotes que se atualizam junto)."""
+
+    def GetResources(self):
+        import UsinixUtil
+        return {"Pixmap": UsinixUtil.icone("usinix_atualizar.svg"), "MenuText": "Verificar atualizações",
+                "ToolTip": "Procura versão nova do Usinix (e dos pacotes instalados que se atualizam junto) e "
+                           "mostra o que mudou. Nada é instalado sem você clicar em \"Atualizar agora\"."}
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        verificar_agora()
+

@@ -15,6 +15,18 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.28.0 — 22/11/2026
+
+![Aba Usinix com o botão Verificar atualizações ao lado do Sobre](.github/images/novidades/1.28.0.webp)
+
+### Geral
+
+- **Botão Verificar atualizações** na aba Usinix (também no menu Ajuda): a mesma verificação do Sobre, a um
+  clique. Nada é instalado sem você confirmar.
+- **Pacotes que se atualizam junto:** um pacote externo instalado na pasta do usuário pode se registrar para
+  atualizar na mesma janela do Usinix (UsinixExtensoes.registrar_atualizacao). A janela mostra tudo o que tem
+  versão nova, e um clique instala o pacote e depois segue com o Usinix.
+
 ## 1.27.3 — 22/11/2026
 
 ### Geral

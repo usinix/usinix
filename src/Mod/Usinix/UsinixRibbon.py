@@ -397,7 +397,8 @@ TABS = [
         ("Geral", [
             ("Usinix_Inicio", L, "Tela\ninicial"), ("Usinix_AplicarTema", L, "Aplicar\ntema"),
             ("Usinix_TemaEscuro", L, "Tema\nescuro"), ("Usinix_Preferencias", L, "Preferências"),
-            ("Usinix_Sobre", L, "Sobre"), ("Usinix_Sugestao", L, "Enviar\nsugestão"),
+            ("Usinix_Sobre", L, "Sobre"), ("Usinix_VerificarAtualizacoes", L, "Verificar\natualizações"),
+            ("Usinix_Sugestao", L, "Enviar\nsugestão"),
         ]),
         ("Interface", [
             ("Usinix_TemaIcones", S, "Tema de ícones"), ("Usinix_BarrasClassicas", S, "Barras clássicas"),

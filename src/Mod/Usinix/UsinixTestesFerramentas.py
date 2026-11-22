@@ -21404,3 +21404,63 @@ class T161RetesteDa127(unittest.TestCase):
             mcp._ponte = orig
         self.assertEqual(saida.getvalue().count("notifications/tools/list_changed"), 1)
         self.assertEqual(mcp._lista["vista"], ["estado", "esqueleto_mef"])
+
+
+class T162AtualizacaoJuntoComPacotes(unittest.TestCase):
+    """1.28.0: pacote externo que se atualiza na mesma janela do Usinix (UsinixExtensoes.registrar_atualizacao)."""
+
+    def setUp(self):
+        import UsinixExtensoes as X
+        self._antes = list(X.ATUALIZACOES)
+        self.instalados = []
+
+        def consultar():
+            return {"versao": "2.0.0", "atual": "1.0.0", "notas": "correções"}
+
+        def instalar(info, progresso):
+            progresso("instalando")
+            self.instalados.append(info["versao"])
+        X.registrar_atualizacao("Pacote de teste", consultar, instalar)
+
+        def falha():
+            raise IOError("sem rede")
+        X.registrar_atualizacao("Pacote quebrado", falha, instalar)
+
+    def tearDown(self):
+        import UsinixExtensoes as X
+        X.ATUALIZACOES[:] = self._antes
+
+    def test_consulta_junta_os_pacotes(self):
+        import UsinixExtensoes as X
+        res = X.consultar_atualizacoes()
+        nomes = [r["nome"] for r, _i in res]
+        self.assertIn("Pacote de teste", nomes)
+        self.assertNotIn("Pacote quebrado", nomes)          # erro de um não derruba a consulta
+        self.assertIs(X.registrar_atualizacao("Pacote de teste", None, None), [r for r, _i in res
+                                                                               if r["nome"] == "Pacote de teste"][0])
+
+    def test_janela_so_com_o_pacote_e_instalacao(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixAtualizar as A
+        import UsinixExtensoes as X
+        extras = [(r, i) for r, i in X.consultar_atualizacoes() if r["nome"] == "Pacote de teste"]
+        av = A.AvisoAtualizacao(None, automatico=True, extras=extras)
+        try:
+            self.assertFalse(av.principal)
+            self.assertEqual(av.modo, "extras")
+            self.assertIn("Pacote de teste 2.0.0", av.d.findChildren(__import__("PySide").QtWidgets.QLabel)[0].text())
+        finally:
+            av.d.reject()
+        self.assertTrue(A.instalar_extras(extras))
+        self.assertEqual(self.instalados, ["2.0.0"])
+
+    def test_botao_verificar_atualizacoes_na_aba_usinix(self):
+        import UsinixRibbon as R
+        aba = [t for t in R.TABS if t.get("id") == "usinix"][0]
+        cmds = [it[0] for _tit, itens in aba["panels"] for it in itens]
+        self.assertIn("Usinix_VerificarAtualizacoes", cmds)
+        if FreeCAD.GuiUp:
+            self.assertIn("Usinix_VerificarAtualizacoes", FreeCADGui.listCommands())
+            import UsinixAtualizar as A
+            self.assertTrue(os.path.isfile(A.CmdVerificarAtualizacoes().GetResources()["Pixmap"]))

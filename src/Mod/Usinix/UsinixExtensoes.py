@@ -14,6 +14,7 @@ substituir_item). Um erro num pacote é avisado no console e não impede o Usini
 import FreeCAD
 
 EXTENSOES = []
+ATUALIZACOES = []
 _ESTADO = {"iniciado": False}
 
 
@@ -78,6 +79,36 @@ def ativas():
 
 def ativo(nome):
     return any(e["nome"] == nome and e["ativo"] for e in EXTENSOES)
+
+
+# ---------------------------------------------------------------- atualização junto com o Usinix
+def registrar_atualizacao(nome, consultar, instalar):
+    """Pacote que se atualiza junto com o Usinix (a mesma janela "Atualização disponível", um clique só).
+
+    consultar(): roda em segundo plano; devolve None (nada novo ou sem acesso) ou
+        {"versao": "1.2.0", "atual": "1.1.0", "notas": "texto curto"}.
+    instalar(info, progresso): baixa e instala; progresso(texto) mostra o andamento. Lança exceção com a
+        mensagem para o usuário se não der. A versão nova vale quando o Usinix abrir de novo."""
+    for a in ATUALIZACOES:
+        if a["nome"] == nome:
+            return a
+    reg = {"nome": nome, "consultar": consultar, "instalar": instalar}
+    ATUALIZACOES.append(reg)
+    return reg
+
+
+def consultar_atualizacoes():
+    """[(registro, info)] dos pacotes com versão nova. Erro de um pacote não impede os outros."""
+    res = []
+    for reg in list(ATUALIZACOES):
+        try:
+            info = reg["consultar"]()
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: atualização de %s: %s\n" % (reg["nome"], exc))
+            info = None
+        if info:
+            res.append((reg, info))
+    return res
 
 
 # ---------------------------------------------------------------- faixa (botões)

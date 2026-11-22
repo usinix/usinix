@@ -993,6 +993,11 @@ def register_commands():
     FreeCADGui.addCommand("Usinix_Sobre", CmdSobre())
     FreeCADGui.addCommand("Usinix_Sugestao", CmdSugestao())
     try:
+        import UsinixAtualizar
+        FreeCADGui.addCommand("Usinix_VerificarAtualizacoes", UsinixAtualizar.CmdVerificarAtualizacoes())
+    except Exception as exc:
+        FreeCAD.Console.PrintWarning("Usinix: atualizações: {}\n".format(exc))
+    try:
         import UsinixPreferencias
         UsinixPreferencias.registrar()
     except Exception as exc:
@@ -1226,6 +1231,7 @@ class _ManipuladorMenu:
         # Vista: editor de materiais (a bancada Materiais fica desligada) e o botão da árvore
         return [{"insert": "Usinix_Sobre", "menuItem": "Std_About"}, {"remove": "Std_About"},
                 {"insert": "Usinix_Sugestao", "menuItem": "Usinix_Sobre"},
+                {"insert": "Usinix_VerificarAtualizacoes", "menuItem": "Usinix_Sugestao"},
                 {"append": "Material_Edit", "menuItem": "Std_DockViewMenu"},
                 {"append": "Usinix_Arvore", "menuItem": "Std_DockViewMenu"},
                 {"append": "Usinix_ReguaHistorico", "menuItem": "Std_DockViewMenu"}]
