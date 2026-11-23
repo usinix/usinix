@@ -150,7 +150,32 @@ def _vertices(vista):
         i += 1
         if i > 20000:
             break
-    return r
+    return _sem_pontos_perdidos(vista, r)
+
+
+def _sem_pontos_perdidos(vista, vs):
+    """Tira os vértices fora da caixa da peça projetada: o cálculo de linhas ocultas do TechDraw às vezes deixa um
+    ponto perdido longe (interseção singular de cilindros iguais), e as cotas gerais mediam até ele (43 m numa
+    tubulação de 6 m)."""
+    try:
+        bb = UsinixFolhas._caixa(vista.Source)
+        if bb is None or len(vs) < 3:
+            return vs
+        xs, ys = [], []
+        for x in (bb.XMin, bb.XMax):
+            for y in (bb.YMin, bb.YMax):
+                for z in (bb.ZMin, bb.ZMax):
+                    q = vista.projectPoint(FreeCAD.Vector(x, y, z))
+                    xs.append(q.x)
+                    ys.append(q.y)
+        # a vista fica centrada na caixa projetada: só a meia largura e a meia altura importam
+        hx = (max(xs) - min(xs)) / 2.0
+        hy = (max(ys) - min(ys)) / 2.0
+        mx = 0.05 * max(2 * hx, 2 * hy, 1.0)
+        bons = [t for t in vs if abs(t[1]) <= hx + mx and abs(t[2]) <= hy + mx]
+        return bons if len(bons) >= 2 else vs
+    except Exception:
+        return vs
 
 
 def _largura_esperada(vista):
@@ -726,9 +751,76 @@ def furos_da_vista(vista):
             continue
         if cx - r <= xmin + 1e-4 and cx + r >= xmax - 1e-4 and cy - r <= ymin + 1e-4 and cy + r >= ymax - 1e-4:
             continue
+        if _ponta_de_tubo(vista, r, cx, cy):
+            continue
         chave = round(2 * r, 3)
         grupos.setdefault(chave, []).append((nome, (cx, cy)))
     return sorted(grupos.items(), key=lambda t: -t[0])
+
+
+def _pontas_convexas(vista):
+    """[(x, y, R)] na vista das bordas circulares de cilindros externos (ponta de tubo, de barra redonda,
+    de pino) com o eixo na direção de visada. Cache na própria vista enquanto a fonte não muda."""
+    try:
+        import UsinixBaloes as B
+        d = FreeCAD.Vector(vista.Direction)
+        d.normalize()
+        fontes = list(vista.Source) + list(getattr(vista, "XSource", []) or [])
+        chave = (tuple(o.Name for o in fontes), tuple(round(c, 6) for c in d),
+                 tuple(round(getattr(o.Shape, "Volume", 0.0), 3) for o in fontes))
+        cache = _PONTAS.get((vista.Document.Name, vista.Name))
+        if cache and cache[0] == chave:
+            return cache[1]
+        out = []
+        import Part
+        centro = None
+        for o in fontes:
+            try:
+                sh = Part.getShape(o)
+            except Exception:
+                sh = o.Shape
+            for f in sh.Faces:
+                sf = f.Surface
+                if sf.__class__.__name__ != "Cylinder":
+                    continue
+                ax = FreeCAD.Vector(sf.Axis)
+                if abs(abs(ax.dot(d)) - 1.0) > 1e-6:
+                    continue
+                u0, u1, v0, v1 = f.ParameterRange
+                pt = f.valueAt((u0 + u1) / 2.0, (v0 + v1) / 2.0)
+                n = f.normalAt((u0 + u1) / 2.0, (v0 + v1) / 2.0)
+                rad = pt - sf.Center
+                rad = rad - ax * rad.dot(ax)
+                if rad.Length < 1e-9 or n.dot(rad) <= 0:
+                    continue                     # cilindro interno (furo): fica
+                for e in f.Edges:
+                    if e.Curve.__class__.__name__ == "Circle":
+                        if centro is None:
+                            centro = vista.projectPoint(vista.getGeometricCenter())
+                        a = B._ancora(vista, e.Curve.Center, centro)
+                        out.append((a.x, a.y, e.Curve.Radius))
+        _PONTAS[(vista.Document.Name, vista.Name)] = (chave, out)
+        return out
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: pontas de tubo na vista: %s\n" % exc)
+        return []
+
+
+_PONTAS = {}
+
+
+def _ponta_de_tubo(vista, r, cx, cy):
+    """O círculo é a ponta de um tubo ou barra redonda vista de frente (o contorno externo ou o furo do tubo,
+    concêntrico com ele e pouco menor), não um furo? Corrimão de escada dava "4× ⌀38,1 / ⌀34,1"."""
+    tol = max(1e-3, 1e-4 * r)
+    for x, y, R in _pontas_convexas(vista):
+        if abs(x - cx) > tol + 1e-3 * R:
+            continue
+        if abs(y - cy) > tol + 1e-3 * R and abs(y + cy) > tol + 1e-3 * R:
+            continue
+        if r <= R + 1e-6 and r >= 0.7 * R:
+            return True
+    return False
 
 
 def _furos_internos(page, vista, rev):

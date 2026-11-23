@@ -944,7 +944,58 @@ def travar_juntos(componentes):
     except Exception:
         pass
     asm.Document.recompute()
+    aviso = aviso_sem_chao(asm, comps)
+    if aviso:
+        FreeCAD.Console.PrintWarning("Usinix: %s\n" % aviso)
     return criadas
+
+
+def ligados_ao_chao(asm):
+    """Componentes presos, por juntas, a alguma peça fixa da montagem."""
+    import UtilsAssembly
+    try:
+        grupo = UtilsAssembly.getJointGroup(asm)
+        juntas = list(grupo.Group)
+    except Exception:
+        return set()
+    viz = {}
+    for j in juntas:
+        if getattr(j, "Suppressed", False) or getattr(j, "Activated", True) is False:
+            continue
+        try:
+            a, b = j.Reference1[0], j.Reference2[0]
+        except Exception:
+            continue
+        if a is None or b is None:
+            continue
+        viz.setdefault(a, set()).add(b)
+        viz.setdefault(b, set()).add(a)
+    vistos = set(x for x in _aterrados(asm) if x is not None)
+    fila = list(vistos)
+    while fila:
+        x = fila.pop()
+        for y in viz.get(x, ()):
+            if y not in vistos:
+                vistos.add(y)
+                fila.append(y)
+    return vistos
+
+
+def aviso_sem_chao(asm, comps):
+    """Texto de aviso quando os componentes travados juntos não estão ligados a nenhuma peça fixa: o solver do
+    FreeCAD só arrasta junto o que está preso à peça fixa, e o grupo ficava solto sem avisar. None se está ok."""
+    try:
+        presos = ligados_ao_chao(asm)
+    except Exception:
+        return None
+    if any(c in presos for c in comps):
+        return None
+    if not _aterrados(asm) - {None}:
+        return ("A montagem não tem peça fixa: o grupo travado só se move como um bloco depois que uma peça for "
+                "fixada (Fixar peça) e ligada a ele.")
+    return ("O grupo travado (%s) não está ligado a nenhuma peça fixa: ao mover uma peça dele, as outras não "
+            "acompanham. Trave o grupo junto com uma peça já presa, ou ligue-o a ela por uma junta."
+            % ", ".join(c.Label for c in comps[:4]) + ("..." if len(comps) > 4 else ""))
 
 
 def _global_comp(asm, comp):
@@ -1369,7 +1420,13 @@ if FreeCAD.GuiUp:
             return None
 
         def pronto_texto(self):
-            return "Pronto: %d componentes travados juntos, sem sair do lugar." % len(self.comps.valores())
+            comps = self.comps.valores()
+            txt = "Pronto: %d componentes travados juntos, sem sair do lugar." % len(comps)
+            try:
+                aviso = aviso_sem_chao(montagem_de(comps[0]), comps)
+            except Exception:
+                aviso = None
+            return txt + ("\nAtenção: " + aviso if aviso else "")
 
         def executar(self):
             return travar_juntos(self.comps.valores())

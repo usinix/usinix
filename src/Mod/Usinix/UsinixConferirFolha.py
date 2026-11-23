@@ -102,6 +102,56 @@ def _tem_pecas(page):
     return any(getattr(v, "Source", None) for v in page.Views)
 
 
+def _esperar_vistas(page, segundos=60.0):
+    """Espera o desenho das vistas na escala atual; devolve as que não ficaram prontas."""
+    import UsinixVistas as V
+    todas = []
+    for v in page.Views:
+        for i in (list(v.Views) if v.TypeId == "TechDraw::DrawProjGroup" else [v]):
+            if i.isDerivedFrom("TechDraw::DrawViewPart") and i.TypeId != "TechDraw::DrawViewDetail":
+                todas.append(i)
+    def pronta(i):
+        # mesma ideia de V.vista_pronta, com folga: a isométrica (e o contorno de peça redonda) fica menor que a
+        # caixa projetada; o desenho velho de outra escala fica 2× maior ou menor (1:50 -> 1:100)
+        try:
+            vs = V._vertices(i)
+            if not vs:
+                return False
+            esperada = V._largura_esperada(i)
+            if not esperada:
+                return True
+            obtida = max(t[1] for t in vs) - min(t[1] for t in vs)
+            if not 0.55 * esperada <= obtida <= 1.05 * esperada + 1e-6:
+                # círculos e arcos passam dos vértices (a vista de topo de um eixo só tem o centro e a costura)
+                xs = []
+                for _n, e in V._arestas(i):
+                    bb = e.BoundBox
+                    xs += [bb.XMin, bb.XMax]
+                if xs:
+                    obtida = max(xs) - min(xs)
+            return 0.55 * esperada <= obtida <= 1.05 * esperada + 1e-6
+        except Exception:
+            return True
+    try:
+        if not all(pronta(i) for i in todas):
+            import time
+            from PySide import QtWidgets
+            fim, tocar = time.time() + segundos, time.time() + 1.5
+            while time.time() < fim and not all(pronta(i) for i in todas):
+                if time.time() > tocar:
+                    for i in todas:
+                        if not pronta(i):
+                            i.touch()
+                    page.Document.recompute()
+                    tocar = time.time() + 3.0
+                QtWidgets.QApplication.processEvents()
+                time.sleep(0.05)
+        return [i for i in todas if not pronta(i)]
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: conferência, espera das vistas: %s\n" % exc)
+        return []
+
+
 def conferir(page):
     """Avisos da folha: [texto]. Vazio = nada a corrigir."""
     import UsinixFolhas
@@ -129,12 +179,18 @@ def conferir(page):
     elif not mats and no_carimbo and _tem_pecas(page):
         avisos.append("O carimbo diz \"%s\", mas o modelo não tem material definido (a massa sai pela densidade "
                       "padrão): escolha o material da peça." % no_carimbo)
+    # a posição só vale com o desenho calculado na escala atual: logo depois de criar a folha (ou de a escala
+    # automática mudar) a vista ainda tem o desenho da escala anterior, e a caixa saía o dobro (falso "em cima de")
+    pendentes = _esperar_vistas(page)
+    for i in pendentes:
+        avisos.append("\"%s\" ainda está sendo desenhada: a posição dela não foi conferida (confira de novo)."
+                      % i.Label)
     # vista sobre vista (ou sobre as cotas de outra vista)
     cotas = _cotas_por_vista(page)
     vistas = []
     for v in page.Views:
         for i in (list(v.Views) if v.TypeId == "TechDraw::DrawProjGroup" else [v]):
-            if i.isDerivedFrom("TechDraw::DrawViewPart"):
+            if i.isDerivedFrom("TechDraw::DrawViewPart") and i not in pendentes:
                 c = caixa_vista(i)
                 if c is not None:
                     vistas.append((i, c, _com_cotas(i, c, cotas)))
@@ -157,6 +213,8 @@ def conferir(page):
             if i.TypeId == "TechDraw::DrawViewAnnotation":
                 c = caixa_anotacao(i)
             elif i.isDerivedFrom("TechDraw::DrawViewPart"):
+                if i in pendentes:
+                    continue
                 c = caixa_vista(i)
             else:
                 continue

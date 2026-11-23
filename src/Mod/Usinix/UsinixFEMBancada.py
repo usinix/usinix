@@ -284,6 +284,80 @@ def rotulo(o):
 G = 9.80665     # m/s² (1 kgf = 9,80665 N)
 
 
+def ponto_mais_distante(forma, apoios, amostras=64):
+    """(ponto, distância) do ponto do modelo de barras mais longe do apoio mais próximo: nos vértices e ao longo
+    das linhas (no meio de uma viga biapoiada o ponto mais distante não é nó)."""
+    def dist(p):
+        return min((p - q).Length for q in apoios)
+    melhor = (-1.0, None)
+    for v in forma.Vertexes:
+        d = dist(v.Point)
+        if d > melhor[0]:
+            melhor = (d, v.Point)
+    for e in forma.Edges:
+        a, b = e.FirstParameter, e.LastParameter
+        ts = [a + (b - a) * i / float(amostras) for i in range(1, amostras)]
+        if not ts:
+            continue
+        t = max(ts, key=lambda x: dist(e.valueAt(x)))
+        lo, hi = max(a, t - (b - a) / amostras), min(b, t + (b - a) / amostras)
+        for _ in range(40):                     # refina (seção áurea) entre as amostras vizinhas
+            m1, m2 = lo + (hi - lo) * 0.382, lo + (hi - lo) * 0.618
+            if dist(e.valueAt(m1)) < dist(e.valueAt(m2)):
+                lo = m1
+            else:
+                hi = m2
+        p = e.valueAt((lo + hi) / 2.0)
+        d = dist(p)
+        if d > melhor[0] + 1.0:                 # 1 mm a mais que um nó: senão fica no nó
+            melhor = (d, p)
+    return melhor[1], melhor[0]
+
+
+def _referencias(analise, peca):
+    """Geometria (ponto do vértice; extremos da linha) de tudo que a análise referencia na peça."""
+    out = []
+    for o in analise.Group:
+        if "References" not in o.PropertiesList:
+            continue
+        lst = []
+        for ob, subs in o.References:
+            if ob != peca:
+                continue
+            for sub in subs:
+                try:
+                    el = peca.Shape.getElement(sub)
+                except Exception:
+                    continue
+                lst.append((sub[:4], [v.Point for v in el.Vertexes]))
+        if lst:
+            out.append((o, lst))
+    return out
+
+
+def _remapear(analise, peca, antes):
+    """Depois de partir uma linha, aponta as referências para os novos números (vértice pelo ponto; linha pelas
+    partes que ficam sobre ela)."""
+    import Part
+    sh = peca.Shape
+    for o, lst in antes:
+        novos = []
+        for tipo, pts in lst:
+            if tipo == "Vert":
+                k = min(range(len(sh.Vertexes)), key=lambda i: (sh.Vertexes[i].Point - pts[0]).Length)
+                novos.append("Vertex%d" % (k + 1))
+            elif tipo == "Edge" and len(pts) >= 2:
+                velha = Part.makeLine(pts[0], pts[-1])
+                for i, e in enumerate(sh.Edges):
+                    if all(velha.distToShape(Part.Vertex(v.Point))[0] < 1e-4 for v in e.Vertexes):
+                        novos.append("Edge%d" % (i + 1))
+        outros = [(ob, subs) for ob, subs in o.References if ob != peca]
+        try:
+            o.References = outros + ([(peca, tuple(dict.fromkeys(novos)))] if novos else [])
+        except Exception as exc:
+            FreeCAD.Console.PrintWarning("Usinix: referências de %s: %s\n" % (o.Label, exc))
+
+
 def _pontos_dos_apoios(est):
     pts = []
     for c in est.fixacoes:
@@ -315,9 +389,10 @@ def _linha_vertical(doc):
 
 
 def carga_no_ponto_mais_distante(analise, massa_kg, rotulo=None):
-    """Força vertical para baixo de massa_kg × g no vértice do modelo mais longe dos apoios (o vértice cuja
+    """Força vertical para baixo de massa_kg × g no ponto do modelo mais longe dos apoios (o ponto cuja
     distância ao apoio mais próximo é a maior): o caso de uma pessoa com carga na ponta de uma plataforma, que
-    antes era montado à mão e chegou a ser esquecido. Funciona no modelo de barras (vértices do esqueleto)."""
+    antes era montado à mão e chegou a ser esquecido. Funciona no modelo de barras: o ponto pode ficar no meio
+    de uma linha (meio da viga); no esqueleto MEF a linha é partida ali para virar nó."""
     import ObjectsFem
     est = F.Estudo(analise=analise)
     peca = est.peca
@@ -329,7 +404,15 @@ def carga_no_ponto_mais_distante(analise, massa_kg, rotulo=None):
     vs = peca.Shape.Vertexes
     if not vs:
         raise ValueError("a geometria da análise não tem vértices")
-    k = max(range(len(vs)), key=lambda i: min((vs[i].Point - q).Length for q in apoios))
+    alvo, _d = ponto_mais_distante(peca.Shape, apoios)
+    if not any((v.Point - alvo).Length < 1.0 for v in vs) and "PontosDeCarga" in peca.PropertiesList:
+        # o ponto mais distante fica no meio de uma linha (meio da viga): vira nó do esqueleto
+        antes = _referencias(analise, peca)
+        peca.PontosDeCarga = list(peca.PontosDeCarga) + [alvo]
+        peca.recompute()
+        _remapear(analise, peca, antes)
+        vs = peca.Shape.Vertexes
+    k = min(range(len(vs)), key=lambda i: (vs[i].Point - alvo).Length)
     dist = min((vs[k].Point - q).Length for q in apoios)
     doc = analise.Document
     c = ObjectsFem.makeConstraintForce(doc, "CargaNaPonta")

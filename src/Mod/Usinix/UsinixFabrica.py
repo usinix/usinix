@@ -50,18 +50,125 @@ def _no_referencial(sh):
     return out
 
 
-def congruentes(sa, sb, tol=1e-3):
-    """As duas formas são a mesma peça (uma rotação leva uma na outra)? Peça espelhada dá False."""
-    if assinatura(sa) != assinatura(sb):
+_SINAIS = ((1, 1), (-1, -1), (1, -1), (-1, 1))
+
+
+def _mesmos_pontos(pa, pb, tol):
+    """Cada ponto de pa tem um de pb a menos de tol (e vice-versa, pela contagem igual)? Grade de tol."""
+    if len(pa) != len(pb) or not pa:
+        return False
+    grade = {}
+    for p in pb:
+        grade.setdefault((round(p[0] / tol), round(p[1] / tol), round(p[2] / tol)), []).append(p)
+    for p in pa:
+        i, j, k = round(p[0] / tol), round(p[1] / tol), round(p[2] / tol)
+        achou = False
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                for dk in (-1, 0, 1):
+                    for q in grade.get((i + di, j + dj, k + dk), ()):
+                        if abs(q[0] - p[0]) <= tol and abs(q[1] - p[1]) <= tol and abs(q[2] - p[2]) <= tol:
+                            achou = True
+                            break
+                    if achou:
+                        break
+                if achou:
+                    break
+            if achou:
+                break
+        if not achou:
+            return False
+    return True
+
+
+def referencial(sh):
+    """(forma no referencial principal, pontos dos vértices, momentos em X, Y, Z) para congruentes(ref_a=...)."""
+    r = _no_referencial(sh)
+    try:
+        s = r.Solids[0] if len(r.Solids) == 1 else r
+        m = s.MatrixOfInertia
+        mom = (m.A11, m.A22, m.A33)
+    except Exception:
+        mom = None
+    return r, [(v.X, v.Y, v.Z) for v in r.Vertexes], mom
+
+
+def _eixo_de_simetria(mom):
+    """Índice (0 = X, 1 = Y, 2 = Z) do eixo de revolução quando dois momentos são iguais e o terceiro não;
+    None se os três são diferentes; -1 se os três são iguais (cubo, esfera: sem eixo definido)."""
+    if not mom:
+        return -1
+    esc = max(abs(x) for x in mom) or 1.0
+    ig = [abs(mom[i] - mom[j]) <= 1e-6 * esc for i, j in ((1, 2), (0, 2), (0, 1))]
+    if all(ig):
+        return -1
+    for k in range(3):
+        if ig[k]:
+            return k
+    return None
+
+
+def _girar(pts, k, ang):
+    c, s = math.cos(ang), math.sin(ang)
+    i, j = [x for x in range(3) if x != k]
+    out = []
+    for p in pts:
+        q = list(p)
+        q[i], q[j] = c * p[i] - s * p[j], s * p[i] + c * p[j]
+        out.append(tuple(q))
+    return out
+
+
+def _bate_girando(pa, pb, k, tol):
+    """Peça de revolução (eixos principais indefinidos em volta do eixo k): procura o giro em torno de k (e o
+    meio giro que inverte o eixo) que leva os vértices de b nos de a."""
+    i, j = [x for x in range(3) if x != k]
+    ref = max(pa, key=lambda p: p[i] * p[i] + p[j] * p[j])
+    rr = math.hypot(ref[i], ref[j])
+    if rr < tol:
+        return _mesmos_pontos(pa, pb, tol)
+    ang_a = math.atan2(ref[j], ref[i])
+    for vira in (False, True):
+        qb = [(p[0], -p[1], -p[2]) if k == 0 else (-p[0], p[1], -p[2]) if k == 1 else (p[0], -p[1], -p[2])
+              for p in pb] if vira else pb
+        tentativas = 0
+        for q in qb:
+            if abs(q[k] - ref[k]) > tol or abs(math.hypot(q[i], q[j]) - rr) > tol:
+                continue
+            tentativas += 1
+            if tentativas > 64:
+                break
+            if _mesmos_pontos(pa, _girar(qb, k, ang_a - math.atan2(q[j], q[i])), tol):
+                return True
+    return False
+
+
+def congruentes(sa, sb, tol=1e-3, sig_a=None, sig_b=None, ref_a=None, ref_b=None):
+    """As duas formas são a mesma peça (uma rotação leva uma na outra)? Peça espelhada dá False.
+
+    Primeiro compara os vértices no referencial principal (rápido: cópias da mesma peça batem aí); só quando não
+    batem (eixos principais indefinidos, como em peça redonda ou cubo) faz a interseção dos sólidos, que é a
+    conta que pesava na lista de materiais com centenas de peças. sig_*/ref_*: valores já calculados."""
+    if (sig_a or assinatura(sa)) != (sig_b or assinatura(sb)):
         return False
     try:
-        a = _no_referencial(sa)
-        b = _no_referencial(sb)
+        a, pa, ma = ref_a or referencial(sa)
+        b, pb, _mb = ref_b or referencial(sb)
     except Exception:
         return False
+    tam = max(a.BoundBox.DiagonalLength, 1.0)
+    tolp = max(1e-4 * tam, 1e-3)
+    eixo = _eixo_de_simetria(ma)
+    if eixo is None:
+        for sx, sy in _SINAIS:
+            sz = sx * sy
+            if _mesmos_pontos(pa, [(sx * x, sy * y, sz * z) for x, y, z in pb], tolp):
+                return True
+    elif eixo >= 0 and _bate_girando(pa, pb, eixo, tolp):
+        return True
     vol = max(a.Volume, 1e-9)
     # eixos principais têm sinal livre: as 4 rotações próprias (det = +1) que trocam sinais
-    for sx, sy in ((1, 1), (-1, -1), (1, -1), (-1, 1)):
+    for sx, sy in _SINAIS:
         sz = sx * sy
         m = FreeCAD.Matrix(sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, sz, 0, 0, 0, 0, 1)
         bb = b.copy()
@@ -285,11 +392,12 @@ def escrever_xlsx(caminho, abas):
 
 
 # ============================================================================ resumo para orçamento
-def resumo_orcamento(objs):
+def resumo_orcamento(objs, linhas=None):
     """{"materiais": [(material, massa kg)], "massa_total", "area_pintura_m2", "solda_mm" (None se não há
-    cordões modelados), "pecas"}."""
+    cordões modelados), "pecas"}. linhas: as da lista de materiais, se já coletadas (são a conta pesada)."""
     import UsinixBOM
-    linhas = UsinixBOM.coletar(objs)
+    if linhas is None:
+        linhas = UsinixBOM.coletar(objs)
     por_mat = {}
     for ln in linhas:
         if ln.massa_total is None:
@@ -325,11 +433,13 @@ def _tudo(objs):
     return r
 
 
-def exportar_excel(objs, caminho):
-    """Planilha com a lista de materiais, a lista de corte, a lista de soldas e o resumo. Devolve o caminho."""
+def exportar_excel(objs, caminho, linhas=None):
+    """Planilha com a lista de materiais, a lista de corte, a lista de soldas e o resumo. Devolve o caminho.
+    linhas: as da lista de materiais, se já coletadas."""
     import UsinixBOM
     abas = []
-    linhas = UsinixBOM.coletar(objs)
+    if linhas is None:
+        linhas = UsinixBOM.coletar(objs)
     total = sum(ln.massa_total or 0.0 for ln in linhas)
     abas.append(("Lista de materiais", UsinixBOM.COLUNAS,
                  [[n, ln.qtd, ln.codigo, ln.denominacao, ln.material, ln.dimensoes, ln.massa, ln.massa_total, ln.obs]
@@ -361,7 +471,7 @@ def exportar_excel(objs, caminho):
                      [[n, s.Juntas or s.Label, s.Perna.Value, s.ComprimentoTotal.Value, s.Processo, s.Eletrodo or None,
                        s.VolumeDepositado, s.MassaDepositada, s.Observacao or None] for n, s in enumerate(soldas, 1)],
                      [6, 34, 12, 16, 22, 12, 12, 11, 24]))
-    r = resumo_orcamento(objs)
+    r = resumo_orcamento(objs, linhas)
     res = [["Peças (unidades)", r["pecas"]]]
     res += [["Massa — %s (kg)" % m, kg] for m, kg in r["materiais"]]
     res += [["Total — massa (kg)", r["massa_total"]],

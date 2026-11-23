@@ -15,6 +15,56 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.28.3 — 23/11/2026
+
+### Desenho
+
+- **Folha de tubulação com tê:** o tê com ramal do mesmo diâmetro do tubo deixava um ponto perdido no desenho, longe
+  da peça; as vistas saíam do papel e as cotas gerais davam dezenas de metros numa linha de 6 m. As cotas gerais
+  também deixam de lado qualquer ponto fora da peça.
+- **Ponta de tubo não é furo:** a ponta de um tubo (guarda-corpo, corrimão, pino) vista de frente não entra mais nas
+  cotas de furos.
+- **Conferência da folha:** espera as vistas ficarem prontas na escala atual antes de conferir a posição. Logo depois
+  de criar a folha ela acusava vista em cima de outra e invadindo a legenda sem ser verdade.
+
+### Listas
+
+- **Tubulação com massa:** o tubo sai com a massa da barra (e o kg/m na observação) e as conexões com a massa pelo
+  material da linha; o total da lista e do Excel deixa de dar 0 kg.
+- **Parafusos das barras:** parafuso com a classe (8.8 se nada for dito), porca classe 8 e arruela 200 HV, em vez do
+  material da estrutura.
+- **Furos que caíram no corte da ponta:** a furação da barra mostra "2 × Ø18 (2 fora da barra)".
+- **Muitas peças:** as peças iguais são reconhecidas pelos vértices antes da conta de sólidos, e o Excel coleta a
+  lista uma vez só. Com 200 peças, a lista passou de cerca de 45 s para 2 s e o Excel de mais de 2 min para 2 s; os
+  balões também ficaram mais rápidos.
+
+### Estruturas
+
+- **Nomes de perfil:** aceita "Tubo quadrado 50x50x3", "Tubo retangular 80x40x3", "Tubo redondo 60,3x3",
+  "w200x19.3" (sem os símbolos □ ▭ ○, ponto ou vírgula, com ou sem espaços). Perfil que não existe mostra os nomes
+  parecidos do catálogo.
+
+### Simulação
+
+- **Carga no ponto mais distante:** procura também no meio das barras (o meio de uma viga biapoiada, não só o topo
+  do pilar). No esqueleto MEF a linha é partida ali, e apoios e seções continuam nas mesmas barras.
+
+### Montagem
+
+- **Travar juntos:** avisa quando o grupo travado não está ligado a nenhuma peça fixa; nesse caso o FreeCAD não leva
+  o grupo junto quando uma peça dele se move.
+
+### Geral
+
+- **Abrir arquivo com muitos corpos:** os planos e eixos da origem escondidos são pintados só quando aparecem. Com
+  200 corpos, a abertura caiu de cerca de 28 s para 10 s.
+
+### Conexão com IA
+
+- **Trabalhos na barra:** aceita a barra pelo nome e a classe do parafuso (classe_parafuso).
+- **Mensagens claras:** barra que não existe e tipo de fixador errado dizem o que vale, sem erro do Python.
+- Depois de atualizar, reinicie o assistente para ele ver os parâmetros novos.
+
 ## 1.28.2 — 23/11/2026
 
 ### Geral

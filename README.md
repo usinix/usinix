@@ -35,8 +35,12 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.28.2** (23/11/2026): símbolos dos PDFs (σ, ≤, ⌀, ✓, ✗, letras gregas) com as fontes Noto do
-próprio Usinix, sem depender das fontes do Windows.
+**Versão atual: 1.28.3** (23/11/2026): folha de tubulação com tê corrigida; massa da tubulação e classe dos
+parafusos na lista; lista, Excel e abertura bem mais rápidos com centenas de peças; nomes de perfil sem símbolos;
+carga no meio da viga; aviso de grupo travado solto.
+
+Na 1.28.2: símbolos dos PDFs (σ, ≤, ⌀, ✓, ✗, letras gregas) com as fontes Noto do próprio Usinix, sem depender das
+fontes do Windows.
 
 Na 1.28.1: tirante de barra redonda que encosta sem recortar o pilar; pilares do pórtico com o mesmo comprimento e a
 alma no plano do pórtico; salvar como e tempo máximo de código pela conexão de IA.

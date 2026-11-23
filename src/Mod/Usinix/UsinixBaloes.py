@@ -52,11 +52,17 @@ def _escondido(p, direcao, outras):
     import Part
     tam = 1e5
     ini = p + direcao * 0.05
-    raio = Part.LineSegment(ini, p + direcao * tam).toShape()
-    bb = raio.BoundBox
+    raio = None
     for sh in outras:
-        if not sh.BoundBox.intersect(bb):
+        # filtro barato: a esfera em volta da caixa da peça nem chega perto do raio de visada (na isométrica a
+        # caixa do raio pega a montagem inteira e cada ponto media a distância a todas as peças)
+        bb = sh.BoundBox
+        c = bb.Center
+        t = max(0.0, (c - ini).dot(direcao))
+        if (c - (ini + direcao * t)).Length > bb.DiagonalLength / 2.0 + 1e-3:
             continue
+        if raio is None:
+            raio = Part.LineSegment(ini, p + direcao * tam).toShape()
         try:
             if sh.distToShape(raio)[0] < 1e-4:
                 return True
@@ -100,11 +106,11 @@ def _ponto_na_peca(sh, direcao, outras=()):
     return candidatos[0][1] if candidatos else sh.BoundBox.Center
 
 
-def _ancora(vista, ponto):
-    """Ponto 3D -> coordenadas da vista (sem escala), como o TechDraw centra a peça."""
-    c = vista.getGeometricCenter()
+def _ancora(vista, ponto, centro=None):
+    """Ponto 3D -> coordenadas da vista (sem escala), como o TechDraw centra a peça. centro: o centro da vista
+    já projetado (getGeometricCenter custa caro numa montagem grande: calcule uma vez)."""
     a = vista.projectPoint(ponto)
-    b = vista.projectPoint(c)
+    b = centro if centro is not None else vista.projectPoint(vista.getGeometricCenter())
     return FreeCAD.Vector(a.x - b.x, a.y - b.y, 0)
 
 
@@ -172,9 +178,10 @@ def criar_baloes(page, vista=None, objs=None):
     e = _escala(vista)
     todas = [sh for _o, sh in UsinixUtil.pecas(objs)]
     ancoras = {}
+    centro = vista.projectPoint(vista.getGeometricCenter())
     for n, (o, sh) in por_item.items():
         outras = [s for s in todas if not s.isSame(sh)]
-        ancoras[n] = _ancora(vista, _ponto_na_peca(sh, direcao, outras))
+        ancoras[n] = _ancora(vista, _ponto_na_peca(sh, direcao, outras), centro)
     # anel em volta do contorno da vista (coordenadas sem escala, como OriginX/X do balão)
     xs, ys = [], []
     i = 0

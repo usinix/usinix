@@ -603,6 +603,8 @@ class _FolhaObserver:
             if obj.TypeId == "TechDraw::DrawSVGTemplate":
                 QtCore.QTimer.singleShot(700, lambda o=obj: _fix_folha_date(o))
             elif obj.TypeId in ("App::Plane", "App::Line"):
+                if obj.Document.Restoring:
+                    return          # abrindo arquivo: as visíveis são pintadas no fim, as outras ao aparecer
                 ref = (obj.Document.Name, obj.Name)
                 # a vista do plano pode ainda não existir no instante da criação: tenta de novo
                 for atraso in (0, 250, 1000):
@@ -613,6 +615,16 @@ class _FolhaObserver:
     def slotChangedObject(self, obj, prop):
         """Escala automática do TechDraw fora da série normalizada (0,075 = 1:13,3) vira a normalizada logo
         abaixo, e a ESCALA da legenda acompanha as vistas da folha do Usinix."""
+        if prop == "Visibility":
+            # plano/eixo da origem que aparece: pinta agora (ao abrir, só os visíveis são pintados)
+            try:
+                if obj.TypeId in ("App::Plane", "App::Line") and obj.Visibility and \
+                        getattr(obj, "Role", "") in ORIGEM_PAPEIS and not obj.Document.Restoring:
+                    ref = (obj.Document.Name, obj.Name)
+                    QtCore.QTimer.singleShot(0, lambda r=ref: pintar_origem(*r))
+            except Exception:
+                pass
+            return
         if prop not in ("Scale", "ScaleType", "Views"):
             return
         try:
@@ -651,8 +663,7 @@ class _FolhaObserver:
             FreeCAD.Console.PrintWarning("Usinix: nome antigo no documento: {}\n".format(exc))
         try:
             nome = doc.Name
-            for atraso in (0, 500):
-                QtCore.QTimer.singleShot(atraso, lambda n=nome: pintar_origens(FreeCAD.getDocument(n)))
+            QtCore.QTimer.singleShot(300, lambda n=nome: pintar_origens(FreeCAD.getDocument(n), so_visiveis=True))
         except Exception:
             pass
 
@@ -721,9 +732,13 @@ def _materiais_coin(no, coin, acc):
     return acc
 
 
-def pintar_origens(doc):
+def pintar_origens(doc, so_visiveis=False):
+    """Pinta os planos e eixos da origem do documento. so_visiveis: só os que aparecem (ao abrir um arquivo
+    com 200 corpos eram 1.200 objetos de origem, 15 s); os outros são pintados quando aparecem."""
     for o in doc.Objects:
         if getattr(o, "Role", "") in ORIGEM_PAPEIS:
+            if so_visiveis and not getattr(o, "Visibility", True):
+                continue
             pintar_origem(doc.Name, o.Name)
 
 

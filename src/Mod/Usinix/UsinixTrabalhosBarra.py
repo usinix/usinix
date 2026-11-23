@@ -318,7 +318,7 @@ def por_parafusos(barras, grupo, m, aperto=0.0, material=""):
                 est.addObject(o)
             except Exception:
                 pass
-        o.Diametro, o.Aperto, o.Material = m, aperto, material
+        o.Diametro, o.Aperto, o.Material = m, aperto, (material or "").strip() or "Aço classe 8.8"
         res.append(o)
     return res
 

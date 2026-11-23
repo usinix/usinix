@@ -6892,10 +6892,14 @@ class T53Tubulacao(unittest.TestCase):
         tubo = [l for l in linhas if l.denominacao.startswith("Tubo")][0]
         self.assertEqual(tubo.qtd, 1)
         self.assertEqual(tubo.material, "PVC rígido")
-        self.assertIsNone(tubo.massa)
+        # 1.28.3: massa da barra inteira pelo PVC (1.400 kg/m³)
+        L = T.CAT.linha(T.CAT.PADRAO)
+        tb = L["tubos"][25]
+        self.assertAlmostEqual(tubo.massa, math.pi * (tb["De"] - tb["e"]) * tb["e"] * 1e-6 * 1400.0 *
+                               L["barra"] / 1000.0, 6)
         self.assertEqual(len(linhas), 2)                        # o traçado não entra na lista
         sheet = UsinixBOM.gravar_planilha(self.doc, linhas)
-        self.assertEqual(sheet.get("G2"), "—")
+        self.assertNotEqual(sheet.get("G2"), "—")
 
     def test_lista_e_painel(self):
         import UsinixTubulacao as T
@@ -21616,3 +21620,175 @@ class T164FontesDosDocumentos(unittest.TestCase):
         self.assertTrue(nomes, saida)
         self.assertTrue(all(n.startswith(("Poppins", "Noto")) for n in nomes), nomes)
         self.assertTrue(any(n.startswith("NotoSansMath") for n in nomes), nomes)
+
+
+class T165PendenciasDa1282(unittest.TestCase):
+    """Bateria da 1.28.2 (itens 92 a 101): massa da tubulação, classe dos parafusos das barras, furos que caíram no
+    corte, nomes de perfil digitados de outro jeito, ponto mais distante no meio da viga, grupo travado solto,
+    pontas de tubo que não são furos, peças iguais sem interseção de sólidos e mensagens claras da IA."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT165")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    @staticmethod
+    def F(_ferramenta, **kw):
+        import UsinixIA
+        return UsinixIA.FERRAMENTAS[_ferramenta]["funcao"](**kw)
+
+    def test_tubulacao_tem_massa_na_lista(self):
+        import UsinixBOM as B
+        import UsinixEsboco3D as E3
+        import UsinixTubulacao as T
+        import UsinixUtil
+        e = E3.criar(self.doc, [FreeCAD.Vector(*p) for p in ((0, 0, 0), (3000, 0, 0), (3000, 2000, 0))])
+        t = T.criar(e, dn=25)
+        t.Linha = "aco-topo-sch40"
+        self.doc.recompute()
+        kg = T.massas_bom(t)
+        tubo = [v for k, v in kg.items() if k[0] == "tubo"]
+        self.assertEqual(len(tubo), 1)
+        L = T.CAT.linha("aco-topo-sch40")
+        tb = L["tubos"][25]
+        esperado = math.pi * (tb["De"] - tb["e"]) * tb["e"] * 1e-6 * 7850.0 * L["barra"] / 1000.0
+        self.assertAlmostEqual(tubo[0], esperado, 3)
+        self.assertTrue(any(k[0] == "conexao" and v > 0 for k, v in kg.items()), kg)
+        linhas = B.coletar([t])
+        self.assertGreater(sum(ln.massa_total or 0.0 for ln in linhas), tubo[0])
+        nome, dens, definido = UsinixUtil.material(t)
+        self.assertTrue(definido)
+        self.assertAlmostEqual(dens, 7850.0)
+        self.assertEqual(T.densidade_da_linha(T.CAT.linha(T.CAT.PADRAO)), 1400.0)     # PVC
+
+    def _portico(self):
+        self.F("esboco_linhas", pontos=[[0, 0], [0, 4000], [3000, 4600], [6000, 4000], [6000, 0]], plano="XZ",
+               nome="Esq")
+        sk = [o for o in self.doc.Objects if o.TypeId.startswith("Sketcher")][-1]
+        self.F("criar_estrutura", esqueleto=sk.Name, perfil="W 200 x 19,3", material="ASTM A36", fixacao="Centro")
+        return [o for o in self.doc.Objects if o.Name.startswith("Estrutura")][-1]
+
+    def test_parafusos_das_barras_com_a_classe_e_furos_fora(self):
+        import UsinixBOM as B
+        import UsinixEstrutura as E
+        est = self._portico()
+        r = self.F("trabalhos_na_barra", estrutura=est.Name, barras=["0", E.barras_de(est)[3].Label],
+                   ponta_inicio="horizontal", por_parafusos=True,
+                   furos={"face": "Mesa de baixo", "parafuso": "M16", "ref": "inicio", "dist": 60, "qtd": 2,
+                          "passo": 80, "filas": 2, "gab": 60})
+        self.assertEqual([x["parafusos"] for x in r], [4, 2])
+        self.assertIn("ref='fim'", r[1]["aviso"])
+        b3 = [b for b in E.barras_de(est) if b.Indice == 3][0]
+        self.assertEqual(b3.Furacao, "2 × Ø18 (2 fora da barra)")
+        mats = {ln.denominacao.split(" ")[0]: ln.material for ln in B.coletar([est])
+                if ln.denominacao.startswith(("Parafuso", "Porca", "Arruela"))}
+        self.assertEqual(mats, {"Parafuso": "Aço classe 8.8", "Porca": "Aço classe 8", "Arruela": "Aço 200 HV"})
+        with self.assertRaises(ValueError) as cm:
+            self.F("trabalhos_na_barra", estrutura=est.Name, barras=["Viga que não existe"])
+        self.assertIn("não encontrada", str(cm.exception))
+
+    def test_nomes_de_perfil(self):
+        import UsinixPerfis as P
+        self.assertEqual(P.perfil("Tubo quadrado 50x50x3")["nome"], "Tubo □ 50 x 50 x 3")
+        self.assertEqual(P.perfil("tubo retangular 80 x 40 x 3,00")["nome"], "Tubo ▭ 80 x 40 x 3")
+        self.assertEqual(P.perfil("Tubo redondo 60.3x3")["nome"], "Tubo ○ 60,3 x 3")
+        self.assertEqual(P.perfil("w200x19.3")["nome"], "W 200 x 19,3")
+        self.assertEqual(P.canonico("Tubo quadrado 50x50x3"), "Tubo □ 50 x 50 x 3")
+        with self.assertRaises(ValueError) as cm:
+            P.canonico("W 200 x 19")
+        self.assertIn("W 200 x 19,3", str(cm.exception))
+
+    def test_ponto_mais_distante_no_meio_da_viga(self):
+        import Part
+        import UsinixEsqueletoMEF as M
+        import UsinixFEMBancada as B
+        V = FreeCAD.Vector
+        forma = Part.Compound([Part.makeLine(V(0, 0, 0), V(0, 0, 3000)), Part.makeLine(V(0, 0, 3000),
+                               V(6000, 0, 3000)), Part.makeLine(V(6000, 0, 3000), V(6000, 0, 0))])
+        p, d = B.ponto_mais_distante(forma, [V(0, 0, 0), V(6000, 0, 0)])
+        self.assertAlmostEqual(p.x, 3000.0, delta=1.0)
+        self.assertAlmostEqual(d, math.hypot(3000, 3000), delta=1.0)
+        partida = M.partir_nos_pontos(forma, [p])
+        self.assertEqual(len(partida.Edges), 4)
+        self.assertTrue(any((v.Point - p).Length < 1e-6 for v in partida.Vertexes))
+        self.assertTrue(all((a.Vertexes[0].Point - b.Vertexes[0].Point).Length < 1e-9 for a, b in
+                            zip(forma.Edges[:2], partida.Edges[:2])), "numeração das primeiras linhas mantida")
+
+    def test_pecas_iguais_sem_intersecao(self):
+        import Part
+        import UsinixFabrica as F
+        a = Part.makeBox(100, 40, 10).cut(Part.makeCylinder(5, 10, FreeCAD.Vector(20, 20, 0)))
+        b = a.copy()
+        b.Placement = FreeCAD.Placement(FreeCAD.Vector(500, 300, 50), FreeCAD.Rotation(FreeCAD.Vector(1, 2, 3), 37))
+        b = b.copy()
+        self.assertTrue(F.congruentes(a, b))
+        # peça quiral (três braços de comprimentos diferentes): a espelhada não é a mesma peça
+        tri = Part.makeBox(60, 8, 8).fuse([Part.makeBox(8, 40, 8), Part.makeBox(8, 8, 25)]).removeSplitter()
+        self.assertFalse(F.congruentes(tri, tri.mirror(FreeCAD.Vector(), FreeCAD.Vector(1, 0, 0))))
+        pa = F.referencial(a)[1]
+        pb = F.referencial(b)[1]
+        self.assertTrue(any(F._mesmos_pontos(pa, [(sx * x, sy * y, sx * sy * z) for x, y, z in pb], 1e-3)
+                            for sx, sy in F._SINAIS), "cópia girada bate pelos vértices, sem booleana")
+        # peça de revolução (flange com 6 furos): eixos principais indefinidos, acha o giro pelos vértices
+        V = FreeCAD.Vector
+        fl = Part.makeCylinder(60, 15).cut(Part.makeCylinder(25, 15))
+        for k in range(6):
+            a6 = 2 * math.pi * k / 6
+            fl = fl.cut(Part.makeCylinder(6, 15, V(45 * math.cos(a6), 45 * math.sin(a6), 0)))
+        f2 = fl.copy()
+        f2.Placement = FreeCAD.Placement(V(900, 10, 5), FreeCAD.Rotation(V(1, 1, 0), 63))
+        f2 = f2.copy()
+        ra, rb = F.referencial(fl), F.referencial(f2)
+        k = F._eixo_de_simetria(ra[2])
+        self.assertIsNotNone(k)
+        self.assertGreaterEqual(k, 0)
+        self.assertTrue(F._bate_girando(ra[1], rb[1], k, 1e-2))
+        self.assertTrue(F.congruentes(fl, f2))
+
+    def test_fixador_tipo_errado_e_classe_padrao(self):
+        box = self.doc.addObject("Part::Box", "Chapa")
+        self.doc.recompute()
+        with self.assertRaises(ValueError) as cm:
+            self.F("fixador", peca=box.Name, aresta="Edge1", tipo="rebite")
+        self.assertIn("sextavado, allen, porca ou arruela", str(cm.exception))
+
+    def test_grupo_travado_solto_avisa(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import JointObject
+        import UsinixMontagem as M
+        asm = self.doc.addObject("Assembly::AssemblyObject", "Assembly")
+        jg = asm.newObject("Assembly::JointGroup", "Joints")
+        base = asm.newObject("Part::Box", "Base")
+        a = asm.newObject("Part::Box", "A")
+        b = asm.newObject("Part::Box", "B")
+        a.Placement.Base = FreeCAD.Vector(100, 0, 0)
+        b.Placement.Base = FreeCAD.Vector(200, 0, 0)
+        self.doc.recompute()
+        g = jg.newObject("App::FeaturePython", "Fixa")
+        JointObject.GroundedJoint(g, base)
+        self.doc.recompute()
+        M.travar_juntos([a, b])
+        self.assertIn("não está ligado a nenhuma peça fixa", M.aviso_sem_chao(asm, [a, b]) or "")
+        M.travar_juntos([base, a])
+        self.assertIsNone(M.aviso_sem_chao(asm, [a, b]))
+
+    def test_ponta_de_tubo_nao_e_furo(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import Part
+        import UsinixVistas as V
+        V3 = FreeCAD.Vector
+        chapa = Part.makeBox(300, 200, 10).cut(Part.makeCylinder(7, 10, V3(50, 50, 0)))
+        tubo = Part.makeCylinder(19.05, 300, V3(200, 100, 10)).cut(Part.makeCylinder(17.05, 300, V3(200, 100, 10)))
+        o = self.doc.addObject("Part::Feature", "Peca")
+        o.Shape = chapa.fuse(tubo)
+        self.doc.recompute()
+        page = self.doc.getObject(self.F("nova_folha", objetos=[o.Name], formato="A3")["folha"])
+        g = [v for v in page.Views if v.TypeId == "TechDraw::DrawProjGroup"][0]
+        V.esperar_vistas(list(g.Views), 60)
+        cima = [v for v in g.Views if abs(abs(FreeCAD.Vector(v.Direction).z) - 1) < 1e-6][0]
+        diams = [d for d, _f in V.furos_da_vista(cima)]
+        self.assertEqual(diams, [14.0])

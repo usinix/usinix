@@ -145,7 +145,7 @@ def propriedades(perfil):
     medidas para a flambagem local e 'aproximada'."""
     it = UsinixPerfis.perfil(perfil) if isinstance(perfil, str) else perfil
     if it is None:
-        raise ValueError("perfil desconhecido: %s" % perfil)
+        raise UsinixPerfis.erro_desconhecido(perfil)
     chave = it["nome"]
     if chave in _cache:
         return dict(_cache[chave])

@@ -483,8 +483,8 @@ def f_salvar(documento=None, caminho=None):
 
 
 @ferramenta("carga_ponto_mais_distante", "Na análise de simulação (modelo de barras), aplica uma força vertical para "
-            "baixo de massa_kg × 9,80665 N no vértice mais distante dos apoios (pessoa com carga na ponta de uma "
-            "plataforma). A massa é informada por quem calcula, conforme a norma aplicável.",
+            "baixo de massa_kg × 9,80665 N no ponto mais distante dos apoios, num nó ou no meio de uma barra (o esqueleto "
+            "MEF é partido ali), como uma pessoa com carga na ponta de uma plataforma. A massa é informada por quem calcula, conforme a norma aplicável.",
             {"analise": {"type": "string"}, "massa_kg": {"type": "number"}, "rotulo": {"type": "string"}},
             ("analise", "massa_kg"))
 def f_carga_ponto_mais_distante(analise, massa_kg, rotulo=None):
@@ -570,25 +570,60 @@ def f_estrutura(esqueleto, perfil, uniao="Meia-esquadria", giro=0.0, material=""
                                               for b in E.barras_de(est)]}
 
 
+def _simples(txt):
+    """Texto sem acento, minúsculo e sem espaços nas pontas (para achar nomes digitados de outro jeito)."""
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(txt or ""))
+    return "".join(c for c in t if not unicodedata.combining(c)).strip().lower()
+
+
+def _barras_pedidas(todas, barras):
+    """Barras da estrutura por índice (0, "3") ou por nome/rótulo; erro claro com o que existe."""
+    if barras is None:
+        return list(todas)
+    if not isinstance(barras, (list, tuple)):
+        barras = [barras]
+    por_ind = {b.Indice: b for b in todas}
+    res, ruins = [], []
+    for x in barras:
+        b = None
+        if isinstance(x, (int, float)) or (isinstance(x, str) and x.strip().lstrip("-").isdigit()):
+            b = por_ind.get(int(x))
+        else:
+            t = _simples(x)
+            b = next((o for o in todas if _simples(o.Name) == t or _simples(o.Label) == t), None)
+        if b is None:
+            ruins.append(str(x))
+        elif b not in res:
+            res.append(b)
+    if ruins:
+        exemplos = ", ".join("%d (%s)" % (b.Indice, b.Label) for b in sorted(todas, key=lambda o: o.Indice)[:8])
+        raise ValueError("barra(s) não encontrada(s): %s. Use o índice ou o nome; nesta estrutura: %s%s"
+                         % (", ".join(ruins), exemplos, "..." if len(todas) > 8 else ""))
+    return res
+
+
 @ferramenta("trabalhos_na_barra", "Corte das pontas soltas e furos nas barras de uma estrutura. ponta_inicio / "
             "ponta_fim: reto, horizontal ou vertical. furos (opcional): face (Alma, Mesa de cima, Mesa de baixo, "
             "As duas mesas), parafuso (M8..M30) ou diametro, ref (inicio, fim, as_duas), dist, qtd, passo, filas "
             "(1/2), gab (entre filas). por_parafusos=true põe parafuso, arruela e porca.",
-            {"estrutura": {"type": "string"}, "barras": {"type": "array", "items": {"type": "integer"}},
+            {"estrutura": {"type": "string"},
+             "barras": {"type": "array", "items": {"type": ["integer", "string"]},
+                        "description": "índices das barras (0, 1...) ou nomes/rótulos (Barra001)"},
              "ponta_inicio": {"type": "string", "enum": ["reto", "horizontal", "vertical"]},
              "ponta_fim": {"type": "string", "enum": ["reto", "horizontal", "vertical"]},
              "furos": {"type": "object"}, "por_parafusos": {"type": "boolean"},
-             "aperto": {"type": "number"}}, ["estrutura"])
+             "aperto": {"type": "number"},
+             "classe_parafuso": {"type": "string", "description": "ex.: Aço classe 8.8 zincado (padrão 8.8)"}},
+            ["estrutura"])
 def f_trabalhos(estrutura, barras=None, ponta_inicio=None, ponta_fim=None, furos=None, por_parafusos=False,
-                aperto=0.0):
+                aperto=0.0, classe_parafuso=""):
     import UsinixEstrutura as E
     import UsinixTrabalhosBarra as T
     doc = _doc()
     est = _obj(doc, estrutura)
     todas = E.barras_de(est)
-    bs = [b for b in todas if barras is None or b.Indice in [int(i) for i in barras]]
-    if not bs:
-        raise ValueError("nenhuma barra com esses índices")
+    bs = _barras_pedidas(todas, barras)
     pontas = {}
     if ponta_inicio:
         pontas[0] = ponta_inicio
@@ -616,7 +651,7 @@ def f_trabalhos(estrutura, barras=None, ponta_inicio=None, ponta_fim=None, furos
     if grupos and por_parafusos:
         if not grupos[0]["parafuso"]:
             raise ValueError("para pôr parafusos, informe furos.parafuso (M12...)")
-        pfs = T.por_parafusos(bs, gid, grupos[0]["parafuso"], float(aperto))
+        pfs = T.por_parafusos(bs, gid, grupos[0]["parafuso"], float(aperto), classe_parafuso or "")
         doc.recompute()
     else:
         pfs = []
@@ -637,8 +672,11 @@ def f_trabalhos(estrutura, barras=None, ponta_inicio=None, ponta_fim=None, furos
                     (2 if g.get("face") == "As duas mesas" else 1)
             r["parafusos"] = int(pf[0].Quantidade)
             if r["parafusos"] < esperados:
+                p0 = e.valueAt(e.FirstParameter)
                 r["aviso"] = ("%d parafuso(s) para %d furo(s) do grupo: parte dos furos não existe na barra (a "
-                              "ponta cortada ou outra peça os tirou). Confira a posição." % (r["parafusos"], esperados))
+                              "ponta cortada ou outra peça os tirou). A ponta de início desta barra é a do ponto "
+                              "(%.0f; %.0f; %.0f) mm; se os furos eram na outra ponta, use ref='fim'."
+                              % (r["parafusos"], esperados, p0.x, p0.y, p0.z))
             r["aviso_junta"] = ("o comprimento do parafuso considera só o material da barra; acrescente a chapa ou "
                                 "a cantoneira da ligação em 'aperto' (mm)") if not aperto else ""
         res.append(r)
@@ -744,6 +782,13 @@ def f_fixador(peca, aresta, tipo, rosca=None, comprimento=0.0, material=""):
     import UsinixFixadores as F
     doc = _doc()
     o = _obj(doc, peca)
+    apelidos = {"sextavado": "sextavado", "hexagonal": "sextavado", "parafuso": "sextavado",
+                "parafuso sextavado": "sextavado", "allen": "allen", "parafuso allen": "allen", "cilindrico": "allen",
+                "porca": "porca", "porca sextavada": "porca", "arruela": "arruela", "arruela lisa": "arruela"}
+    t = apelidos.get(_simples(tipo))
+    if t is None or t not in F.TIPOS:
+        raise ValueError("tipo de fixador '%s' não existe; use: sextavado, allen, porca ou arruela" % tipo)
+    tipo = t
     pl, diam = F.posicao_no_furo(o, aresta)
     if pl is None:
         raise ValueError("a aresta %s de %s não é a borda de um furo (precisa ser um círculo fechado com parede "
@@ -753,7 +798,7 @@ def f_fixador(peca, aresta, tipo, rosca=None, comprimento=0.0, material=""):
         raise ValueError("rosca %s não existe para %s; opções: %s" % (m, F.TIPOS[tipo], ", ".join(F.diametros(tipo))))
     if F.tem_comprimento(tipo) and not comprimento:
         raise ValueError("informe o comprimento do parafuso (mm)")
-    f = F.criar(doc, tipo, m, float(comprimento or 0.0), pl, material or "")
+    f = F.criar(doc, tipo, m, float(comprimento or 0.0), pl, material or F.classe_equivalente("", tipo))
     return {"objeto": f.Name, "rotulo": f.Label, "denominacao": f.Denominacao,
             "furo_mm": round(float(diam or 0.0), 2),
             "posicao_mm": [round(c, 2) for c in (f.Placement.Base.x, f.Placement.Base.y, f.Placement.Base.z)]}
@@ -780,8 +825,9 @@ def f_excel(caminho, objetos=None):
     import UsinixFabrica
     doc = _doc()
     objs = [_obj(doc, n) for n in objetos] if objetos else UsinixBOM._objetos_alvo(usar_selecao=False)
-    UsinixFabrica.exportar_excel(objs, caminho)
-    r = UsinixFabrica.resumo_orcamento(objs)
+    linhas = UsinixBOM.coletar(objs)
+    UsinixFabrica.exportar_excel(objs, caminho, linhas)
+    r = UsinixFabrica.resumo_orcamento(objs, linhas)
     return {"arquivo": caminho, "massa_total_kg": round(r["massa_total"], 3),
             "area_pintura_m2": round(r["area_pintura_m2"], 3),
             "materiais": [{"material": m, "massa_kg": round(kg, 3)} for m, kg in r["materiais"]]}

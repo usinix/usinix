@@ -629,7 +629,7 @@ class Secao:
         par = parametros(est, j)
         self.it = UsinixPerfis.perfil(par["perfil"])
         if self.it is None:
-            raise ValueError("perfil desconhecido: %s" % par["perfil"])
+            raise UsinixPerfis.erro_desconhecido(par["perfil"])
         self.larg, self.alt = UsinixPerfis.dimensoes(self.it)
         self.giro = float(par["giro"])
         self.espelhar = bool(par["espelhar"])
@@ -1063,8 +1063,9 @@ def furos_da_barra(est, i):
     return [f for f in furos_de(est) if int(i) in [int(b) for b in f.get("barras", [])]]
 
 
-def descricao_furacao(est, i, eds=None):
-    """Texto curto da furação da barra i para a lista de corte (ex.: "4 × Ø14")."""
+def descricao_furacao(est, i, eds=None, barra=None):
+    """Texto curto da furação da barra i para a lista de corte (ex.: "4 × Ø14"). Com a barra já calculada,
+    conta os furos que existem nela: os que caíram no corte da ponta saem como "(2 fora da barra)"."""
     if eds is None:
         eds = arestas(est.Esqueleto)
     conta = {}
@@ -1076,9 +1077,29 @@ def descricao_furacao(est, i, eds=None):
         filas = 2 if int(f.get("filas", 1)) >= 2 else 1
         lados = 2 if f.get("face") == "As duas mesas" else 1
         d = float(f.get("diam", 0.0))
-        conta[d] = conta.get(d, 0) + n_pos * filas * lados
-    return ", ".join("%d × Ø%s" % (n, fmt(d, 0) if abs(d - round(d)) < 1e-6 else fmt(d, 1))
-                     for d, n in sorted(conta.items()) if n)
+        n, eix = conta.get(d, (0, 0))
+        # nas duas mesas o furo de cima e o de baixo ficam no mesmo eixo: a barra mostra um eixo por posição
+        conta[d] = (n + n_pos * filas * lados, eix + n_pos * filas)
+    partes = []
+    for d, (n, eixos) in sorted(conta.items()):
+        if not n:
+            continue
+        txt_d = fmt(d, 0) if abs(d - round(d)) < 1e-6 else fmt(d, 1)
+        reais = n
+        if barra is not None and eixos:
+            try:
+                import UsinixTrabalhosBarra as TB
+                achados = len(TB.furos_na_barra(barra, d))
+                if achados < eixos:
+                    reais = int(round(n * achados / float(eixos)))
+            except Exception:
+                reais = n
+        if reais < n:
+            partes.append("%d × Ø%s (%d fora da barra)" % (reais, txt_d, n - reais) if reais else
+                          "Ø%s: %d fora da barra" % (txt_d, n))
+        else:
+            partes.append("%d × Ø%s" % (n, txt_d))
+    return ", ".join(partes)
 
 
 def calcular_barra(est, i, eds=None):
@@ -1410,7 +1431,7 @@ class Barra:
         obj.Material = est.Material
         aplicar_material(obj, est.Material)
         obj.SituacaoDados = "confirmado" if UsinixPerfis.confiavel(it) else "a conferir"
-        fu = descricao_furacao(est, obj.Indice, eds)
+        fu = descricao_furacao(est, obj.Indice, eds, barra=obj)
         if obj.Furacao != fu:
             obj.Furacao = fu
 
@@ -1538,8 +1559,7 @@ def criar(doc, esqueleto, perfil=PERFIL_PADRAO, rotacao=0.0, alinhamento="Centro
     grupos_extras: [{"nome", "perfil", "giro", "fixacao", "espelhar", "arestas": [índices]}].
     linhas_sem_barra: índices das linhas que ficam sem barra.
     transacao=False: quem chama cuida da transação (diálogo ao vivo)."""
-    if UsinixPerfis.perfil(perfil) is None:
-        raise ValueError("perfil desconhecido: %s" % perfil)
+    perfil = UsinixPerfis.canonico(perfil)
     eds = arestas(esqueleto)
     if not eds:
         raise ValueError("o esqueleto não tem linhas")
@@ -1608,7 +1628,8 @@ def definir_grupos(est, grupos_extras, n_arestas=None, linhas_sem_barra=()):
     lst, por_aresta = [], [0] * n_arestas
     for k, g in enumerate(grupos_extras, 1):
         if UsinixPerfis.perfil(g.get("perfil", "")) is None:
-            raise ValueError("perfil desconhecido no grupo %s: %s" % (g.get("nome", k), g.get("perfil")))
+            raise ValueError("no grupo %s: %s" % (g.get("nome", k), UsinixPerfis.erro_desconhecido(g.get("perfil"))))
+        g = dict(g, perfil=UsinixPerfis.canonico(g.get("perfil")))
         fx = g.get("fixacao", "Centro")
         if fx not in FIXACOES:
             raise ValueError("ponto de fixação desconhecido: %s" % fx)
@@ -1656,8 +1677,7 @@ def mover_para_grupo(est, barras, grupo, perfil=None, giro=None, fixacao=None, e
                 "giro": float(padrao["giro"] if giro is None else giro),
                 "fixacao": fixacao or padrao["fixacao"],
                 "espelhar": bool(padrao["espelhar"] if espelhar is None else espelhar)}
-        if UsinixPerfis.perfil(novo["perfil"]) is None:
-            raise ValueError("perfil desconhecido: %s" % novo["perfil"])
+        novo["perfil"] = UsinixPerfis.canonico(novo["perfil"])
         est.Grupos = list(est.Grupos) + [json.dumps(novo, ensure_ascii=False)]
         k = len(extras) + 1
     n = len(arestas(est.Esqueleto))
@@ -1742,8 +1762,8 @@ def atualizar(est):
 
 def trocar_perfil(barras, perfil=None, giro=None):
     """Troca o perfil e/ou o giro adicional das barras indicadas."""
-    if perfil is not None and UsinixPerfis.perfil(perfil) is None:
-        raise ValueError("perfil desconhecido: %s" % perfil)
+    if perfil is not None:
+        perfil = UsinixPerfis.canonico(perfil)
     por_est = {}
     for b in barras:
         por_est.setdefault(b.Estrutura, []).append(b)
@@ -2218,8 +2238,7 @@ def editar(est, padrao, grupos_extras, uniao=None, material=None, linhas_sem_bar
     """Aplica o grupo padrão, os grupos extras (com as arestas) e as opções gerais à estrutura.
 
     As trocas individuais de perfil/giro são zeradas: o diálogo já as mostra como grupos."""
-    if UsinixPerfis.perfil(padrao["perfil"]) is None:
-        raise ValueError("perfil desconhecido: %s" % padrao["perfil"])
+    padrao = dict(padrao, perfil=UsinixPerfis.canonico(padrao["perfil"]))
     if padrao.get("fixacao", "Centro") not in FIXACOES:
         raise ValueError("ponto de fixação desconhecido: %s" % padrao.get("fixacao"))
     n = len(arestas(est.Esqueleto))

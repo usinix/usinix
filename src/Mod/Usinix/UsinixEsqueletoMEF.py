@@ -103,6 +103,24 @@ def linhas(est, eixo_real=True):
         return Part.Compound(segs), excent
 
 
+def partir_nos_pontos(forma, pontos, tol=1e-3):
+    """Parte as linhas nos pontos dados (nó para a carga concentrada). A linha partida vira duas: a primeira
+    metade fica no lugar dela e a segunda vai para o fim, para mexer o menos possível na numeração."""
+    import Part
+    eds = list(forma.Edges)
+    for p in pontos:
+        for k, e in enumerate(eds):
+            if e.distToShape(Part.Vertex(p))[0] > tol:
+                continue
+            if any((v.Point - p).Length < tol for v in e.Vertexes):
+                break                                  # já é nó
+            a, b = e.Vertexes[0].Point, e.Vertexes[-1].Point
+            eds[k] = Part.makeLine(a, p)
+            eds.append(Part.makeLine(p, b))
+            break
+    return Part.Compound(eds)
+
+
 class EsqueletoMEF:
     Type = "EsqueletoMEF"
     AUXILIAR = True          # objeto de apoio: fora da lista de materiais e das folhas
@@ -120,6 +138,9 @@ class EsqueletoMEF:
             obj.addProperty("App::PropertyBool", "EixoReal", "Esqueleto MEF",
                             "Linhas no eixo do centroide de cada barra (desligado: as linhas do esboço)")
             obj.EixoReal = True
+        if "PontosDeCarga" not in obj.PropertiesList:
+            obj.addProperty("App::PropertyVectorList", "PontosDeCarga", "Esqueleto MEF",
+                            "Pontos no meio das linhas onde há carga concentrada: a linha é partida ali (nó)")
         if "Excentricidades" not in obj.PropertiesList:
             obj.addProperty("App::PropertyStringList", "Excentricidades", "Esqueleto MEF",
                             "Barras com o eixo fora do plano das outras (não modelado: confira)")
@@ -131,6 +152,8 @@ class EsqueletoMEF:
             return
         self._props(obj)
         forma, exc = linhas(est, bool(obj.EixoReal))
+        if list(obj.PontosDeCarga):
+            forma = partir_nos_pontos(forma, list(obj.PontosDeCarga))
         obj.Shape = forma
         obj.Barras = len(obj.Shape.Edges)
         if list(obj.Excentricidades) != exc:

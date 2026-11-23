@@ -82,6 +82,15 @@ def material(obj):
                 dens = None
         if dens and dens > 0:
             return m.Name, dens, True
+    # objetos que sabem o próprio material sem ShapeMaterial (tubulação: o da linha do catálogo)
+    try:
+        f = getattr(getattr(alvo, "Proxy", None), "material_usinix", None)
+        if f is not None:
+            nome, dens = f(alvo)
+            if dens and dens > 0:
+                return nome, float(dens), True
+    except Exception:
+        pass
     return "Não definido (aço)", densidade_padrao(), False
 
 

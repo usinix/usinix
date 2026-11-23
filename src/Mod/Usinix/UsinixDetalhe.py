@@ -58,6 +58,8 @@ def _caixa_da_vista(vista):
     except Exception:
         arestas = []
     for e in arestas:
+        if e.Length < 1e-4:
+            continue                       # ponto perdido do cálculo de linhas ocultas (ver UsinixVistas)
         bb = e.BoundBox
         xs += [bb.XMin, bb.XMax]
         ys += [bb.YMin, bb.YMax]

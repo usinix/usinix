@@ -1295,9 +1295,24 @@ def _solido_conexao(c, L, k=1.0):
     R = c["corpo"] / 2.0 * k
     corpo = None
     furos = []
-    for s, pt, u, dd, cf in c["pernas"]:
-        tb = L["tubos"][dd]
+    # tê e cruzeta: o ramal com o mesmo raio da corrida dá interseção de cilindros iguais (curva singular), e o
+    # desenho do TechDraw saía com um ponto perdido a dezenas de metros, que descentralizava as vistas e as cotas
+    # (folha da tubulação quebrada). O ramal sai 3 % mais fino, por fora e no furo.
+    principais = set()
+    if len(c["pernas"]) >= 3:
+        for a in range(len(c["pernas"])):
+            for b in range(a + 1, len(c["pernas"])):
+                ua, ub = FreeCAD.Vector(c["pernas"][a][2]), FreeCAD.Vector(c["pernas"][b][2])
+                if ua.Length > 1e-9 and ub.Length > 1e-9 and ua.normalize().dot(ub.normalize()) < -0.999:
+                    principais.update((a, b))
+    for n_perna, (s, pt, u, dd, cf) in enumerate(c["pernas"]):
+        fino = 0.97 if principais and n_perna not in principais else 1.0
+        tb = dict(L["tubos"][dd])
         b = L["bolsa"][dd]
+        if fino < 1.0 and b <= 0:          # solda de topo: o furo também (com bolsa, o tubo entra nela: não mexe)
+            tb["e"] = tb["e"] * fino
+            tb["De"] = tb["De"] * fino
+        R_perna = R * fino
         if cf < 0:      # cap: a conexão fica para fora da ponta do tubo
             alt = L["cap"][dd]
             ini = P - u * (alt - b)
@@ -1307,7 +1322,7 @@ def _solido_conexao(c, L, k=1.0):
             else:
                 furos.append(_cil(tb["De"] / 2.0 - tb["e"], P - u * (alt - tb["e"]), u, alt - tb["e"] + 0.5))
         else:
-            parte = _cil(R, P, u, cf)
+            parte = _cil(R_perna, P, u, cf)
             if b > 0:
                 furos.append(_cil(tb["De"] / 2.0, P + u * (cf - b), u, b + 0.5))
             furos.append(_cil(tb["De"] / 2.0 - tb["e"], P, u, cf))
@@ -1519,6 +1534,11 @@ class Tubulacao:
                 except (ValueError, IndexError):
                     continue
         return reg
+
+    def material_usinix(self, obj):
+        """(nome, kg/m³) para a massa: o material dos tubos da linha."""
+        L = CAT.linha(obj.Linha)
+        return material_de(L, "tubo"), densidade_da_linha(L, "tubo")
 
     def linha(self, obj):
         """A linha do catálogo com a classe dos flanges escolhida."""
@@ -1822,7 +1842,8 @@ def e_tubulacao(obj):
 
 
 def linhas_bom(obj):
-    """Itens para a lista de materiais: [(chave, denominação, material, dimensões, quantidade, obs)]."""
+    """Itens para a lista de materiais: [(chave, denominação, material, dimensões, quantidade, obs)]
+    (massas em massas_bom)."""
     res = obj.Proxy.calcular(obj)
     L = res["linha"]
     itens = []
@@ -1835,14 +1856,68 @@ def linhas_bom(obj):
         else:
             den = "Tubo %s %d mm (barra de %.0f m)" % ("soldável" if "soldavel" in L["id"] else "", d,
                                                       L["barra"] / 1000.0)
+        kgm = massa_por_metro(L, d)
         itens.append((("tubo", L["id"], d), den, material_de(L, "tubo"), "DE %s × %s — %s m no total" % (
-            _num(tb["De"]), _num(tb["e"]), _num(round(r["total"] / 1000.0, 2))), r["barras"], L["fabricante"]))
+            _num(tb["De"]), _num(tb["e"]), _num(round(r["total"] / 1000.0, 2))), r["barras"],
+            "%s · %s kg/m" % (L["fabricante"], _num(round(kgm, 2)))))
     for desc, n in resumo_conexoes(res["conexoes"]).items():
         itens.append((("conexao", L["id"], desc), desc, material_de(L, desc), "—", n, L["fabricante"]))
     sd = soldas_de_topo(res)
     if sd:
         itens.append((("solda", L["id"]), "Solda de topo (junta)", "—", "—", sd, "Contagem para inspeção"))
     return itens
+
+
+def massas_bom(obj):
+    """{chave de linhas_bom: massa unitária em kg}. A do tubo é a da barra inteira (o que se compra); a da
+    conexão, pelo volume do sólido desenhado com a densidade do material da linha. Buchas, juntas e estojos não
+    têm sólido próprio e ficam de fora."""
+    res = obj.Proxy.calcular(obj)
+    L = res["linha"]
+    out = {}
+    for d in lista_de_corte(res.get("pecas", []), L):
+        out[("tubo", L["id"], d)] = massa_por_metro(L, d) * L["barra"] / 1000.0
+    for desc, kg in _massas_das_conexoes(res, L).items():
+        out[("conexao", L["id"], desc)] = kg
+    return out
+
+
+# kg/m³ pelo nome do material da linha (valores de referência; a lista de materiais diz que é estimada)
+DENSIDADES = (("cpvc", 1550.0), ("pvc", 1400.0), ("ppr", 900.0), ("polipropileno", 900.0), ("pead", 950.0),
+              ("polietileno", 950.0), ("cobre", 8940.0), ("inox", 7930.0), ("ferro fundido", 7200.0),
+              ("aço", 7850.0), ("aco", 7850.0))
+
+
+def densidade_da_linha(L, desc=None):
+    """kg/m³ do material da linha (ou da peça `desc`, nas linhas de aço com material por tipo)."""
+    nome = (material_de(L, desc) if desc else L.get("material", "")) or ""
+    t = nome.lower()
+    for chave, rho in DENSIDADES:
+        if chave in t:
+            return rho
+    import UsinixUtil
+    return UsinixUtil.densidade_padrao()
+
+
+def massa_por_metro(L, d):
+    """kg/m do tubo de diâmetro `d` da linha (parede: π·(De − e)·e)."""
+    tb = L["tubos"][d]
+    return math.pi * (tb["De"] - tb["e"]) * tb["e"] * 1e-6 * densidade_da_linha(L, "tubo")
+
+
+def _massas_das_conexoes(res, L):
+    """{descrição: kg} pelo volume do sólido de uma conexão de cada tipo (as buchas e juntas não têm sólido)."""
+    out = {}
+    for c in res.get("conexoes", []):
+        if c.get("so_lista") or c["desc"] in out:
+            continue
+        try:
+            v = solido_conexao(c, L).Volume
+        except Exception:
+            continue
+        if v > 0:
+            out[c["desc"]] = v * 1e-9 * densidade_da_linha(L, c["desc"])
+    return out
 
 
 def material_de(L, desc):

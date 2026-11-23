@@ -54,8 +54,9 @@ def _prop(obj, *nomes):
             v = getattr(obj, n)
             if v not in (None, ""):
                 return v
-            if n == "Material":
-                # chapa/reforço feito antes de herdar o material: vale o da estrutura em que está
+            if n == "Material" and "Norma" not in obj.PropertiesList and "ItensParafusos" not in obj.PropertiesList:
+                # chapa/reforço feito antes de herdar o material: vale o da estrutura em que está (fixador não:
+                # parafuso não é de ASTM A36)
                 v = UsinixUtil.material_da_estrutura(obj)
                 if v:
                     return v
@@ -154,10 +155,18 @@ def _chave_geometrica(base, sh, geometricas, propria):
         import UsinixFabrica
         mat = UsinixUtil.material(base)[0]
         sig = UsinixFabrica.assinatura(sh)
-        for chave, sig0, mat0, sh0 in geometricas:
-            if sig0 == sig and mat0 == mat and UsinixFabrica.congruentes(sh0, sh):
+        ref = None
+        for g in geometricas:
+            chave, sig0, mat0, sh0 = g[:4]
+            if sig0 != sig or mat0 != mat:
+                continue
+            if ref is None:
+                ref = UsinixFabrica.referencial(sh)
+            if g[4] is None:
+                g[4] = UsinixFabrica.referencial(sh0)
+            if UsinixFabrica.congruentes(sh0, sh, sig_a=sig0, sig_b=sig, ref_a=g[4], ref_b=ref):
                 return chave
-        geometricas.append((propria, sig, mat, sh))
+        geometricas.append([propria, sig, mat, sh, ref])
     except Exception as exc:
         FreeCAD.Console.PrintLog("Usinix: peças iguais pela geometria: %s\n" % exc)
     return propria
@@ -190,9 +199,14 @@ def coletar(objs, densidade_padrao=None, mapa=None):
             continue  # cordão de solda: vai para a lista de soldas
         if _e_tubulacao(base):
             # tubulação: um item por diâmetro de tubo (em barras) e por conexão
+            try:
+                kgs = _tubulacao().massas_bom(base)
+            except Exception as exc:
+                FreeCAD.Console.PrintLog("Usinix: massa da tubulação: %s\n" % exc)
+                kgs = {}
             for chave, den, mat, dim, qtd, obs in _tubulacao().linhas_bom(base):
                 if chave not in linhas:
-                    linhas[chave] = Linha(chave, den, mat, dim, None, obs)
+                    linhas[chave] = Linha(chave, den, mat, dim, kgs.get(chave), obs)
                     ordem.append(chave)
                 linhas[chave].qtd += qtd
                 marcar(obj, chave, sh)
@@ -210,9 +224,11 @@ def coletar(objs, densidade_padrao=None, mapa=None):
             # parafusos nos furos de uma barra (Trabalhos na barra): parafuso, arruela e porca contados à parte
             import UsinixFixadores as F
             import UsinixTrabalhosBarra as TB
-            mat_txt = str(_prop(base, "Material") or "") or "—"
+            # a classe do parafuso (não o material da estrutura); porca e arruela na classe que combina
+            classe = str(getattr(base, "Material", "") or "").strip() or "Aço classe 8.8"
             for qtd, tipo, m, comp in TB.itens_bom(base):
                 den = F.denominacao(tipo, m, comp or None)
+                mat_txt = classe if tipo == "sextavado" else F.classe_equivalente(classe, tipo)
                 chave = ("padrao", den, mat_txt if mat_txt != "—" else "")
                 if chave not in linhas:
                     try:

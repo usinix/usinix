@@ -61,7 +61,85 @@ def perfil(nome):
         it = item_customizado(nome)
         if it is not None:
             _cache["idx"][nome] = it
+    if it is None and isinstance(nome, str):
+        # escrito de outro jeito: "Tubo quadrado 50x50x3", "w 200 x 19.3", sem os símbolos □ ▭ ○
+        it = _indice_normalizado().get(normalizar(nome))
     return it
+
+
+_SIMBOLOS = (("□", " quadrado "), ("▭", " retangular "), ("○", " redondo "), ("ø", " "), ("⌀", " "),
+             ("×", "x"), ("*", "x"))
+_PALAVRAS = (("metalon", "quadrado"), ("tubo", ""), ("quad.", "quadrado"), ("ret.", "retangular"), ("red.", "redondo"),
+             ("circular", "redondo"), ("tubo de conducao", "tubo"), ("cantoneira", "l"))
+
+
+def normalizar(nome):
+    """Chave para comparar nomes de perfil digitados de jeitos diferentes: sem acento, minúsculo, os símbolos
+    dos tubos por extenso, ponto ou vírgula decimal e zeros à direita indiferentes, sem espaços."""
+    import re
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(nome or "").lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    for a, b in _SIMBOLOS:
+        t = t.replace(a, b)
+    for a, b in _PALAVRAS:
+        t = t.replace(a, b)
+    t = re.sub(r"(\d)\.(\d)", r"\1,\2", t)
+    t = re.sub(r"(\d+,\d*?)0+\b", r"\1", t)
+    t = re.sub(r"(\d+),(?=\D|$)", r"\1", t)
+    t = re.sub(r"[()\s]", "", t)
+    return t
+
+
+def _indice_normalizado():
+    if "norm" not in _cache:
+        dados()
+        idx = {}
+        import re
+        for nome, it in _cache["idx"].items():
+            idx.setdefault(normalizar(nome), it)
+        for nome, it in _cache["idx"].items():          # "Barra redonda Ø 25,4 (1")" também como "... 25,4"
+            if re.search(r'\([\d/ ]+"\)', nome):
+                idx.setdefault(normalizar(re.sub(r'\([\d/ ]+"\)', "", nome)), it)
+        _cache["norm"] = idx
+    return _cache["norm"]
+
+
+def parecidos(nome, n=5):
+    """Nomes do catálogo mais parecidos com `nome` (para a mensagem de perfil desconhecido)."""
+    import difflib
+    idx = _indice_normalizado()
+    chaves = difflib.get_close_matches(normalizar(nome), list(idx), n=n * 3, cutoff=0.5)
+    out = []
+    for k in chaves:
+        nm = idx[k]["nome"]
+        if nm not in out:
+            out.append(nm)
+    return out[:n]
+
+
+def canonico(nome):
+    """O nome como está no catálogo: o próprio, se já for de lá (inclusive os antigos e os customizados); o do
+    catálogo, se foi escrito de outro jeito ("Tubo quadrado 50x50x3"). Perfil que não existe: ValueError com os
+    parecidos."""
+    dados()
+    if nome in _cache["idx"]:
+        return nome
+    it = perfil(nome)
+    if it is None:
+        raise erro_desconhecido(nome)
+    return nome if (isinstance(nome, str) and nome.startswith(PREFIXO_CUSTOM)) else it["nome"]
+
+
+def erro_desconhecido(nome):
+    """ValueError com os nomes parecidos do catálogo."""
+    sug = parecidos(nome)
+    txt = "perfil desconhecido: %s" % nome
+    if sug:
+        txt += ". Parecidos: " + "; ".join(sug)
+    txt += " (a lista completa está na ferramenta listar_perfis; os tubos podem ser escritos como \"Tubo " \
+           "quadrado 50 x 50 x 3\", \"Tubo retangular 80 x 40 x 3\", \"Tubo redondo 60,3 x 3\")"
+    return ValueError(txt)
 
 
 # ---------------------------------------------------------------- perfis customizados (medidas digitadas)
