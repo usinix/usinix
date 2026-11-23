@@ -35,8 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.28.1** (23/11/2026): tirante de barra redonda que encosta sem recortar o pilar; pilares do pórtico
-com o mesmo comprimento e a alma no plano do pórtico; salvar como e tempo máximo de código pela conexão de IA.
+**Versão atual: 1.28.2** (23/11/2026): símbolos dos PDFs (σ, ≤, ⌀, ✓, ✗, letras gregas) com as fontes Noto do
+próprio Usinix, sem depender das fontes do Windows.
+
+Na 1.28.1: tirante de barra redonda que encosta sem recortar o pilar; pilares do pórtico com o mesmo comprimento e a
+alma no plano do pórtico; salvar como e tempo máximo de código pela conexão de IA.
 
 Na 1.28.0: botão Verificar atualizações na aba Usinix; pacotes externos podem se atualizar na mesma janela do
 Usinix.
@@ -491,3 +494,7 @@ você, considere [apoiar o projeto original](https://wiki.freecad.org/Donate).
 A sombra no chão, o realce de cantos e as texturas da Aparência usam o motor do
 [ShowRoom](https://github.com/oficinerobotica/ShowRoom), de OficineRobotica (LGPL-2.1 ou posterior), que nasceu do
 Display Tools (MIT). Os avisos de licença estão em `src/Mod/Usinix/UsinixCenaFX`.
+
+As fontes [Poppins](https://github.com/itfoundry/Poppins) (Indian Type Foundry) e Noto Sans, Noto Sans Math e Noto
+Sans Symbols 2 ([Noto](https://github.com/notofonts), recortadas aos símbolos usados) são distribuídas sob a SIL Open
+Font License 1.1; os textos estão em `src/Mod/Usinix/Resources/fonts`.

@@ -242,6 +242,46 @@ _font_state = {"family": None}
 
 _fontes_registradas = {"ok": None}
 
+# Documentos (PDF dos relatórios): a Poppins no texto e as Noto só nos símbolos que ela não tem (letras gregas,
+# setas, ≤ ⌀ ✓ ✗...). Sem elas o Windows completava com a Tahoma e a MS UI Gothic do sistema.
+FAMILIAS_DOCUMENTO = ["Poppins", "Noto Sans", "Noto Sans Math", "Noto Sans Symbols 2"]
+CSS_FAMILIAS = ", ".join("'%s'" % f for f in FAMILIAS_DOCUMENTO)
+_ARQUIVO_DA_FAMILIA = {"Noto Sans": "NotoSans-Regular.ttf", "Noto Sans Math": "NotoSansMath-Regular.ttf",
+                       "Noto Sans Symbols 2": "NotoSansSymbols2-Regular.ttf"}
+
+
+def fonte_documento(pixels=None, pontos=None, peso=None):
+    """QFont dos documentos: Poppins com as Noto como reserva para os símbolos."""
+    garantir_fontes()
+    f = QtGui.QFont("Poppins")
+    try:
+        f.setFamilies(FAMILIAS_DOCUMENTO)
+    except Exception:
+        pass
+    if pixels:
+        f.setPixelSize(int(round(pixels)))
+    elif pontos:
+        f.setPointSizeF(float(pontos))
+    if peso is not None:
+        f.setWeight(peso)
+    return f
+
+
+def _noto_de_reserva():
+    """Registra as Noto que faltarem (Linux, ou Windows antes de reabrir) e põe-nas como reserva da Poppins."""
+    try:
+        tem = set(QtGui.QFontDatabase.families())
+    except Exception:
+        tem = set()
+    for fam, arq in _ARQUIVO_DA_FAMILIA.items():
+        caminho = os.path.join(FONT_DIR, arq)
+        if fam not in tem and os.path.isfile(caminho):
+            QtGui.QFontDatabase.addApplicationFont(caminho)
+    try:
+        QtGui.QFont.insertSubstitutions("Poppins", FAMILIAS_DOCUMENTO[1:])
+    except Exception:
+        pass
+
 
 def instalar_fontes_do_usuario():
     """Windows: instala a Poppins na conta do usuário (pasta de fontes do usuário + registro HKCU, sem
@@ -316,10 +356,12 @@ def garantir_fontes():
     try:
         if "Poppins" in QtGui.QFontDatabase.families():
             _fontes_registradas["ok"] = True
+            _noto_de_reserva()
             return True
     except Exception:
         pass
     _fontes_registradas["ok"] = "Poppins" in _registrar_poppins_do_programa()
+    _noto_de_reserva()
     return _fontes_registradas["ok"]
 
 
@@ -332,6 +374,7 @@ def install_font():
         return None
     # a do sistema tem arquivo e o Qt embute no PDF; a registrada pelo programa por cima tomaria o lugar dela
     fams = ["Poppins"] if _poppins_no_sistema() else _registrar_poppins_do_programa()
+    _noto_de_reserva()
     if "Poppins" not in fams:
         FreeCAD.Console.PrintWarning("Usinix: fonte Poppins não carregada.\n")
         return None

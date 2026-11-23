@@ -228,9 +228,8 @@ def gerar_pdf(analise, caminho):
     alt_doc = (H - topo - base) / escala
     doc = QtGui.QTextDocument()
     doc.setDefaultStyleSheet(R.CSS)
-    f = QtGui.QFont("Poppins")
-    f.setPixelSize(14)
-    doc.setDefaultFont(f)
+    import UsinixEstilo
+    doc.setDefaultFont(UsinixEstilo.fonte_documento(pixels=14))
     doc.setDocumentMargin(0)
     doc.setHtml(_corpo(analise, doc, imgs, int(larg_doc * 0.78)))
     doc.setTextWidth(larg_doc)

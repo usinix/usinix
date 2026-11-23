@@ -21,7 +21,7 @@ DPI = 300
 MARGEM_MM = 18.0
 
 CSS = """
-body { font-family: 'Poppins'; font-size: 14px; color: %(INK)s; }
+body { font-family: 'Poppins', 'Noto Sans', 'Noto Sans Math', 'Noto Sans Symbols 2'; font-size: 14px; color: %(INK)s; }
 h1 { font-size: 24px; color: %(NAVY)s; font-weight: 700; margin-top: 18px; margin-bottom: 6px; }
 h2 { font-size: 18px; color: %(NAVY)s; font-weight: 600; margin-top: 12px; margin-bottom: 4px; }
 p { margin-top: 2px; margin-bottom: 6px; line-height: 140%%; }
@@ -419,10 +419,8 @@ def _mm(px_por_mm, v):
 
 def _fonte(px, peso=QtGui.QFont.Normal):
     _garantir_poppins()
-    f = QtGui.QFont("Poppins")
-    f.setPixelSize(int(px))
-    f.setWeight(peso)
-    return f
+    import UsinixEstilo
+    return UsinixEstilo.fonte_documento(pixels=int(px), peso=peso)
 
 
 def faixa_capa(p, W, k):
@@ -589,9 +587,8 @@ def gerar(est, caminho, corpo=None, capturas=None):
 
     doc = QtGui.QTextDocument()
     doc.setDefaultStyleSheet(CSS)
-    f = QtGui.QFont("Poppins")
-    f.setPixelSize(14)
-    doc.setDefaultFont(f)
+    import UsinixEstilo
+    doc.setDefaultFont(UsinixEstilo.fonte_documento(pixels=14))
     doc.setDocumentMargin(0)
     doc.setHtml((corpo or _corpo)(est, doc, imgs, int(larg_doc * 0.78)))
     doc.setTextWidth(larg_doc)

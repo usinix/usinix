@@ -15,6 +15,20 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.28.2 — 23/11/2026
+
+### Geral
+
+- **Símbolos nos PDFs com fonte do Usinix:** σ, ≤, ⌀, →, ✓, ✗ e as letras gregas saem com Noto Sans, Noto Sans
+  Math e Noto Sans Symbols 2 (licença OFL, recortadas aos símbolos de engenharia, cerca de 190 kB). O Windows
+  completava esses símbolos com a Tahoma e a MS UI Gothic do sistema. As fontes são instaladas na conta do usuário
+  junto com a Poppins, e o texto continua selecionável.
+
+### Estruturas
+
+- **Aviso de cantos ajustados à mão:** com "Regras de pórtico" ligadas, a estrutura avisa quantos cantos foram
+  ajustados à mão, que eles valem sobre as regras e que basta limpar os ajustes em Cantos para seguir só as regras.
+
 ## 1.28.1 — 23/11/2026
 
 ### Estruturas

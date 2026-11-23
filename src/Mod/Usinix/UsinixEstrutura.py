@@ -1243,6 +1243,11 @@ class Estrutura:
                 av = []
         except Exception:
             av = []
+        manuais = [c for c in (getattr(obj, "Cantos", []) or []) if c.strip()]
+        if getattr(obj, "RegrasDePortico", False) and manuais:
+            av.append("Regras de pórtico ligadas, mas %d canto(s) foram ajustados à mão e valem sobre elas (nesses "
+                      "nós o pilar pode sair de outro comprimento). Para seguir só as regras, limpe os ajustes em "
+                      "Cantos." % len(manuais))
         if list(obj.Avisos) != av:
             obj.Avisos = av
 

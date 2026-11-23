@@ -21569,3 +21569,50 @@ class T163PorticoComTirantes(unittest.TestCase):
             self.assertEqual(r["resultado"], 4)
         finally:
             p.SetBool("IAPermitirCodigo", antes)
+
+
+    def test_aviso_de_cantos_manuais_com_regras_de_portico(self):
+        import UsinixEstrutura as E
+        est, g = self._portico()
+        self.assertFalse([a for a in est.Avisos if "Regras de pórtico" in a])
+        i = [k for k, x in enumerate(g) if x == 0][0]
+        j = [k for k, x in enumerate(g) if x == 1][0]
+        E.definir_tratamento(est, i, j, "reto")
+        est.touch()
+        self.doc.recompute()
+        self.assertTrue([a for a in est.Avisos if "Regras de pórtico" in a], list(est.Avisos))
+
+
+class T164FontesDosDocumentos(unittest.TestCase):
+    """1.28.2: Noto Sans, Noto Sans Math e Noto Sans Symbols 2 (recortadas) como reserva da Poppins nos PDFs: os
+    símbolos (σ ≤ ⌀ → ✓ ✗) saem com fonte do Usinix, sem a Tahoma e a MS UI Gothic do Windows."""
+
+    def test_arquivos_e_licenca(self):
+        import UsinixEstilo as S
+        for arq in ("NotoSans-Regular.ttf", "NotoSansMath-Regular.ttf", "NotoSansSymbols2-Regular.ttf", "OFL-Noto.txt"):
+            self.assertTrue(os.path.isfile(os.path.join(S.FONT_DIR, arq)), arq)
+        self.assertEqual(S.FAMILIAS_DOCUMENTO[0], "Poppins")
+
+    def test_pdf_com_simbolos_so_com_fontes_do_usinix(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import shutil
+        import subprocess
+        from PySide import QtGui
+        import UsinixEstilo as S
+        import UsinixFEMRelatorio as R
+        if not shutil.which("pdffonts"):
+            self.skipTest("sem pdffonts")
+        caminho = os.path.join(tempfile.mkdtemp(), "t.pdf")
+        w = QtGui.QPdfWriter(caminho)
+        d = QtGui.QTextDocument()
+        d.setDefaultStyleSheet(R.CSS)
+        d.setDefaultFont(S.fonte_documento(pixels=14))
+        d.setHtml("<p>σ = 120 MPa ≤ 250 · ⌀20 · γ δ ν ρ · x⁴ → ✓ ✗</p>")
+        d.print_(w)
+        del w
+        saida = subprocess.run(["pdffonts", caminho], capture_output=True, text=True).stdout
+        nomes = [l.split()[0] for l in saida.splitlines()[2:] if l.strip()]
+        self.assertTrue(nomes, saida)
+        self.assertTrue(all(n.startswith(("Poppins", "Noto")) for n in nomes), nomes)
+        self.assertTrue(any(n.startswith("NotoSansMath") for n in nomes), nomes)
