@@ -77,7 +77,7 @@ def pontas_livres(barra):
     """Pontas (0 início, 1 fim) que não encostam em outra barra."""
     est = barra.Estrutura
     eds = E.arestas_ativas(est, E.arestas(est.Esqueleto))
-    return [k for k, lig in enumerate(E.ligacoes(eds, barra.Indice)) if lig.tipo == "livre"]
+    return [k for k, lig in enumerate(E.ligacoes_est(est, eds, barra.Indice)) if lig.tipo == "livre"]
 
 
 def plano_da_face(obj, sub):

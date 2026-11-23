@@ -35,8 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.28.0** (22/11/2026): botão Verificar atualizações na aba Usinix; pacotes externos podem se
-atualizar na mesma janela do Usinix.
+**Versão atual: 1.28.1** (23/11/2026): tirante de barra redonda que encosta sem recortar o pilar; pilares do pórtico
+com o mesmo comprimento e a alma no plano do pórtico; salvar como e tempo máximo de código pela conexão de IA.
+
+Na 1.28.0: botão Verificar atualizações na aba Usinix; pacotes externos podem se atualizar na mesma janela do
+Usinix.
 
 Na 1.27.3: PDF com texto selecionável no Windows (Poppins instalada na conta do usuário); figuras de resultado sem a
 peça sólida por cima; ferramentas novas aparecendo no assistente de IA.

@@ -15,6 +15,27 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.28.1 — 23/11/2026
+
+### Estruturas
+
+- **Tirante de barra redonda:** o contraventamento encosta na barra principal do nó e não recorta mais o pilar.
+  O pilar fica do mesmo comprimento com ou sem contraventamento e não desce abaixo do piso. Tirantes em X que se
+  cruzam ou passam pelas terças não geram mais aviso de cruzamento.
+- **Nó com três ou mais barras:** passa a barra de perfil mais pesado. Duas terças leves alinhadas não cortam mais
+  o pilar, e todos os pilares do pórtico saem com o mesmo comprimento.
+- **Pilar em esqueleto 3D:** o perfil W sai com a alma no plano do pórtico (o da viga que chega nele), sem
+  precisar girar 90°.
+- As regras novas valem para estruturas criadas nesta versão. As antigas ficam como estavam e podem ligar a
+  propriedade "Regras de pórtico".
+- **Mais rápido:** a busca das ligações entre as barras ficou mais leve em estruturas grandes.
+
+### Conexão com IA
+
+- **Salvar como:** a ferramenta salvar aceita o caminho do arquivo e salva um documento novo.
+- **Código Python com tempo máximo:** o código é interrompido quando passa do tempo (padrão 60 s), e a conexão não
+  fica presa.
+
 ## 1.28.0 — 22/11/2026
 
 ![Aba Usinix com o botão Verificar atualizações ao lado do Sobre](.github/images/novidades/1.28.0.webp)

@@ -21464,3 +21464,108 @@ class T162AtualizacaoJuntoComPacotes(unittest.TestCase):
             self.assertIn("Usinix_VerificarAtualizacoes", FreeCADGui.listCommands())
             import UsinixAtualizar as A
             self.assertTrue(os.path.isfile(A.CmdVerificarAtualizacoes().GetResources()["Pixmap"]))
+
+
+class T163PorticoComTirantes(unittest.TestCase):
+    """1.28.1: achados do barracão (84 a 89) — tirante de barra redonda encosta e não recorta o pilar, sem aviso de
+    cruzamento; pilar com a alma no plano do pórtico; salvar como pela IA; tempo máximo do código Python."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixTesteT163")
+
+    def tearDown(self):
+        try:
+            if self.doc.Name in FreeCAD.listDocuments():
+                fechar(self.doc)
+        except ReferenceError:
+            pass
+
+    def _portico(self):
+        from FreeCAD import Vector as V
+        import UsinixEsboco3D as S3
+        import UsinixEstrutura as E
+        H = 6000
+        seg, g = [], []
+
+        def s(a, b, k):
+            seg.append((V(*a), V(*b)))
+            g.append(k)
+        for x in (0, 5000, 10000):
+            s((x, 0, 0), (x, 0, H), 0)
+            s((x, 10000, 0), (x, 10000, H), 0)
+            s((x, 0, H), (x, 5000, 6500), 1)
+            s((x, 5000, 6500), (x, 10000, H), 1)
+        for y in (0, 10000):
+            s((0, y, H), (5000, y, H), 2)
+            s((5000, y, H), (10000, y, H), 2)
+            s((0, y, 0), (5000, y, H), 3)
+            s((0, y, H), (5000, y, 0), 3)
+            s((0, y, 3000), (5000, y, 3000), 2)
+        pts, qb = [], []
+        for a, b in seg:
+            pts += [a, b]
+            qb.append(len(pts))
+        sk = S3.criar(self.doc, pontos=pts, quebras=qb[:-1], nome="Esq")
+        self.doc.recompute()
+
+        def idx(k):
+            return [i for i, x in enumerate(g) if x == k]
+        est = E.criar(self.doc, sk, perfil="W 250 x 32,7", material="ASTM A36", grupos_extras=[
+            {"nome": "Vigas", "perfil": "W 250 x 25,3", "arestas": idx(1)},
+            {"nome": "Tercas", "perfil": "Ue 150 x 60 x 20 x 2,25", "arestas": idx(2)},
+            {"nome": "Contrav", "perfil": "Barra redonda Ø 15,88 (5/8\")", "arestas": idx(3)}])
+        self.doc.recompute()
+        return est, g
+
+    def test_tirante_nao_recorta_o_pilar(self):
+        import UsinixEstrutura as E
+        est, g = self._portico()
+        bs = {b.Indice: b for b in E.barras_de(est)}
+        pilares = [bs[i] for i, k in enumerate(g) if k == 0]
+        comps = sorted({round(b.Shape.BoundBox.ZLength, 0) for b in pilares})
+        self.assertEqual(len(comps), 1, comps)                       # mesmo comprimento com ou sem tirante
+        self.assertTrue(all(b.Shape.BoundBox.ZMin > -1.0 for b in pilares),
+                        [round(b.Shape.BoundBox.ZMin, 1) for b in pilares])   # nenhum abaixo do piso
+        sec = E.tirantes(est, E.arestas_ativas(est))
+        self.assertEqual(sec, {i for i, k in enumerate(g) if k == 3})
+        self.assertFalse([a for a in est.Avisos if "cruzam" in a], list(est.Avisos))
+        for i in sec:                                                # tirante encosta nas barras comuns
+            ligs = E.ligacoes_est(est, E.arestas_ativas(est), i)
+            self.assertTrue(all(l.tipo == "topo_T" for l in ligs), [l.tipo for l in ligs])
+
+    def test_pilar_com_a_alma_no_plano_do_portico(self):
+        import UsinixEstrutura as E
+        est, g = self._portico()
+        bs = {b.Indice: b for b in E.barras_de(est)}
+        p = bs[0].Shape.BoundBox                                     # pilar em x = 0, pórtico no plano YZ
+        self.assertGreater(p.YLength, p.XLength)                     # altura do W ao longo de Y
+        self.assertAlmostEqual(p.YLength, 258.0, delta=3.0)
+        est.RegrasDePortico = False                            # arquivo antigo: como era
+        E.atualizar(est)
+        self.doc.recompute()
+        p = bs[0].Shape.BoundBox
+        self.assertGreater(p.XLength, p.YLength)
+
+    def test_salvar_como_pela_ia(self):
+        import UsinixIA
+        FreeCAD.setActiveDocument(self.doc.Name)
+        caminho = os.path.join(tempfile.mkdtemp(), "novo")
+        r = UsinixIA.FERRAMENTAS["salvar"]["funcao"](documento=self.doc.Name, caminho=caminho)
+        self.assertTrue(r["arquivo"].endswith("novo.FCStd"))
+        self.assertTrue(os.path.isfile(r["arquivo"]))
+
+    def test_codigo_python_com_tempo_maximo(self):
+        import time
+        import UsinixIA
+        p = FreeCAD.ParamGet(UsinixIA.PARAM)
+        antes = p.GetBool("IAPermitirCodigo", False)
+        p.SetBool("IAPermitirCodigo", True)
+        try:
+            t0 = time.time()
+            with self.assertRaises(UsinixIA.TempoEsgotado):
+                UsinixIA.FERRAMENTAS["executar_python"]["funcao"](codigo="while True:\n    x = 1\n", tempo_max_s=1)
+            self.assertLess(time.time() - t0, 5.0)
+            r = UsinixIA.FERRAMENTAS["executar_python"]["funcao"](codigo="resultado = 2 + 2")
+            self.assertEqual(r["resultado"], 4)
+        finally:
+            p.SetBool("IAPermitirCodigo", antes)

@@ -462,11 +462,22 @@ def f_duplicar_analise(analise, rotulo=None):
 
 
 @ferramenta("salvar", "Salva o documento ativo (ou o indicado), tentando de novo se o arquivo estiver preso por "
-                "um instante pela sincronização do Drive/OneDrive.", {"documento": {"type": "string"}}, muda=False)
-def f_salvar(documento=None):
+                "um instante pela sincronização do Drive/OneDrive. caminho: salva como (obrigatório em documento "
+                "novo, que ainda não tem arquivo; termina em .FCStd).",
+             {"documento": {"type": "string"}, "caminho": {"type": "string"}}, muda=False)
+def f_salvar(documento=None, caminho=None):
     doc = _doc(documento)
+    if caminho:
+        caminho = os.path.abspath(os.path.expanduser(str(caminho)))
+        if not caminho.lower().endswith(".fcstd"):
+            caminho += ".FCStd"
+        pasta = os.path.dirname(caminho)
+        if not os.path.isdir(pasta):
+            raise ValueError("a pasta não existe: %s" % pasta)
+        doc.saveAs(caminho)
+        return {"arquivo": doc.FileName, "tentativas": 1}
     if not doc.FileName:
-        raise ValueError("o documento ainda não tem arquivo: use Salvar como no Usinix")
+        raise ValueError("o documento ainda não tem arquivo: informe caminho (pasta e nome do arquivo .FCStd)")
     n = UsinixUtil.salvar(doc)
     return {"arquivo": doc.FileName, "tentativas": n}
 
@@ -841,15 +852,40 @@ def f_desfazer():
     return {"desfeito": nomes[0]}
 
 
+TEMPO_PYTHON = 60.0
+
+
+class TempoEsgotado(Exception):
+    pass
+
+
 @ferramenta("executar_python", "Executa código Python no Usinix (FreeCAD, Part, Sketcher...). Só funciona se o usuário "
-            "ligou 'Permitir código Python' em Conectar IA. A variável 'resultado' volta como resposta.",
-            {"codigo": {"type": "string"}}, ["codigo"])
-def f_python(codigo):
+            "ligou 'Permitir código Python' em Conectar IA. A variável 'resultado' volta como resposta. "
+            "tempo_max_s (padrão 60, até 170): o código é interrompido quando passa do tempo, para o Usinix e a "
+            "conexão não ficarem presos (uma operação longa do próprio FreeCAD, como um recálculo, termina antes de "
+            "parar).",
+            {"codigo": {"type": "string"}, "tempo_max_s": {"type": "number"}}, ["codigo"])
+def f_python(codigo, tempo_max_s=TEMPO_PYTHON):
+    import sys
+    import time
     if not permitir_codigo():
         raise PermissionError("código Python solto está desligado. Use as ferramentas do Usinix, ou peça ao usuário "
                               "para ligar 'Permitir código Python' em Usinix › Conectar IA.")
+    limite = time.time() + max(1.0, min(float(tempo_max_s or TEMPO_PYTHON), TEMPO_MAX - 10.0))
     ns = {"FreeCAD": FreeCAD, "App": FreeCAD, "FreeCADGui": FreeCADGui, "Gui": FreeCADGui}
-    exec(compile(codigo, "<ia>", "exec"), ns)
+    anterior = sys.gettrace()
+
+    def vigia(frame, evento, arg):
+        if time.time() > limite:
+            raise TempoEsgotado("o código passou de %.0f s e foi interrompido (aumente tempo_max_s ou divida "
+                                "o trabalho)" % float(tempo_max_s or TEMPO_PYTHON))
+        return vigia if frame.f_code.co_filename == "<ia>" else None
+
+    sys.settrace(vigia)
+    try:
+        exec(compile(codigo, "<ia>", "exec"), ns)
+    finally:
+        sys.settrace(anterior)
     r = ns.get("resultado")
     try:
         json.dumps(r)

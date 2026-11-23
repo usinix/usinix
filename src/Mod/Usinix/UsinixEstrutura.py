@@ -257,6 +257,20 @@ def _meio_espaco(ponto, normal, tam):
 def _ponto_interior(p, e):
     """True se p está sobre a aresta e, longe das pontas."""
     import Part
+    if _reta(e):
+        # reta: conta direta (o distToShape do OCC custava caro: ligacoes() testa todo par de barras e a
+        # estrutura de 500 barras passava de 80 s por recálculo)
+        a, b = e.Vertexes[0].Point, e.Vertexes[-1].Point
+        ab = b - a
+        l2 = ab.dot(ab)
+        if l2 < 1e-18:
+            return False
+        if (p - a).Length <= 1e-4 or (p - b).Length <= 1e-4:
+            return False
+        t = (p - a).dot(ab) / l2
+        if t <= 0.0 or t >= 1.0:
+            return False
+        return (a + ab * t - p).Length <= 1e-4
     try:
         d = e.distToShape(Part.Vertex(p))[0]
     except Exception:
@@ -277,25 +291,143 @@ class Ligacao:
         self.outros = outros or []  # nó múltiplo: [(índice, direção para dentro da barra)]
 
 
-def ligacoes(eds, i):
-    """(ligação na ponta inicial, ligação na ponta final) da barra i."""
-    e = eds[i]
+def eh_tirante(nome_perfil):
+    """Barra redonda maciça (tirante de contraventamento): não recorta as outras barras nem muda o comprimento
+    delas; ela é que encosta (e pode cruzar as outras sem aviso)."""
+    try:
+        it = UsinixPerfis.perfil(nome_perfil)
+    except Exception:
+        it = None
+    if it is not None and it.get("forma") == "redonda" and it.get("macica"):
+        return True
+    n = str(nome_perfil or "").lower()
+    return n.startswith("barra redonda") or n.startswith("customizado br ")
+
+
+_cache_tirantes = {}
+
+
+def _chave_est(est, eds, extra=""):
+    try:
+        return (extra, est.Document.Name, est.Name, est.Perfil, tuple(est.Grupos), tuple(est.GrupoDaAresta),
+                tuple(est.PerfisIndividuais), bool(getattr(est, "RegrasDePortico", False)),
+                tuple(e is None for e in eds))
+    except Exception:
+        return None
+
+
+def tirantes(est, eds):
+    """Índices das linhas cuja barra é tirante (barra redonda)."""
+    chave = _chave_est(est, eds, "tirantes")
+    if chave is not None and chave in _cache_tirantes:
+        return _cache_tirantes[chave]
+    res = _tirantes(est, eds)
+    if chave is not None:
+        if len(_cache_tirantes) > 32:
+            _cache_tirantes.clear()
+        _cache_tirantes[chave] = res
+    return res
+
+
+def _tirantes(est, eds):
+    res = set()
+    for j, e in enumerate(eds):
+        if e is None:
+            continue
+        try:
+            if eh_tirante(_perfil_da_barra(est, j)):
+                res.add(j)
+        except Exception:
+            pass
+    return res
+
+
+def ligacoes_est(est, eds, i, sec=None):
+    """ligacoes() levando em conta os tirantes da estrutura (ver eh_tirante)."""
+    return ligacoes(eds, i, tirantes(est, eds) if sec is None else sec)
+
+
+_geo_cache = {"eds": None, "geo": None}
+
+
+def _geo(eds):
+    """[(início, fim, reta?, aresta)] das linhas (None onde não há barra), calculado uma vez por lista de arestas:
+    ligacoes() olha todo par de barras e pedir valueAt/Curve a cada vez custava caro em estrutura grande."""
+    if _geo_cache["eds"] is eds and _geo_cache["geo"] is not None and len(_geo_cache["geo"]) == len(eds):
+        return _geo_cache["geo"]
+    geo = []
+    for e in eds:
+        if e is None:
+            geo.append(None)
+            continue
+        geo.append((e.valueAt(e.FirstParameter), e.valueAt(e.LastParameter), _reta(e), e))
+    _geo_cache["eds"], _geo_cache["geo"] = eds, geo
+    return geo
+
+
+def _interior_geo(p, g):
+    a, b, reta, e = g
+    if not reta:
+        return _ponto_interior(p, e)
+    ab = b - a
+    l2 = ab.dot(ab)
+    if l2 < 1e-18 or (p - a).Length <= 1e-4 or (p - b).Length <= 1e-4:
+        return False
+    t = (p - a).dot(ab) / l2
+    if t <= 0.0 or t >= 1.0:
+        return False
+    return (a + ab * t - p).Length <= 1e-4
+
+
+def ligacoes(eds, i, sec=None, _fora=None):
+    """(ligação na ponta inicial, ligação na ponta final) da barra i.
+
+    sec: índices das barras secundárias (tirantes). Uma barra comum ignora os tirantes que chegam nela (o
+    pilar fica do mesmo comprimento com ou sem contraventamento); o tirante encosta na barra comum do nó."""
+    sec = set(sec or ())
+    geo = _geo(eds)
+    a0, b0, _r, e = geo[i]
     res = []
+    if i in sec:
+        for no_inicio in (True, False):
+            p = a0 if no_inicio else b0
+            principais = [j for j, g in enumerate(geo) if j != i and g is not None and j not in sec and
+                          ((g[0] - p).Length < 1e-4 or (g[1] - p).Length < 1e-4 or _interior_geo(p, g))]
+            if principais:
+                # encosta na barra comum mais transversal a ele
+                a = _dir(e, no_inicio)
+
+                def transversal(j):
+                    g = geo[j]
+                    to = g[1] - g[0]
+                    if to.Length < 1e-12:
+                        return 1.0
+                    return abs(a.dot(FreeCAD.Vector(to).normalize()))
+                res.append(Ligacao("topo_T", min(principais, key=transversal)))
+            else:
+                res.append(None)
+        if all(r is not None for r in res):
+            return res
+        # ponta só com outros tirantes (ou solta): regra comum entre os tirantes
+        comum = ligacoes(eds, i, None, _fora={j for j in range(len(eds)) if j != i and j not in sec})
+        return [r if r is not None else comum[k] for k, r in enumerate(res)]
+    fora = set(_fora or ()) | sec
     for no_inicio in (True, False):
-        p = e.valueAt(e.FirstParameter if no_inicio else e.LastParameter)
+        p = a0 if no_inicio else b0
         a = _dir(e, no_inicio)
         encontros = []
-        for j, o in enumerate(eds):
-            if j == i or o is None:
+        passa = []
+        for j, g in enumerate(geo):
+            if j == i or g is None or j in fora:
                 continue
-            pa, pb = o.valueAt(o.FirstParameter), o.valueAt(o.LastParameter)
-            if (pa - p).Length < 1e-4:
-                encontros.append((j, _dir(o, True)))
-            elif (pb - p).Length < 1e-4:
-                encontros.append((j, _dir(o, False)))
+            if (g[0] - p).Length < 1e-4:
+                encontros.append((j, _dir(g[3], True)))
+            elif (g[1] - p).Length < 1e-4:
+                encontros.append((j, _dir(g[3], False)))
+            elif _interior_geo(p, g):
+                passa.append(j)
         # Usinix: ponta que cai no meio de outra barra encosta nela mesmo quando outras barras também chegam
         # ali (diagonais de treliça em K / N): a que passa manda; as que chegam juntas se recortam entre si
-        passa = [j for j, o in enumerate(eds) if j != i and o is not None and _ponto_interior(p, o)]
         if passa and encontros:
             res.append(Ligacao("topo_T", passa[0], outros=encontros))
             continue
@@ -310,7 +442,6 @@ def ligacoes(eds, i):
         if len(encontros) > 1:
             res.append(Ligacao("multipla", outros=encontros))
             continue
-        passa = [j for j, o in enumerate(eds) if j != i and o is not None and _ponto_interior(p, o)]
         if passa:
             res.append(Ligacao("topo_T", passa[0]))
         else:
@@ -318,12 +449,18 @@ def ligacoes(eds, i):
     return res
 
 
-def cruzamentos(eds):
+def cruzamentos(eds, sec=()):
     """Linhas do esqueleto que se cruzam pelo meio (nenhuma termina ali): as barras passariam uma por dentro
-    da outra. Devolve os avisos."""
+    da outra. Devolve os avisos. sec: tirantes (barra redonda), que cruzam de propósito (X de contraventamento,
+    passando pelas terças) e não entram no aviso."""
+    sec = set(sec or ())
     av = []
     for i in range(len(eds)):
+        if i in sec:
+            continue
         for j in range(i + 1, len(eds)):
+            if j in sec:
+                continue
             a, b = eds[i], eds[j]
             if a is None or b is None or not (_reta(a) and _reta(b)):
                 continue
@@ -499,6 +636,19 @@ class Secao:
         self.fixacao = par["fixacao"]
         self.centro = centro_esqueleto(est.Esqueleto)
         self.t, self.u, self.v = eixos_secao(eds[j], self.giro, normal, self.centro)
+        if normal is None and getattr(est, "RegrasDePortico", False) and abs(self.t.z) > 0.999:
+            d = _viga_do_pilar(est, eds, j)
+            if d is not None:
+                alvo = FreeCAD.Vector(d.x, d.y, 0)
+                if alvo.Length > 1e-9:
+                    alvo.normalize()
+                    # o giro extra que leva a altura padrão para o plano do pórtico entra no giro da barra: o
+                    # sólido (solido_bruto) e as cotas usam o mesmo
+                    _t, _u, v0 = eixos_secao(eds[j], 0.0, normal, self.centro)
+                    tc = _sentido_canonico(eds[j], _dir(eds[j], True), normal, self.centro)
+                    extra = math.degrees(math.atan2(v0.cross(alvo).dot(tc), v0.dot(alvo)))
+                    self.giro = self.giro + extra
+                    self.t, self.u, self.v = eixos_secao(eds[j], self.giro, normal, self.centro)
         self.fixacao = fixacao_efetiva(self.fixacao, par["grupo"], eds, j, normal, self.u)
         self.du, self.dv = deslocamento(self.it, self.fixacao, self.espelhar)
 
@@ -507,6 +657,40 @@ class Secao:
         c = n.dot(self.u) * self.du + n.dot(self.v) * self.dv
         r = abs(n.dot(self.u)) * self.larg / 2.0 + abs(n.dot(self.v)) * self.alt / 2.0
         return c - r, c + r
+
+
+def _viga_do_pilar(est, eds, j):
+    """Direção da barra principal que chega no pilar j (esqueleto 3D): a de maior perfil entre as não verticais
+    e não tirantes que tocam nele. Com ela o pilar fica com a alma no plano do pórtico (antes a altura ia para X
+    em todo pilar, e quem desenhava o pórtico em Y tinha de girar 90°)."""
+    sec = tirantes(est, eds)
+    geo = _geo(eds)
+    gj = geo[j]
+    pontas = [gj[0], gj[1]]
+    melhor = None
+    for k, g in enumerate(geo):
+        if k == j or g is None or k in sec or not g[2]:
+            continue
+        pa, pb = g[0], g[1]
+        toca = any((pa - p).Length < 1e-4 or (pb - p).Length < 1e-4 or _interior_geo(p, g) for p in pontas) \
+            or _interior_geo(pa, gj) or _interior_geo(pb, gj)
+        if not toca:
+            continue
+        d = FreeCAD.Vector(pb - pa)
+        if d.Length < 1e-9:
+            continue
+        d.normalize()
+        if abs(d.z) > 0.999:
+            continue                               # outro pilar
+        try:
+            it = UsinixPerfis.perfil(_perfil_da_barra(est, k))
+            alt = max(UsinixPerfis.dimensoes(it)) if it is not None else 0.0
+        except Exception:
+            alt = 0.0
+        peso = (alt, -abs(d.z))
+        if melhor is None or peso > melhor[0]:
+            melhor = (peso, d)
+    return melhor[1] if melhor else None
 
 
 def chave_canto(i, j):
@@ -542,12 +726,38 @@ def _passa(trat):
     return int(trat[len(TRAT_PASSA):]) if trat.startswith(TRAT_PASSA) else None
 
 
-def _no_multiplo(eds, i, k, lig):
+def pesos_das_barras(est, eds):
+    """{índice: kg/m do perfil} quando a estrutura usa as regras de pórtico; senão None (regra antiga)."""
+    if not getattr(est, "RegrasDePortico", False):
+        return None
+    chave = _chave_est(est, eds, "pesos")
+    if chave is not None and chave in _cache_tirantes:
+        return _cache_tirantes[chave]
+    res = {}
+    for j, e in enumerate(eds):
+        if e is None:
+            continue
+        try:
+            it = UsinixPerfis.perfil(_perfil_da_barra(est, j))
+            res[j] = float(it.get("massa") or 0.0) if it else 0.0
+        except Exception:
+            res[j] = 0.0
+    if chave is not None:
+        if len(_cache_tirantes) > 32:
+            _cache_tirantes.clear()
+        _cache_tirantes[chave] = res
+    return res
+
+
+def _no_multiplo(eds, i, k, lig, pesos=None):
     """Quem passa num nó com 3 ou mais barras: (passantes, colinear?).
 
     Havendo duas barras alinhadas (uma viga partida no nó), as duas seguem e as outras encostam;
-    senão passa a de menor índice."""
+    senão passa a de menor índice. Com pesos (regras de pórtico): passa a barra de perfil mais pesado; o par
+    alinhado só segue inteiro se for pelo menos tão pesado quanto ela (terças leves não cortam o pilar)."""
     membros = [i] + [j for j, _d in lig.outros]
+    if pesos:
+        pesada = max(membros, key=lambda m: (round(pesos.get(m, 0.0), 3), -m))
     dirs = {i: _dir(eds[i], k == 0)}
     dirs.update({j: d for j, d in lig.outros})
     pares = []
@@ -556,6 +766,12 @@ def _no_multiplo(eds, i, k, lig):
             m, n = membros[x], membros[y]
             if abs(dirs[m].dot(dirs[n]) + 1) < 1e-6:
                 pares.append((m, n))
+    if pesos:
+        bons = [p for p in pares if min(pesos.get(p[0], 0.0), pesos.get(p[1], 0.0)) + 1e-6 >= pesos.get(pesada, 0.0)]
+        if bons:
+            bons.sort(key=lambda p: min(p))
+            return list(bons[0]), True
+        return [pesada], False
     if pares:
         pares.sort(key=lambda p: min(p))
         return list(pares[0]), True
@@ -570,7 +786,7 @@ def _extensoes(est, eds, i, normal, ligs=None):
     e = eds[i]
     sec_i = Secao(est, eds, i, normal)
     if ligs is None:
-        ligs = ligacoes(eds, i)
+        ligs = ligacoes_est(est, eds, i)
     ext = [0.0, 0.0]
     for k, lig in enumerate(ligs):
         a = _dir(e, k == 0) * -1  # para fora da barra, além da ponta
@@ -584,7 +800,7 @@ def _extensoes(est, eds, i, normal, ligs=None):
             elif _passa(trat) == i:
                 ext[k] = max(0.0, sec_j.extremos(a)[1])
         elif lig.tipo == "multipla":
-            passantes, colinear = _no_multiplo(eds, i, k, lig)
+            passantes, colinear = _no_multiplo(eds, i, k, lig, pesos_das_barras(est, eds))
             if i in passantes and not colinear:
                 ext[k] = max([0.0] + [Secao(est, eds, j, normal).extremos(a)[1] for j, _d in lig.outros])
     return ext
@@ -876,7 +1092,7 @@ def calcular_barra(est, i, eds=None):
         raise ValueError("a linha %d do esqueleto está sem barra" % (i + 1))
     sec = Secao(est, eds, i, normal)
     nome = sec.it["nome"]
-    ligs = ligacoes(eds, i)
+    ligs = ligacoes_est(est, eds, i)
     ext = _extensoes(est, eds, i, normal, ligs)
     cortes_ponta = {}
     for k, lig in enumerate(ligs):                 # pontas soltas com corte horizontal, vertical ou por plano
@@ -922,7 +1138,7 @@ def calcular_barra(est, i, eds=None):
                                      sj.centro)
                 sol = _maior_pedaco(sol.cut(bruto), e)
         elif lig.tipo == "multipla":
-            passantes, _col = _no_multiplo(eds, i, k, lig)
+            passantes, _col = _no_multiplo(eds, i, k, lig, pesos_das_barras(est, eds))
             if i in passantes:
                 continue
             corte_reto(k, passantes[0])
@@ -1005,6 +1221,11 @@ class Estrutura:
             "Corte das pontas soltas: 'i:k=horizontal', 'vertical', 'plano:...' (k = 0 início, 1 fim)")
         add("App::PropertyStringList", "Furos", "Trabalhos na barra",
             "Grupos de furos nas barras (uma linha JSON por grupo)")
+        # arquivos antigos ficam como estavam (False): a orientação dos pilares não muda ao abrir
+        add("App::PropertyBool", "RegrasDePortico", "Estrutura",
+            "Esqueleto 3D: pilar com a alma no plano do pórtico (o da viga que chega nele); nó com 3 ou mais "
+            "barras: passa a de perfil mais pesado (o pilar não muda de comprimento conforme as barras do nó)",
+            False)
 
     def onDocumentRestored(self, obj):
         obj.Proxy = self
@@ -1015,7 +1236,11 @@ class Estrutura:
             obj.addProperty("App::PropertyStringList", "Avisos", "Estrutura", "Situações a conferir no esqueleto")
             obj.setEditorMode("Avisos", 1)
         try:
-            av = cruzamentos(arestas(obj.Esqueleto)) if obj.Esqueleto else []
+            if obj.Esqueleto:
+                _eds = arestas(obj.Esqueleto)
+                av = cruzamentos(_eds, tirantes(obj, _eds))
+            else:
+                av = []
         except Exception:
             av = []
         if list(obj.Avisos) != av:
@@ -1327,6 +1552,7 @@ def criar(doc, esqueleto, perfil=PERFIL_PADRAO, rotacao=0.0, alinhamento="Centro
     est.Espelhar = bool(espelhar)
     est.Uniao = uniao
     est.Material = nome_do_material(material)
+    est.RegrasDePortico = True
     definir_grupos(est, grupos_extras or [], len(eds), linhas_sem_barra)
     if rotacoes:
         est.RotacoesIndividuais = [float(x) for x in rotacoes]
@@ -1568,10 +1794,11 @@ def cantos(est):
     eds = arestas_ativas(est)
     res = []
     vistos = set()
+    sec = tirantes(est, eds)
     for i in range(len(eds)):
         if eds[i] is None:
             continue
-        for k, lig in enumerate(ligacoes(eds, i)):
+        for k, lig in enumerate(ligacoes(eds, i, sec)):
             if lig.tipo not in ("esquadria", "topo_T"):
                 continue
             j = lig.outro

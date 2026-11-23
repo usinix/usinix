@@ -670,7 +670,7 @@ def _corte_da_ponta_solta(barra, k):
         return None
     eds = E.arestas_ativas(est, E.arestas(est.Esqueleto))
     e = eds[barra.Indice]
-    if E.ligacoes(eds, barra.Indice)[k].tipo != "livre":
+    if E.ligacoes_est(est, eds, barra.Indice)[k].tipo != "livre":
         return None
     pl = E.plano_da_ponta(e, k, E.ponta(est, barra.Indice, k), est.Document)
     if pl is None:
@@ -1168,8 +1168,8 @@ class PainelReforco(P.PainelTarefa):
 
 
 def _pontas_livres(b):
-    _est, eds, _n, _s = _contexto(b)
-    return [k for k, lig in enumerate(E.ligacoes(eds, b.Indice)) if lig.tipo == "livre"]
+    est, eds, _n, _s = _contexto(b)
+    return [k for k, lig in enumerate(E.ligacoes_est(est, eds, b.Indice)) if lig.tipo == "livre"]
 
 
 def _ponta_de_baixo(b):
@@ -1412,11 +1412,12 @@ def juntas_da_estrutura(est):
     """Pares de barras que se tocam (cantos, ligações em T e nós múltiplos)."""
     eds = E.arestas_ativas(est)
     bs = {b.Indice: b for b in E.barras_de(est)}
+    sec = E.tirantes(est, eds)
     pares = []
     for i in range(len(eds)):
         if eds[i] is None:
             continue
-        for lig in E.ligacoes(eds, i):
+        for lig in E.ligacoes_est(est, eds, i, sec):
             outros = [lig.outro] if lig.outro is not None else [j for j, _d in lig.outros]
             for j in outros:
                 par = (min(i, j), max(i, j))
