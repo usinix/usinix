@@ -981,7 +981,7 @@ QString getPreselectionInfo(
 
     int numberDecimals = std::min(6, static_cast<int>(Base::UnitsApi::getDecimals()));
 
-    QString message = QStringLiteral("Preselected: %1.%2.%3 (%4 %5, %6 %7, %8 %9)")
+    QString message = QString::fromUtf8("Pr\xc3\xa9-sele\xc3\xa7\xc3\xa3o: %1.%2.%3 (%4 %5, %6 %7, %8 %9)")  // Usinix: em português
                           .arg(QString::fromUtf8(documentName))
                           .arg(QString::fromUtf8(objectName))
                           .arg(QString::fromUtf8(subElementName))

@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.3** (24/11/2026): tirante só de tração verificado só à tração; símbolos dos nomes de tubo
+**Versão atual: 1.29.4** (24/11/2026): conexão de IA conferida pelo painel e com porta exclusiva; roda do mouse
+não muda campo sem edição; vista ajustada ao criar; peça da simulação escolhida na vista.
+
+Na 1.29.3: tirante só de tração verificado só à tração; símbolos dos nomes de tubo
 com fonte do Usinix nos PDFs.
 
 Na 1.29.2: PDF das memórias com a fonte embutida; tirante só de tração sem fletir

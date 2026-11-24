@@ -16,7 +16,7 @@ import sys
 import urllib.error
 import urllib.request
 
-VERSAO = "1.0"
+VERSAO = "1.1"
 PROTOCOLOS = ("2025-06-18", "2025-03-26", "2024-11-05")
 AVISO_DESLIGADO = ("O Usinix não está com a conexão de IA ligada. Abra o Usinix e clique em Usinix › Conectar IA › "
                    "Ligar a conexão; depois tente de novo.")
@@ -101,11 +101,31 @@ def _avisar_se_mudou():
         sys.stdout.flush()
 
 
+def _motivo(exc):
+    """Mensagem para cada jeito de a ponte falhar. Antes tudo virava "conexão não ligada", mesmo com o painel do
+    Usinix mostrando "Ligada" (porta tomada por outro Usinix, Usinix ocupado com uma janela aberta)."""
+    import socket
+    if isinstance(exc, FileNotFoundError):
+        return AVISO_DESLIGADO
+    if isinstance(exc, urllib.error.HTTPError) and exc.code == 403:
+        return ("A porta da conexão está com outro Usinix (código não confere). Feche as outras janelas do Usinix "
+                "(confira no Gerenciador de Tarefas) e, no Usinix que ficou, clique em Conectar IA › Desligar e "
+                "Ligar.")
+    razao = getattr(exc, "reason", exc)
+    if isinstance(razao, (socket.timeout, TimeoutError)) or isinstance(exc, (socket.timeout, TimeoutError)):
+        return ("O Usinix não respondeu a tempo: deve estar ocupado (um cálculo longo ou uma janela aberta esperando "
+                "resposta, como um diálogo de arquivo). Feche a janela ou espere e tente de novo.")
+    if isinstance(razao, ConnectionRefusedError) or isinstance(exc, ConnectionRefusedError):
+        return ("O Usinix que ligou a conexão não está mais aberto (o arquivo da conexão ficou para trás). Abra o "
+                "Usinix e clique em Usinix › Conectar IA › Ligar a conexão.")
+    return "%s (detalhe: %s)" % (AVISO_DESLIGADO, exc)
+
+
 def _chamar(nome, args):
     try:
         r = _ponte("/chamar", {"ferramenta": nome, "argumentos": args or {}})
-    except (OSError, urllib.error.URLError, ValueError, KeyError):
-        return {"content": [{"type": "text", "text": AVISO_DESLIGADO}], "isError": True}
+    except (OSError, urllib.error.URLError, ValueError, KeyError) as exc:
+        return {"content": [{"type": "text", "text": _motivo(exc)}], "isError": True}
     if not r.get("ok"):
         return {"content": [{"type": "text", "text": "Erro no Usinix: %s" % r.get("erro")}], "isError": True}
     res = r.get("resultado")

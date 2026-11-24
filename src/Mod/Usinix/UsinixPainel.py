@@ -534,6 +534,24 @@ def agrupar_selecao(raiz, subs):
 
 
 _ATIVO = {"painel": None}   # painel do Usinix aberto no painel de tarefas
+def limpar_rotulos(doc, objs):
+    """Rótulo sem o número que a prévia acumulou: cada atualização da prévia apaga e recria o objeto, e o nome
+    seguinte fica reservado pelo desfazer — a escada num documento novo saía "Escada005". O nome interno não muda;
+    o rótulo volta a "Escada" se nenhum outro objeto do documento usa esse rótulo."""
+    import re
+    for o in objs or []:
+        try:
+            m = re.match(r"^(.*?)(\d{3})$", o.Label)
+            if not m or not m.group(1):
+                continue
+            base = m.group(1)
+            if any(x.Label == base for x in doc.Objects if x is not o):
+                continue
+            o.Label = base
+        except Exception:
+            continue
+
+
 EM_PREVIA = {"ativa": False, "avisos": []}   # durante a prévia: avisos vão para o painel, sem janela
 
 
@@ -990,6 +1008,12 @@ class PainelTarefa:
                 doc.recompute()
             except Exception:
                 pass
+            if self._previa_nomes and not getattr(self, "_previa_enquadrada", False):
+                # a prévia nascia fora da tela (linha de vida de 12 m numa vista de peça) e parecia não existir:
+                # ajusta a vista na primeira vez, se precisar
+                self._previa_enquadrada = True
+                import UsinixUtil
+                UsinixUtil.enquadrar_se_fora([doc.getObject(n) for n in self._previa_nomes if doc.getObject(n)])
         falta = self.pendencia()
         if falta:
             self.form.mensagem.mostrar(falta, "info")
@@ -1138,6 +1162,8 @@ class PainelTarefa:
             self.resultado = [doc.getObject(n) for n in self._previa_nomes if doc.getObject(n) is not None]
             if self.editando is not None:
                 self.resultado = [self.editando]
+            else:
+                limpar_rotulos(doc, self.resultado)
             self._previa_nomes = []
             self._fechar_previa(True)
             self.remover_marcas()
@@ -1159,6 +1185,10 @@ class PainelTarefa:
         if doc is not None:
             doc.commitTransaction()
             doc.recompute()
+        if self.editando is None:
+            import UsinixUtil
+            UsinixUtil.enquadrar_se_fora(self.resultado if isinstance(self.resultado, (list, tuple))
+                                         else [self.resultado])
         self._parar()
         return True      # o FreeCAD fecha o painel
 

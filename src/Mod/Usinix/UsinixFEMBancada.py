@@ -1366,7 +1366,8 @@ if P is not None:
 
         def caminho_padrao(self, a):
             doc = a.Document
-            base = os.path.splitext(doc.FileName)[0] if doc.FileName else os.path.join(os.path.expanduser("~"), doc.Label)
+            base = os.path.splitext(doc.FileName)[0] if doc.FileName else os.path.join(UsinixUtil.pasta_padrao(doc),
+                                                                                         doc.Label)
             nome = re.sub(r"[\\\\/:*?\"<>|]", "-", a.Label)
             return "%s - relatorio %s.pdf" % (base, nome)
 

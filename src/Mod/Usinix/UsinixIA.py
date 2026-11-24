@@ -1093,6 +1093,50 @@ def gravar_lista_ferramentas(lista=None):
         return False
 
 
+class _ServidorExclusivo(ThreadingHTTPServer):
+    """Porta só deste Usinix. O HTTPServer liga SO_REUSEADDR, e no Windows isso deixa um segundo processo abrir a
+    mesma porta de um Usinix que ficou aberto (ou preso) em segundo plano: o assistente caía no outro, com outro
+    código, e a ferramenta dizia "conexão não ligada" com o painel mostrando "Ligada" (achado do teste da 1.29.3)."""
+    allow_reuse_address = not sys.platform.startswith("win")
+
+    def server_bind(self):
+        import socket
+        if sys.platform.startswith("win") and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            try:
+                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            except OSError:
+                pass
+        super().server_bind()
+
+
+def conferir_conexao(tempo=5.0):
+    """Faz o caminho do assistente: lê usinix-ia.json e pede a lista de ferramentas na porta dele, com o código dele.
+    Devolve (ok, texto). Pega arquivo apagado ou de outro Usinix, porta tomada por outro processo e código errado."""
+    import urllib.error
+    import urllib.request
+    if not ligada():
+        return False, "desligada"
+    try:
+        with open(arquivo_conexao(), encoding="utf-8") as fh:
+            con = json.load(fh)
+    except (OSError, ValueError):
+        return False, "o arquivo da conexão (%s) sumiu" % arquivo_conexao()
+    if int(con.get("porta", 0)) != _estado["porta"] or con.get("token") != _estado["token"]:
+        return False, "o arquivo da conexão é de outro Usinix aberto"
+    req = urllib.request.Request("http://127.0.0.1:%d/ferramentas" % _estado["porta"], data=b"{}", method="POST",
+                                 headers={"Content-Type": "application/json", "X-Usinix-Token": _estado["token"]})
+    try:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=tempo) as r:
+            json.loads(r.read().decode("utf-8"))["ferramentas"]
+    except urllib.error.HTTPError as exc:
+        if exc.code == 403:
+            return False, "a porta %d responde com outro código: há outro Usinix usando essa porta" % _estado["porta"]
+        return False, "a porta %d respondeu com erro %d" % (_estado["porta"], exc.code)
+    except Exception as exc:
+        return False, "a porta %d não respondeu (%s)" % (_estado["porta"], exc)
+    return True, "conferida"
+
+
 def ligar(porta=None):
     """Liga a ponte (127.0.0.1) e grava porta e código em usinix-ia.json. Devolve a porta."""
     if _estado["servidor"] is not None:
@@ -1103,7 +1147,7 @@ def ligar(porta=None):
     srv = None
     for p in (porta, 0):                         # porta ocupada: o sistema escolhe outra
         try:
-            srv = ThreadingHTTPServer(("127.0.0.1", p), _Pedido)
+            srv = _ServidorExclusivo(("127.0.0.1", p), _Pedido)
             break
         except OSError:
             continue
@@ -1138,11 +1182,19 @@ def desligar():
         srv.server_close()
     except Exception:
         pass
+    token = _estado["token"]
     _estado["token"] = None
     try:
-        os.remove(arquivo_conexao())
-    except OSError:
-        pass
+        # só apaga o arquivo se ainda for o deste Usinix: fechar uma janela antiga apagava o da janela nova
+        with open(arquivo_conexao(), encoding="utf-8") as fh:
+            meu = json.load(fh).get("token") == token
+    except (OSError, ValueError):
+        meu = True
+    if meu:
+        try:
+            os.remove(arquivo_conexao())
+        except OSError:
+            pass
     FreeCAD.Console.PrintMessage("Usinix: conexão de IA desligada.\n")
     return True
 
@@ -1327,8 +1379,14 @@ class JanelaIA(QtWidgets.QDialog):
         self.ao_abrir.blockSignals(False)
         self.bt_claude.setText("Atualizar no Claude Desktop" if ok else "Instalar no Claude Desktop")
         if ligada():
-            self.status.setText("● Ligada — porta local %d. Chamadas: %d%s" % (
-                _estado["porta"], _estado["chamadas"], (" (última: %s)" % _estado["ultima"]) if _estado["ultima"] else ""))
+            ok, txt = conferir_conexao(2.0)
+            if ok:
+                self.status.setText("● Ligada e conferida — porta local %d. Chamadas: %d%s" % (
+                    _estado["porta"], _estado["chamadas"],
+                    (" (última: %s)" % _estado["ultima"]) if _estado["ultima"] else ""))
+            else:
+                self.status.setText("⚠ Ligada, mas o assistente não chega aqui: %s. Feche as outras janelas do "
+                                    "Usinix (veja no Gerenciador de Tarefas) e clique em Desligar e Ligar." % txt)
             self.botao.setText("Desligar")
         else:
             self.status.setText("○ Desligada")

@@ -22128,3 +22128,139 @@ class T170TiranteSoATracao(unittest.TestCase):
             self.assertLess(v["taxa"], 0.05, v["taxas"])
             self.assertEqual(v["taxas"]["Flexão x"], 0.0)
             self.assertNotIn("L/r", v["modos"]["N"])
+
+
+class T171TesteDeInterface1293(unittest.TestCase):
+    """1.29.4: achados do teste de interface da 1.29.3 — conexão de IA conferida (porta de outro Usinix, arquivo
+    apagado, mensagens do conector), roda do mouse nos campos, título da janela, rótulo sem o número da prévia,
+    pasta dos relatórios e peça da simulação escolhida pela face."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT171")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        import UsinixIA
+        UsinixIA.desligar()
+        fechar(self.doc)
+
+    def test_conexao_conferida(self):
+        import json
+        import UsinixIA
+        UsinixIA.desligar()
+        UsinixIA.ligar(0)
+        ok, txt = UsinixIA.conferir_conexao()
+        self.assertTrue(ok, txt)
+        # outro Usinix regravou o arquivo: o painel não pode dizer só "Ligada"
+        cam = UsinixIA.arquivo_conexao()
+        with open(cam, encoding="utf-8") as fh:
+            con = json.load(fh)
+        with open(cam, "w", encoding="utf-8") as fh:
+            json.dump(dict(con, token="outro"), fh)
+        ok, txt = UsinixIA.conferir_conexao()
+        self.assertFalse(ok)
+        self.assertIn("outro Usinix", txt)
+        # desligar este não apaga o arquivo do outro
+        UsinixIA.desligar()
+        self.assertTrue(os.path.exists(cam))
+        os.remove(cam)
+
+    def test_mensagens_do_conector(self):
+        import importlib.util
+        import socket
+        import urllib.error
+        import UsinixIA
+        esp = importlib.util.spec_from_file_location(
+            "usinix_mcp_t", os.path.join(os.path.dirname(os.path.abspath(UsinixIA.__file__)), "usinix_mcp.py"))
+        mcp = importlib.util.module_from_spec(esp)
+        esp.loader.exec_module(mcp)
+        self.assertEqual(mcp._motivo(FileNotFoundError("x")), mcp.AVISO_DESLIGADO)
+        e403 = urllib.error.HTTPError("http://127.0.0.1", 403, "x", {}, None)
+        self.assertIn("outro Usinix", mcp._motivo(e403))
+        self.assertIn("ocupado", mcp._motivo(urllib.error.URLError(socket.timeout("timed out"))))
+        self.assertIn("ocupado", mcp._motivo(socket.timeout("timed out")))
+        self.assertIn("não está mais aberto", mcp._motivo(urllib.error.URLError(ConnectionRefusedError())))
+
+    def test_roda_do_mouse_nao_muda_campo_sem_foco(self):
+        from PySide import QtCore, QtGui, QtWidgets
+        import UsinixRodaSegura
+        UsinixRodaSegura.instalar()
+        area = QtWidgets.QScrollArea()
+        corpo = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(corpo)
+        sp = QtWidgets.QDoubleSpinBox()
+        sp.setRange(0, 5000)
+        sp.setValue(1000)
+        lay.addWidget(sp)
+        for _i in range(40):
+            lay.addWidget(QtWidgets.QLabel("linha"))
+        area.setWidget(corpo)
+        area.resize(300, 200)
+        area.show()
+        QtWidgets.QApplication.processEvents()
+        area.setFocus()
+        QtWidgets.QApplication.processEvents()
+        pos = QtCore.QPointF(10, 10)
+        ev = QtGui.QWheelEvent(pos, sp.mapToGlobal(pos.toPoint()), QtCore.QPoint(0, 0), QtCore.QPoint(0, -120),
+                               QtCore.Qt.NoButton, QtCore.Qt.NoModifier, QtCore.Qt.NoScrollPhase, False)
+        QtWidgets.QApplication.sendEvent(sp, ev)
+        self.assertEqual(sp.value(), 1000.0)                                    # antes ia para 999 / 990
+        self.assertGreater(area.verticalScrollBar().value(), 0)                 # o painel rolou
+        sp.setFocus()
+        QtWidgets.QApplication.processEvents()
+        if sp.hasFocus():
+            QtWidgets.QApplication.sendEvent(sp, QtGui.QWheelEvent(
+                pos, sp.mapToGlobal(pos.toPoint()), QtCore.QPoint(0, 0), QtCore.QPoint(0, 120),
+                QtCore.Qt.NoButton, QtCore.Qt.NoModifier, QtCore.Qt.NoScrollPhase, False))
+            self.assertNotEqual(sp.value(), 1000.0)                             # em edição, a roda ajusta
+        area.close()
+
+    def test_titulo_com_a_versao_do_usinix(self):
+        import UsinixTitulo
+        import UsinixVersao
+        v = FreeCAD.Version()
+        base = "%s.%s.%s" % (v[0], v[1], v[2])
+        t = UsinixTitulo.corrigir("[*] Placa - Usinix %s" % base)
+        self.assertEqual(t, "[*] Placa - Usinix %s" % UsinixVersao.VERSAO)
+        self.assertEqual(UsinixTitulo.corrigir("Outra coisa"), "Outra coisa")
+
+    def test_rotulo_sem_numero_da_previa(self):
+        import UsinixPainel
+        a = self.doc.addObject("App::FeaturePython", "Escada005")
+        a.Label = "Escada005"
+        b = self.doc.addObject("App::FeaturePython", "Viga001")
+        b.Label = "Viga001"
+        c = self.doc.addObject("App::FeaturePython", "Viga")
+        c.Label = "Viga"
+        UsinixPainel.limpar_rotulos(self.doc, [a, b])
+        self.assertEqual(a.Label, "Escada")
+        self.assertEqual(b.Label, "Viga001")                 # já existe outro "Viga"
+
+    def test_pasta_dos_relatorios(self):
+        import tempfile
+        import UsinixUtil
+        g = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/General")
+        antes = g.GetString("FileOpenSavePath", "")
+        try:
+            d = tempfile.mkdtemp()
+            UsinixUtil.lembrar_pasta(os.path.join(d, "x.pdf"))
+            self.assertEqual(UsinixUtil.pasta_padrao(self.doc), d)       # documento sem arquivo: última pasta
+            arq = os.path.join(d, "sub")
+            os.makedirs(arq)
+            self.doc.saveAs(os.path.join(arq, "UsinixT171.FCStd"))
+            self.assertEqual(UsinixUtil.pasta_padrao(self.doc), arq)     # salvo: a pasta dele
+        finally:
+            g.SetString("FileOpenSavePath", antes)
+
+    def test_peca_da_simulacao_pela_face(self):
+        import UsinixFEM
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        box = self.doc.addObject("PartDesign::AdditiveBox", "Box")
+        body.addObject(box)
+        self.doc.recompute()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(self.doc.Name, body.Name, "Box.Face1")
+        sel = UsinixFEM.selecao_de_peca()
+        self.assertTrue(sel)
+        self.assertIn(sel[0], (body, box))
+        FreeCADGui.Selection.clearSelection()

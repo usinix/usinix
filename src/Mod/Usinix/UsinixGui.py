@@ -1206,6 +1206,18 @@ def _start_ribbon():
         UsinixCaixaS.instalar()
     except Exception as exc:
         FreeCAD.Console.PrintWarning("Usinix: caixa da tecla S: {}\n".format(exc))
+    try:
+        import UsinixRodaSegura
+
+        UsinixRodaSegura.instalar()
+    except Exception as exc:
+        FreeCAD.Console.PrintWarning("Usinix: roda do mouse nos campos: {}\n".format(exc))
+    try:
+        import UsinixTitulo
+
+        UsinixTitulo.instalar()
+    except Exception as exc:
+        FreeCAD.Console.PrintWarning("Usinix: título da janela: {}\n".format(exc))
 
 
 def _start_ferramentas():

@@ -1205,6 +1205,28 @@ def _cartao(valor, rotulo):
     return f
 
 
+
+def selecao_de_peca():
+    """Objetos selecionados para virar a peça da simulação. Clicando a peça na vista, a seleção é uma face
+    (Body.Pad.Face1) e, conforme o documento ativo e o caminho, getSelection() vinha vazio: o assistente pedia
+    "Selecione a peça antes" e só a árvore funcionava. Aqui vale também a seleção com caminho, de qualquer documento:
+    o objeto de cima (o corpo) ou o dono da face."""
+    sel = list(FreeCADGui.Selection.getSelection())
+    if sel:
+        return sel
+    res = []
+    for resolver in (1, 0):
+        try:
+            for x in FreeCADGui.Selection.getSelectionEx("*", resolver):
+                o = x.Object
+                if o is not None and o not in res:
+                    res.append(o)
+        except Exception:
+            continue
+        if res:
+            break
+    return res
+
 class Assistente(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1352,7 +1374,7 @@ class Assistente(QtWidgets.QWidget):
         self._transacao("Tipo de análise", fn)
 
     def _usar_peca(self):
-        sel = FreeCADGui.Selection.getSelection()
+        sel = selecao_de_peca()
         if not sel:
             self._erro("Selecione a peça (sólido ou corpo) antes.")
             return
@@ -2120,12 +2142,14 @@ class Assistente(QtWidgets.QWidget):
         for c, w in self.campos.items():
             self._salvar_campo(c, w.text())
         self._salvar_campo("UsinixRelObs", self.obs.toPlainText())
+        import UsinixUtil
         base = os.path.splitext(est.doc.FileName)[0] if est.doc.FileName else os.path.join(
-            os.path.expanduser("~"), est.doc.Label)
+            UsinixUtil.pasta_padrao(est.doc), est.doc.Label)
         caminho, _f = QtWidgets.QFileDialog.getSaveFileName(
             self, "Salvar relatório", base + " - relatorio FEM.pdf", "PDF (*.pdf)")
         if not caminho:
             return
+        UsinixUtil.lembrar_pasta(caminho)
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
             import UsinixFEMRelatorio

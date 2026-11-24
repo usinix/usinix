@@ -356,3 +356,65 @@ def depois_de_abrir(observador, doc, funcao):
         except Exception:
             pass
     chama()
+
+
+def enquadrar_se_fora(objs, margem=0.02):
+    """Ajusta a vista (como V, F) se algum canto da caixa dos objetos ficou fora da tela. Antes a estrutura e a
+    linha de vida recém-criadas apareciam cortadas ou fora da vista. Não mexe na vista se tudo já aparece."""
+    if not FreeCAD.GuiUp:
+        return False
+    try:
+        import FreeCADGui
+        view = FreeCADGui.activeDocument().activeView()
+        bb = None
+        for o in objs or []:
+            sh = getattr(o, "Shape", None)
+            if sh is None or sh.isNull():
+                continue
+            b = sh.BoundBox
+            if not b.isValid():
+                continue
+            if bb is None:
+                bb = FreeCAD.BoundBox(b)
+            else:
+                bb.add(b)
+        if bb is None:
+            return False
+        w, h = view.getSize()
+        fora = False
+        for i in range(8):
+            p = bb.getPoint(i)
+            x, y = view.getPointOnViewport(p) if hasattr(view, "getPointOnViewport") else view.getPointOnScreen(p)
+            if x < w * margem or x > w * (1 - margem) or y < h * margem or y > h * (1 - margem):
+                fora = True
+                break
+        if fora:
+            FreeCADGui.SendMsgToActiveView("ViewFit")
+        return fora
+    except Exception:
+        return False
+
+
+def pasta_padrao(doc=None):
+    """Pasta inicial dos diálogos de salvar relatório: a do arquivo do documento, se já foi salvo; senão a última
+    pasta usada nos diálogos do Usinix/FreeCAD (a mesma do Salvar como); senão a pasta do usuário. Antes o relatório
+    abria sempre na pasta do usuário com o documento ainda sem arquivo."""
+    if doc is not None and getattr(doc, "FileName", ""):
+        return os.path.dirname(doc.FileName)
+    try:
+        p = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/General").GetString("FileOpenSavePath", "")
+        if p and os.path.isdir(p):
+            return p
+    except Exception:
+        pass
+    return os.path.expanduser("~")
+
+
+def lembrar_pasta(caminho):
+    """Guarda a pasta escolhida como a última usada (o próximo diálogo, do Usinix ou do FreeCAD, abre nela)."""
+    try:
+        if caminho:
+            FreeCAD.ParamGet("User parameter:BaseApp/Preferences/General").SetString(
+                "FileOpenSavePath", os.path.dirname(os.path.abspath(caminho)))
+    except Exception:
+        pass

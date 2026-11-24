@@ -8,6 +8,7 @@ Cancelar desfaz. O clique na tela põe apoios e escolhe as barras e os nós das 
 
 import json
 import math
+import os
 
 import FreeCAD
 import FreeCADGui
@@ -1007,9 +1008,15 @@ class PainelAnalise(P.PainelTarefa):
 
     def memoria(self):
         import UsinixAnaliseRelatorio as R
-        caminho, _f2 = QtWidgets.QFileDialog.getSaveFileName(None, "Memória de cálculo", "memoria-estrutura.pdf",
+        import UsinixUtil
+        doc = self.analise.Document
+        nome = (os.path.splitext(os.path.basename(doc.FileName))[0] + " - " if doc.FileName else "") + \
+            "memoria-estrutura.pdf"
+        caminho, _f2 = QtWidgets.QFileDialog.getSaveFileName(None, "Memória de cálculo",
+                                                             os.path.join(UsinixUtil.pasta_padrao(doc), nome),
                                                              "PDF (*.pdf)")
         if caminho:
+            UsinixUtil.lembrar_pasta(caminho)
             R.gerar_pdf(self.analise, caminho)
             self.form.mensagem.mostrar("Memória de cálculo gravada em %s." % caminho, "ok")
 

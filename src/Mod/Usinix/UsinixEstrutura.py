@@ -3207,11 +3207,14 @@ class DialogoEstrutura(QtWidgets.QDialog):
         return self.resultado
 
     def _ok(self):
+        nova = self.est is None
         try:
             self.aplicar()
         except ValueError as ex:
             self.aviso.setText(str(ex))
             return
+        if nova and self.resultado is not None:
+            UsinixUtil.enquadrar_se_fora([self.resultado])
         self.accept()
 
 

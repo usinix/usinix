@@ -15,6 +15,33 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.4 — 24/11/2026
+
+### Conexão com IA
+
+- **Porta só deste Usinix:** no Windows, um segundo Usinix aberto (ou preso em segundo plano) conseguia abrir a mesma
+  porta; o assistente caía no outro e dizia "conexão não ligada" com o painel mostrando "Ligada".
+- **Painel confere a conexão:** mostra "Ligada e conferida" só depois de fazer o mesmo caminho do assistente; se não
+  chegar, diz o motivo (outro Usinix na porta, arquivo da conexão apagado) e o que fazer.
+- **Mensagens claras no assistente:** desligada, porta com outro Usinix, Usinix ocupado (cálculo ou janela aberta) ou
+  Usinix fechado. Fechar uma janela antiga não apaga mais a conexão da janela nova.
+
+### Painéis
+
+- **Roda do mouse:** campo numérico ou lista só muda com a roda quando está em edição (clicado); fora disso a roda
+  rola o painel. Antes, rolar o painel da escada mudou o patamar de 1.000 para 990 mm.
+- **Vista ajustada:** ao criar (e já na primeira prévia), a vista se ajusta se o objeto ficou fora da tela.
+- **Nome sem número da prévia:** a escada num documento novo saía "Escada005".
+
+### Simulação
+
+- **Peça escolhida na vista:** clicar a peça (uma face dela) já serve; antes só a árvore funcionava.
+
+### Geral
+
+- **Título da janela** com a versão do Usinix; **barra de status** em português ("Pré-seleção").
+- **Relatórios** abrem na pasta do arquivo, ou na última pasta usada se o arquivo ainda não foi salvo.
+
 ## 1.29.3 — 24/11/2026
 
 ### Estruturas
