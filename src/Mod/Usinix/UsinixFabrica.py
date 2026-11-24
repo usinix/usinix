@@ -457,7 +457,7 @@ def exportar_excel(objs, caminho, linhas=None):
     try:
         import UsinixEstrutura as E
         # só as estruturas: as barras de dentro já vêm com elas (passar as duas contaria cada barra duas vezes)
-        corte = E.lista_de_corte([o for o in _tudo(objs) if E.eh_estrutura(o)])
+        corte = E.lista_de_corte([o for o in _tudo(objs) if E.tem_lista_de_corte(o)])
     except Exception:
         corte = []
     if corte:

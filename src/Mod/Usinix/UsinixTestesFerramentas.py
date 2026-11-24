@@ -21956,3 +21956,40 @@ class T167ProjetoMezanino(unittest.TestCase):
         import UsinixAnaliseRelatorio as R
         import inspect
         self.assertIn("art", inspect.signature(R.gerar_pdf).parameters)
+
+
+class T168CotaAcimaDe10mELista(unittest.TestCase):
+    """1.29.1: cota da Usinix acima de 10 m em milímetros (o esquema padrão passava para metros e a linha de vida
+    de 12 m saía "12,13") e peças cortadas de outros objetos na lista de corte (Proxy.linhas_corte)."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT168")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_cota_acima_de_10m(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixIA
+        b = self.doc.addObject("Part::Box", "B")
+        b.Length, b.Width, b.Height = 12065, 600, 2000
+        self.doc.recompute()
+        r = UsinixIA.FERRAMENTAS["nova_folha"]["funcao"](objetos=["B"], formato="A3")
+        pg = self.doc.getObject(r["folha"])
+        UsinixIA.FERRAMENTAS["cotar_folha"]["funcao"](pg.Name)
+        dims = {d.Label: d for d in pg.Views if d.TypeId == "TechDraw::DrawViewDimension"}
+        self.assertEqual(dims["Comprimento total"].getText().replace(" mm", ""), "12065")
+        self.assertNotIn("m", dims["Altura total"].getText().replace("mm", ""))
+
+    def test_lista_de_corte_de_outro_objeto(self):
+        import UsinixEstrutura as E
+
+        class P:
+            def linhas_corte(self, obj):
+                return [["Tubo □ 50 x 50 x 3", 527.8, 43.0, 47.0, 4, 2.3, "confirmado", "ASTM A36", ""]]
+        o = self.doc.addObject("App::FeaturePython", "Peca")
+        o.Proxy = P()
+        self.assertTrue(E.tem_lista_de_corte(o))
+        self.assertEqual(E.lista_de_corte([o])[0][4], 4)

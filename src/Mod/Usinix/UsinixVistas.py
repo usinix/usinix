@@ -271,8 +271,24 @@ def _cota(page, vista, tipo, a, b, rotulo, lado, afasta=8.0):
     meia_a = max(abs(t[2]) for t in vs) * e
     d.X, d.Y = {"cima": (0.0, meia_a + afasta), "baixo": (0.0, -(meia_a + afasta)),
                 "esq": (-(meia_l + afasta), 0.0), "dir": (meia_l + afasta, 0.0)}[lado]
+    _mm_acima_de_10m(d, abs(b[1] - a[1]) if tipo == "DistanceX" else abs(b[2] - a[2]))
     d.recompute()
     return d
+
+
+def _mm_acima_de_10m(d, valor):
+    """O esquema de unidades padrão do FreeCAD passa para metros a partir de 10 m, e a cota de uma linha de
+    12.065 mm saía "12,06" (sem unidade, lida como milímetros). Acima de 10 m a cota da Usinix leva o valor em mm
+    escrito (texto fixo: refeita pelo Cotar folha se a peça mudar)."""
+    if valor < 9999.5:
+        return
+    try:
+        txt = ("%.0f" % valor) if abs(valor - round(valor)) < 0.05 else ("%.1f" % valor).replace(".", ",")
+        if "Arbitrary" in d.PropertiesList:
+            d.Arbitrary = True
+        d.FormatSpec = txt
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: cota acima de 10 m: %s\n" % exc)
 
 
 def revolucao(objs):
@@ -669,10 +685,12 @@ def nota_de_usinagem(page, vista, rev, feitos=()):
 
 
 def _so_tubulacao(objs):
+    """Tubulação (ou objeto que pede sem cotas de furo, Proxy.COTAR_FUROS = False, como a linha de vida do Pro)."""
     try:
         import UsinixTubulacao as T
-        lst = list(objs or [])
-        return bool(lst) and all(T.e_tubulacao(getattr(o, "LinkedObject", None) or o) for o in lst)
+        lst = [getattr(o, "LinkedObject", None) or o for o in (objs or [])]
+        return bool(lst) and all(T.e_tubulacao(o) or getattr(getattr(o, "Proxy", None), "COTAR_FUROS", True) is False
+                                 for o in lst)
     except Exception:
         return False
 

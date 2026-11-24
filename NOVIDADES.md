@@ -15,6 +15,19 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.1 — 23/11/2026
+
+### Desenho
+
+- **Cotas acima de 10 m em milímetros:** o sistema de unidades padrão do FreeCAD passa a mostrar metros a partir de
+  10 m, e a cota de uma peça de 12.065 mm saía "12,06" (lida como milímetros). As cotas gerais e de posição do Usinix
+  acima de 10 m agora saem com o valor em mm. Se a peça mudar, use Cotar folha de novo.
+
+### Listas
+
+- **Lista de corte e Excel:** recebem também as peças cortadas que outros objetos e complementos informam, além das
+  barras das estruturas.
+
 ## 1.29.0 — 23/11/2026
 
 ### Simulação

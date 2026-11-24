@@ -705,7 +705,7 @@ def f_trabalhos(estrutura, barras=None, ponta_inicio=None, ponta_fim=None, furos
 def f_corte(estrutura=None, planilha=False):
     import UsinixEstrutura as E
     doc = _doc()
-    objs = [_obj(doc, estrutura)] if estrutura else [o for o in doc.Objects if E.eh_estrutura(o)]
+    objs = [_obj(doc, estrutura)] if estrutura else [o for o in doc.Objects if E.tem_lista_de_corte(o)]
     linhas = E.lista_de_corte(objs)
     if planilha and linhas:
         E.gravar_lista_de_corte(doc, linhas)

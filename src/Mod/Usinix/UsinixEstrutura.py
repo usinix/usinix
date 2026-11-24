@@ -1954,7 +1954,16 @@ def lista_de_corte(objs):
     """Linhas (perfil, comprimento mm, ângulo início, ângulo fim, qtd, massa unit., situação, material,
     furação)."""
     barras = []
+    extras = []
     for o in objs:
+        f = getattr(getattr(o, "Proxy", None), "linhas_corte", None)
+        if f is not None and not eh_estrutura(o):
+            # peças cortadas de outros objetos (ex.: mãos francesas da linha de vida do Usinix Pro)
+            try:
+                extras += [list(l) for l in f(o)]
+            except Exception as exc:
+                FreeCAD.Console.PrintLog("Usinix: lista de corte de %s: %s\n" % (o.Label, exc))
+            continue
         if eh_estrutura(o):
             barras += barras_de(o)
         elif "Indice" in o.PropertiesList and "ComprimentoCorte" in o.PropertiesList:
@@ -1988,9 +1997,14 @@ def lista_de_corte(objs):
                              b.Material, fu]
             ordem.append(chave)
         grupos[chave][4] += vezes.get(id(b), 1)
-    linhas = [grupos[k] for k in ordem]
+    linhas = [grupos[k] for k in ordem] + extras
     linhas.sort(key=lambda l: (l[0], -l[1]))
     return linhas
+
+
+def tem_lista_de_corte(o):
+    """Estrutura ou objeto com peças cortadas próprias (Proxy.linhas_corte)."""
+    return eh_estrutura(o) or hasattr(getattr(o, "Proxy", None), "linhas_corte")
 
 
 def gravar_lista_de_corte(doc, linhas):

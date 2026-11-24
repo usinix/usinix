@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.0** (23/11/2026): contraventamento só de tração e de treliça calculando sem nó solto;
+**Versão atual: 1.29.1** (23/11/2026): cotas acima de 10 m em milímetros; lista de corte com peças de outros
+objetos.
+
+Na 1.29.0: contraventamento só de tração e de treliça calculando sem nó solto;
 cantoneira de contraventamento sem cortar o pilar; memória de cálculo com responsável e ART; conferência da folha sem
 falso aviso; PDF das folhas de barra rápido; massa da tubulação montada.
 
