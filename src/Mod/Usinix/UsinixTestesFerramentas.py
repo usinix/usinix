@@ -20084,7 +20084,10 @@ class T156AchadosDaSegundaBateria(unittest.TestCase):
         for k in (2, 3):
             c.nos.append((n[k], [0, 0, -50.0], [0, 0, 0]))
         r = m.resolver(c)                                    # antes: matriz singular (mecanismo)
-        self.assertEqual(r.ativos[3:], [False, False])
+        # 1.29.0: as duas encurtam; uma fica no modelo como folgada (estabilidade), com esforço zerado
+        self.assertEqual(sorted(r.ativos[3:]), [False, True])
+        self.assertEqual(len(r.folgadas), 1)
+        self.assertAlmostEqual(r.esforcos(list(r.folgadas)[0], 0.0)["N"], 0.0, places=6)
         for k in (2, 3):
             self.assertLess(abs(r.u[6 * n[k] + 2]), 1.0)     # só o encurtamento dos pilares
             self.assertLess(abs(r.u[6 * n[k]]), 1.0)
@@ -21792,3 +21795,164 @@ class T165PendenciasDa1282(unittest.TestCase):
         cima = [v for v in g.Views if abs(abs(FreeCAD.Vector(v.Direction).z) - 1) < 1e-6][0]
         diams = [d for d, _f in V.furos_da_vista(cima)]
         self.assertEqual(diams, [14.0])
+
+
+class T166ResteDa1283(unittest.TestCase):
+    """Reteste da 1.28.3: caixa vazia de arestas curvas da vista (falso "em cima de" na conferência), folha de
+    tubulação sem cotas de furo e massa da tubulação montada além da de compra."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT166")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_caixa_vazia_da_aresta_vale_pelos_pontos(self):
+        import UsinixDetalhe as D
+        V = FreeCAD.Vector
+
+        class Vazia:
+            BoundBox = FreeCAD.BoundBox()          # caixa vazia: mín. > máx.
+
+            def discretize(self, n):
+                return [V(1, 2, 0), V(3, 5, 0)]
+        self.assertGreater(FreeCAD.BoundBox().XMin, FreeCAD.BoundBox().XMax)
+        self.assertEqual(D.caixa_aresta(Vazia()), (1, 3, 2, 5))
+        import Part
+        c = D.caixa_aresta(Part.makeLine(V(0, 0, 0), V(10, 4, 0)))
+        for a, b in zip(c, (0, 10, 0, 4)):
+            self.assertAlmostEqual(a, b, 6)
+
+    def _linha(self):
+        import UsinixEsboco3D as E3
+        import UsinixTubulacao as T
+        e = E3.criar(self.doc, [FreeCAD.Vector(*p) for p in ((0, 0, 0), (3000, 0, 0), (3000, 2000, 0))])
+        t = T.criar(e, dn=25)
+        t.Linha = "aco-topo-sch40"
+        t.FlangePontas = True
+        self.doc.recompute()
+        return t
+
+    def test_massa_montada_e_de_compra(self):
+        import UsinixFabrica as F
+        import UsinixTubulacao as T
+        t = self._linha()
+        L = T.CAT.linha("aco-topo-sch40")
+        compra = T.massas_bom(t)[("tubo", L["id"], 25)]
+        montada = T.massa_instalada(t)
+        self.assertGreater(montada, 0)
+        self.assertLess(T.massa_por_metro(L, 25) * 5.0, compra)      # 5 m de tubo, uma barra de 6 m
+        r = F.resumo_orcamento([t])
+        self.assertAlmostEqual(r["massa_tubulacao_instalada"], montada, 6)
+        self.assertTrue(any("instalado" in it[5] for it in T.linhas_bom(t) if it[0][0] == "tubo"))
+
+    def test_folha_da_tubulacao_sem_cotas_de_furo(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixIA
+        import UsinixVistas as V
+        t = self._linha()
+        self.assertTrue(V._so_tubulacao([t]))
+        r = UsinixIA.FERRAMENTAS["nova_folha"]["funcao"](objetos=[t.Name], formato="A3")
+        page = self.doc.getObject(r["folha"])
+        g = [v for v in page.Views if v.TypeId == "TechDraw::DrawProjGroup"][0]
+        V.esperar_vistas(list(g.Views), 120)
+        c = UsinixIA.FERRAMENTAS["cotar_folha"]["funcao"](page.Name)
+        rot = [x["rotulo"] for x in c["cotas"]]
+        self.assertTrue(rot)
+        self.assertFalse([x for x in rot if "Ø" in x or "furo" in x], rot)
+
+
+class T167ProjetoMezanino(unittest.TestCase):
+    """Projeto completo de mezanino (itens 102 a 108): contraventamento em X só de tração ou de treliça sem nó solto
+    no quarto da barra, diagonal folgada que volta para a estabilidade, cantoneira de contraventamento que não corta
+    o pilar, material "Aço ASTM A36" achado na biblioteca, folha de barra (vista interrompida) sem espera e
+    memória com responsável e ART."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT167")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def _portico_em_x(self, perfil_diag='Barra redonda Ø 12,7 (1/2")'):
+        import UsinixEsboco3D as S3
+        import UsinixEstrutura as E
+        V = FreeCAD.Vector
+        seg = [((0, 0, 0), (0, 0, 3000)), ((3000, 0, 0), (3000, 0, 3000)), ((0, 0, 3000), (3000, 0, 3000)),
+               ((0, 0, 0), (3000, 0, 3000)), ((0, 0, 3000), (3000, 0, 0))]
+        pts, qb = [], []
+        for a, b in seg:
+            pts += [V(*a), V(*b)]
+            qb.append(len(pts))
+        sk = S3.criar(self.doc, pontos=pts, quebras=qb[:-1], nome="Esq")
+        self.doc.recompute()
+        est = E.criar(self.doc, sk, perfil="W 150 x 22,5", material="Aço ASTM A36",
+                      grupos_extras=[{"nome": "Diag", "perfil": perfil_diag, "arestas": [3, 4]}])
+        self.doc.recompute()
+        return est
+
+    def test_x_so_tracao_com_peso_proprio(self):
+        import json
+        import UsinixAnaliseEstrutura as A
+        est = self._portico_em_x()
+        an = A.criar(self.doc, est)
+        an.Apoios = ["0;0;0=Engaste", "3000;0;0=Engaste"]
+        an.Liberacoes = ["3=Só tração (contraventamento)", "4=Só tração (contraventamento)"]
+        carga = {"alvo": "barra", "linha": 2, "tipo": "distribuida", "valor": 5.0, "direcao": "Para baixo (−Z)"}
+        an.Casos = [json.dumps(A.caso_padrao()), json.dumps({"nome": "Sobrecarga",
+                                                              "tipo": "Sobrecarga (com equipamentos ou pessoas)",
+                                                              "cargas": [carga]})]
+        self.doc.recompute()
+        self.assertFalse(str(an.Situacao).startswith("erro"), an.Situacao)
+        self.assertEqual(an.Proxy.material(an)[0], "ASTM A36")
+        # diagonal só de tração em um elemento só (sem nós no quarto)
+        mapa = an.Proxy.calc.mapa
+        self.assertEqual(len(mapa["barras"][3]), 1)
+        self.assertEqual(len(mapa["barras"][0]), 4)
+
+    def test_diagonal_folgada_volta_para_a_estabilidade(self):
+        import numpy as np
+        import UsinixPortico as PT
+        m = PT.Modelo()
+        sec = PT.Secao(2860.0, 1.39e7, 3.87e6, 3.0e4, nome="W")
+        rod = PT.Secao(126.7, 1277.0, 1277.0, 2554.0, nome="R")
+        n = [m.no(p) for p in ((0, 0, 0), (3000, 0, 0), (0, 0, 3000), (3000, 0, 3000))]
+        m.barras.append(PT.Barra(n[0], n[2], sec, (0, 1, 0), liberados=list(PT.ROTULA_I)))
+        m.barras.append(PT.Barra(n[1], n[3], sec, (0, 1, 0), liberados=list(PT.ROTULA_I)))
+        m.barras.append(PT.Barra(n[2], n[3], sec, (0, 1, 0)))
+        for a, b in ((0, 3), (2, 1)):
+            m.barras.append(PT.Barra(n[a], n[b], rod, (0, 1, 0), liberados=list(PT.ROTULA_I) + list(PT.ROTULA_J) + [9],
+                                     so_tracao=True))
+        self.assertEqual(len(m._pares_em_x({("e", 3): [3], ("e", 4): [4]})), 1)
+        self.assertTrue(PT._cruzam(np.array([0., 0, 0]), np.array([3000., 0, 3000]), np.array([0., 0, 3000]),
+                                   np.array([3000., 0, 0])))
+
+    def test_cantoneira_de_contraventamento_nao_corta_o_pilar(self):
+        import UsinixEstrutura as E
+        est = self._portico_em_x('L 2" x 3/16"')
+        if not getattr(est, "RegrasDePortico", False):
+            self.skipTest("estrutura sem regras de pórtico")
+        def pilares(e):
+            return sorted((round(b.ComprimentoCorte.Value, 1), round(b.CorteInicio.Value, 1),
+                           round(b.CorteFim.Value, 1)) for b in E.barras_de(e) if b.Indice in (0, 1))
+        com_l = pilares(est)
+        # igual ao pórtico com tirante de barra redonda (que encosta e não corta o pilar)
+        self.assertEqual(com_l, pilares(self._portico_em_x()))
+        self.assertEqual(len({c[0] for c in com_l}), 1)
+
+    def test_material_com_aco_na_frente(self):
+        import UsinixFEM
+        self.assertEqual(UsinixFEM.achar_material("Aço ASTM A36")["nome"], "ASTM A36")
+        d = UsinixFEM.achar_material("Aço ASTM A572 Gr 50")
+        self.assertIsNotNone(d)
+        self.assertIn("A572", d["nome"])
+
+    def test_memoria_com_responsavel_e_art(self):
+        import UsinixIA
+        self.assertIn("memoria_analise_barras", UsinixIA.FERRAMENTAS)
+        import UsinixAnaliseRelatorio as R
+        import inspect
+        self.assertIn("art", inspect.signature(R.gerar_pdf).parameters)

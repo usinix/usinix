@@ -1859,13 +1859,25 @@ def linhas_bom(obj):
         kgm = massa_por_metro(L, d)
         itens.append((("tubo", L["id"], d), den, material_de(L, "tubo"), "DE %s × %s — %s m no total" % (
             _num(tb["De"]), _num(tb["e"]), _num(round(r["total"] / 1000.0, 2))), r["barras"],
-            "%s · %s kg/m" % (L["fabricante"], _num(round(kgm, 2)))))
+            "%s · %s kg/m · instalado %s kg" % (L["fabricante"], _num(round(kgm, 2)),
+                                                _num(round(kgm * r["total"] / 1000.0, 1)))))
     for desc, n in resumo_conexoes(res["conexoes"]).items():
         itens.append((("conexao", L["id"], desc), desc, material_de(L, desc), "—", n, L["fabricante"]))
     sd = soldas_de_topo(res)
     if sd:
         itens.append((("solda", L["id"]), "Solda de topo (junta)", "—", "—", sd, "Contagem para inspeção"))
     return itens
+
+
+def massa_instalada(obj):
+    """kg da linha montada: tubos pelo comprimento cortado (não pelas barras compradas) mais as conexões."""
+    res = obj.Proxy.calcular(obj)
+    L = res["linha"]
+    kg = sum(massa_por_metro(L, d) * r["total"] / 1000.0 for d, r in lista_de_corte(res.get("pecas", []), L).items())
+    por_desc = _massas_das_conexoes(res, L)
+    for desc, n in resumo_conexoes(res["conexoes"]).items():
+        kg += por_desc.get(desc, 0.0) * n
+    return kg
 
 
 def massas_bom(obj):

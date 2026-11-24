@@ -15,6 +15,48 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.0 — 23/11/2026
+
+### Simulação
+
+- **Contraventamento só de tração e barra de treliça:** a barra fica num elemento só, sem os nós do meio. Antes ela
+  era dividida em quatro trechos, e com rótula nas duas pontas o cálculo parava com "nó solto" no quarto da diagonal.
+- **X com as duas diagonais folgadas:** só com o peso, os pilares encurtam e as duas diagonais do X ficam
+  comprimidas e saíam do cálculo; com a base rotulada a estrutura virava mecanismo. Agora a diagonal que menos encurta
+  fica no modelo como folgada: ela segura a estrutura, e a compressão dela (que não existe na barra frouxa) sai zerada.
+- **Material com "Aço" na frente:** "Aço ASTM A36", como se escreve na estrutura, acha o ASTM A36 da biblioteca (antes
+  a memória usava 250/400 MPa por padrão, com aviso).
+- **Memória com responsável e ART:** a memória de cálculo da análise por barras aceita responsável técnico, CREA e ART
+  para a capa; sem eles, valem o responsável e o registro da identidade.
+
+### Estruturas
+
+- **Cantoneira de contraventamento:** cantoneira ou barra chata em diagonal, de pilar a pilar, num pórtico com
+  "Regras de pórtico", encosta como o tirante de barra redonda e não corta o pilar. Os pilares ficam com o mesmo
+  comprimento.
+
+### Desenho
+
+- **Conferência da folha:** algumas arestas curvas pequenas (grade de piso, tela) vinham do TechDraw com a caixa
+  vazia, e a vista "ocupava a folha inteira" na conferência, que acusava vista em cima de vista e invasão da legenda
+  sem ser verdade. Agora a caixa delas vale pelos pontos.
+- **Folha de tubulação:** só as cotas gerais. Os círculos de flanges, pontas de tubo e válvulas não viram mais cotas
+  de furo.
+- **PDF das folhas de barra:** a vista interrompida da barra nunca era dada como pronta, e cada folha esperava 20 s
+  (duas vezes) antes do PDF. Agora sai em cerca de 1 s.
+
+### Listas
+
+- **Massa da tubulação montada:** a lista continua com a massa de compra (barras inteiras); a observação do tubo traz
+  também a massa instalada, e o Resumo do Excel ganha a linha "Tubulação montada — massa (kg)", com os tubos pelo
+  comprimento cortado mais as conexões.
+
+### Conexão com IA
+
+- **memoria_analise_barras:** ferramenta nova que grava a memória de cálculo da análise por barras em PDF, com
+  responsável, CREA e ART.
+- **exportar_excel:** devolve também a massa da tubulação montada, quando há tubulação.
+
 ## 1.28.3 — 23/11/2026
 
 ### Desenho

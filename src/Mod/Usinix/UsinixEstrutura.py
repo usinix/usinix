@@ -329,13 +329,60 @@ def tirantes(est, eds):
     return res
 
 
+def _perfil_de_contraventamento(nome_perfil):
+    """Cantoneira ou barra chata: em diagonal num pórtico, é contraventamento ligado por chapa (gusset)."""
+    try:
+        it = UsinixPerfis.perfil(nome_perfil)
+    except Exception:
+        it = None
+    if it is None:
+        return False
+    return it.get("tipo") == "L" or (it.get("forma") == "chata" and it.get("macica"))
+
+
+def _diagonal(e):
+    """Linha inclinada: nem horizontal nem vertical (mais de 10° de cada)."""
+    try:
+        d = e.Vertexes[-1].Point - e.Vertexes[0].Point
+        if d.Length < 1e-9:
+            return False
+        z = abs(d.z) / d.Length
+        return 0.17 < z < 0.985
+    except Exception:
+        return False
+
+
+def _entre_pilares(eds, j):
+    """As duas pontas da linha j encostam numa linha vertical (pilar)."""
+    import Part
+    e = eds[j]
+    verticais = []
+    for k, f in enumerate(eds):
+        if f is None or k == j:
+            continue
+        d = f.Vertexes[-1].Point - f.Vertexes[0].Point
+        if d.Length > 1e-9 and abs(d.z) / d.Length > 0.999:
+            verticais.append(f)
+    for p in (e.Vertexes[0].Point, e.Vertexes[-1].Point):
+        v = Part.Vertex(p)
+        if not any(f.distToShape(v)[0] < 1.0 for f in verticais):
+            return False
+    return True
+
+
 def _tirantes(est, eds):
     res = set()
+    regras = bool(getattr(est, "RegrasDePortico", False))
     for j, e in enumerate(eds):
         if e is None:
             continue
         try:
-            if eh_tirante(_perfil_da_barra(est, j)):
+            nome = _perfil_da_barra(est, j)
+            if eh_tirante(nome):
+                res.add(j)
+            elif regras and _diagonal(e) and _perfil_de_contraventamento(nome) and _entre_pilares(eds, j):
+                # contraventamento em cantoneira no pórtico (de pilar a pilar): como o tirante, encosta e não
+                # corta o pilar
                 res.add(j)
         except Exception:
             pass

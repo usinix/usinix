@@ -374,6 +374,20 @@ def achar_material(nome):
     for d in lista:
         if _chave_nome(d["nome"]) == k:
             return d
+    # "Aço ASTM A36" (como se escreve na estrutura) acha "ASTM A36": sem a palavra aço na frente, ou o nome da
+    # biblioteca contido no que foi escrito (o mais comprido, para A572 Gr 50 não virar A572)
+    for pref in ("aco", "steel"):
+        if k.startswith(pref) and len(k) > len(pref) + 2:
+            for d in lista:
+                if _chave_nome(d["nome"]) == k[len(pref):]:
+                    return d
+    def dentro(c):
+        i = k.find(c)
+        # sem número colado depois ("ASTM A36" não é "ASTM A360")
+        return len(c) >= 5 and i >= 0 and not (i + len(c) < len(k) and k[i + len(c)].isdigit() and c[-1].isdigit())
+    contidos = [d for d in lista if dentro(_chave_nome(d["nome"]))]
+    if contidos:
+        return max(contidos, key=lambda d: len(_chave_nome(d["nome"])))
     return None
 
 

@@ -418,8 +418,17 @@ def resumo_orcamento(objs, linhas=None):
             solda = sum(s.ComprimentoTotal.Value for s in cord)
     except Exception:
         pass
+    tub = None
+    try:
+        import UsinixTubulacao as T
+        linhas_tubo = [o for o in _tudo(objs) if T.e_tubulacao(o)]
+        if linhas_tubo:
+            tub = sum(T.massa_instalada(o) for o in linhas_tubo)
+    except Exception:
+        tub = None
     return {"materiais": sorted(por_mat.items(), key=lambda t: -t[1]), "massa_total": sum(por_mat.values()),
-            "area_pintura_m2": area / 1e6, "solda_mm": solda, "pecas": sum(ln.qtd for ln in linhas)}
+            "area_pintura_m2": area / 1e6, "solda_mm": solda, "pecas": sum(ln.qtd for ln in linhas),
+            "massa_tubulacao_instalada": tub}
 
 
 def _tudo(objs):
@@ -474,8 +483,11 @@ def exportar_excel(objs, caminho, linhas=None):
     r = resumo_orcamento(objs, linhas)
     res = [["Peças (unidades)", r["pecas"]]]
     res += [["Massa — %s (kg)" % m, kg] for m, kg in r["materiais"]]
-    res += [["Total — massa (kg)", r["massa_total"]],
-            ["Área externa para pintura (m²)", r["area_pintura_m2"]],
+    res += [["Total — massa (kg)", r["massa_total"]]]
+    if r.get("massa_tubulacao_instalada") is not None:
+        # a lista conta os tubos em barras inteiras (compra); montada, a linha pesa menos
+        res += [["Tubulação montada — massa (kg, tubos pelo comprimento cortado)", r["massa_tubulacao_instalada"]]]
+    res += [["Área externa para pintura (m²)", r["area_pintura_m2"]],
             ["Comprimento de solda (mm)", r["solda_mm"] if r["solda_mm"] is not None else "sem cordões modelados"]]
     abas.append(("Resumo", ["Item", "Valor"], res, [40, 24]))
     return escrever_xlsx(caminho, abas)

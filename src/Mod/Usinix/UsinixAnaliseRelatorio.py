@@ -196,7 +196,10 @@ class _Dados(dict):
         return padrao
 
 
-def gerar_pdf(analise, caminho):
+def gerar_pdf(analise, caminho, responsavel=None, crea=None, art=None):
+    """Memória de cálculo em PDF. responsavel, crea e art vão para a capa; sem eles, o responsável e o registro
+    da identidade (Usinix › Marca) e a ART em branco ("—"), para preencher à mão."""
+    analise.Proxy._usinix_capa = {"responsavel": responsavel, "crea": crea, "art": art}
     if getattr(analise.Proxy, "calc", None) is None:
         analise.Proxy.execute(analise)
     if analise.Proxy.calc is None:
@@ -254,6 +257,13 @@ def gerar_pdf(analise, caminho):
     return caminho
 
 
+def _capa_dado(analise, chave):
+    try:
+        return (getattr(analise.Proxy, "_usinix_capa", {}) or {}).get(chave) or ""
+    except Exception:
+        return ""
+
+
 def _capa(p, W, H, k, analise):
     M = R.MARGEM_MM
     mc = R.faixa_capa(p, W, k)
@@ -263,7 +273,9 @@ def _capa(p, W, H, k, analise):
     p.drawText(QtCore.QRectF(M * k, 112 * k, W, 12 * k), "Verificação por barras · NBR 8800:2024 · NBR 8681:2025")
     linhas = [("Estrutura", analise.Estrutura.Label), ("Situação", analise.Situacao),
               ("Maior taxa de uso", _f(analise.TaxaMaxima, 2)), ("Data", time.strftime("%d/%m/%Y")),
-              ("Responsável técnico", mc["responsavel"] or "—"), ("CREA", mc["registro"] or "—"), ("ART nº", "—")]
+              ("Responsável técnico", _capa_dado(analise, "responsavel") or mc["responsavel"] or "—"),
+              ("CREA", _capa_dado(analise, "crea") or mc["registro"] or "—"),
+              ("ART nº", _capa_dado(analise, "art") or "—")]
     y = 130 * k
     for rot, val in linhas:
         p.setPen(QtGui.QColor(R.INK2))

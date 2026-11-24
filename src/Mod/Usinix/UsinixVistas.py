@@ -197,6 +197,10 @@ def vista_pronta(vista):
     vs = _vertices(vista)
     if not vs:
         return False
+    if vista.isDerivedFrom("TechDraw::DrawBrokenView"):
+        # vista interrompida (barra comprida): a largura é menor que a da peça de propósito; a de antes nunca
+        # ficava "pronta" e cada folha de barra esperava o tempo todo (20 s) antes do PDF
+        return "Touched" not in vista.State
     try:
         esperada = _largura_esperada(vista)
     except Exception:
@@ -209,8 +213,10 @@ def vista_pronta(vista):
         try:
             xs = []
             for _n, e in _arestas(vista):
-                bb = e.BoundBox
-                xs += [bb.XMin, bb.XMax]
+                import UsinixDetalhe as _D
+                c = _D.caixa_aresta(e)
+                if c is not None:
+                    xs += [c[0], c[1]]
             if xs:
                 obtida = max(xs) - min(xs)
         except Exception:
@@ -662,11 +668,24 @@ def nota_de_usinagem(page, vista, rev, feitos=()):
     return n
 
 
+def _so_tubulacao(objs):
+    try:
+        import UsinixTubulacao as T
+        lst = list(objs or [])
+        return bool(lst) and all(T.e_tubulacao(getattr(o, "LinkedObject", None) or o) for o in lst)
+    except Exception:
+        return False
+
+
 def cotas_gerais(page, objs, furos=False):
     """Comprimento e altura totais na frontal; profundidade na lateral (ou na superior). Com furos=True,
     também a furação de cada vista (ver cotas_de_furos).
 
     Devolve a lista das cotas criadas. As vistas precisam estar calculadas (ver vista_pronta)."""
+    if furos and _so_tubulacao(objs):
+        # tubulação: os círculos são furos de flange, pontas de tubo e bocas de válvula, peças de catálogo; cotá-los
+        # enchia a folha de "8× ⌀15,9" sem valor para a montagem (a linha se cota pelo isométrico e pela lista)
+        furos = False
     grupo = grupo_da_peca(page, objs)
     if grupo is None:
         raise ValueError("Ponha a vista frontal da peça na folha antes das cotas.")
@@ -1145,6 +1164,9 @@ def nome_do_arquivo(page, extensao):
     return os.path.join(pasta, base + "." + extensao)
 
 
+_DESENHADAS = {}
+
+
 def folha_desenhada(page, tempo=20.0):
     """Abre a janela da folha e espera as vistas. O PDF de uma folha que nunca foi aberta sai com as vistas fora do
     lugar e sem o modelo da legenda (o TechDraw só monta a cena da folha quando a janela existe)."""
@@ -1152,6 +1174,9 @@ def folha_desenhada(page, tempo=20.0):
         return
     import FreeCADGui
     import time
+    chave = (page.Document.Name, page.Name)
+    if time.time() - _DESENHADAS.get(chave, 0.0) < 3.0 and "Touched" not in page.State:
+        return                                    # acabou de ser esperada (salvar_pdf → exportPageAsPdf)
     try:
         import UsinixFolhas
         UsinixFolhas._abrir_folha(page)
@@ -1169,6 +1194,7 @@ def folha_desenhada(page, tempo=20.0):
     while time.time() < fim:                      # a cena da janela redesenha depois do recálculo
         FreeCADGui.updateGui()
         time.sleep(0.05)
+    _DESENHADAS[chave] = time.time()
 
 
 def salvar_pdf(page, caminho=None):

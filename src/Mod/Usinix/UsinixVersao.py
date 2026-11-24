@@ -4,7 +4,7 @@
 # Na compilação do GitHub, o fluxo de publicação grava UsinixVersaoCompilada.py com o rótulo da versão
 # (ex.: "0.3.0-beta"), e é ele que vale: tela de abertura, título da janela e Sobre acompanham cada
 # versão sem editar este arquivo. Sem ele (compilação local), valem os valores abaixo.
-VERSAO = "1.28.3"
+VERSAO = "1.29.0"
 CANAL = ""   # "beta" nas versões de teste
 
 

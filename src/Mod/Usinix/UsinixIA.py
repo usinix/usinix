@@ -448,6 +448,22 @@ def f_isolar_solido(peca, indice=None, ponto=None, rotulo=None):
             "iguais": o.Iguais}
 
 
+@ferramenta("memoria_analise_barras", "Memória de cálculo em PDF da análise por barras (NBR 8800), na identidade da "
+            "empresa. responsavel, crea e art saem na capa; sem eles, o responsável e o registro da identidade e a "
+            "ART em branco, para preencher à mão.",
+            {"analise": {"type": "string"}, "caminho": {"type": "string"}, "responsavel": {"type": "string"},
+             "crea": {"type": "string"}, "art": {"type": "string"}}, ("analise", "caminho"))
+def f_memoria_analise_barras(analise, caminho, responsavel=None, crea=None, art=None):
+    import UsinixAnaliseEstrutura as A
+    import UsinixAnaliseRelatorio as R
+    doc = _doc()
+    a = doc.getObject(analise) or (doc.getObjectsByLabel(analise) or [None])[0]
+    if a is None or not isinstance(getattr(a, "Proxy", None), A.Analise):
+        raise ValueError("análise por barras não encontrada: %s" % analise)
+    R.gerar_pdf(a, caminho, responsavel=responsavel, crea=crea, art=art)
+    return {"arquivo": caminho, "situacao": a.Situacao, "taxa_maxima": a.TaxaMaxima}
+
+
 @ferramenta("duplicar_analise", "Copia uma análise de simulação (material, seções, apoios, cargas, malha e solver) sobre a "
             "mesma geometria, para outro caso de carga ou de apoio. Os rótulos ficam iguais no relatório; a cópia "
             "nasce sem resultado.", {"analise": {"type": "string"}, "rotulo": {"type": "string"}}, ("analise",))
@@ -828,7 +844,9 @@ def f_excel(caminho, objetos=None):
     linhas = UsinixBOM.coletar(objs)
     UsinixFabrica.exportar_excel(objs, caminho, linhas)
     r = UsinixFabrica.resumo_orcamento(objs, linhas)
-    return {"arquivo": caminho, "massa_total_kg": round(r["massa_total"], 3),
+    extra = {} if r.get("massa_tubulacao_instalada") is None else \
+        {"massa_tubulacao_montada_kg": round(r["massa_tubulacao_instalada"], 3)}
+    return {**extra, "arquivo": caminho, "massa_total_kg": round(r["massa_total"], 3),
             "area_pintura_m2": round(r["area_pintura_m2"], 3),
             "materiais": [{"material": m, "massa_kg": round(kg, 3)} for m, kg in r["materiais"]]}
 

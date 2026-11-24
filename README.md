@@ -35,9 +35,13 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.28.3** (23/11/2026): folha de tubulação com tê corrigida; massa da tubulação e classe dos
-parafusos na lista; lista, Excel e abertura bem mais rápidos com centenas de peças; nomes de perfil sem símbolos;
-carga no meio da viga; aviso de grupo travado solto.
+**Versão atual: 1.29.0** (23/11/2026): contraventamento só de tração e de treliça calculando sem nó solto;
+cantoneira de contraventamento sem cortar o pilar; memória de cálculo com responsável e ART; conferência da folha sem
+falso aviso; PDF das folhas de barra rápido; massa da tubulação montada.
+
+Na 1.28.3: folha de tubulação com tê corrigida; massa da tubulação e classe dos parafusos na lista; lista, Excel e
+abertura bem mais rápidos com centenas de peças; nomes de perfil sem símbolos; carga no meio da viga; aviso de grupo
+travado solto.
 
 Na 1.28.2: símbolos dos PDFs (σ, ≤, ⌀, ✓, ✗, letras gregas) com as fontes Noto do próprio Usinix, sem depender das
 fontes do Windows.

@@ -50,6 +50,22 @@ def escala_do_detalhe(escala_vista, fator=2.0):
     return normais[-1]
 
 
+def caixa_aresta(e):
+    """(xmin, xmax, ymin, ymax) de uma aresta da vista, ou None. Arestas curvas pequenas do TechDraw (grade de
+    piso, tela) às vezes vêm com a caixa vazia (mín. = +1,8e308, máx. = −1,8e308): aí vale a dos pontos."""
+    bb = e.BoundBox
+    if bb.XMin <= bb.XMax and bb.YMin <= bb.YMax and abs(bb.XMin) < 1e12 and abs(bb.XMax) < 1e12:
+        return bb.XMin, bb.XMax, bb.YMin, bb.YMax
+    try:
+        pts = e.discretize(8)
+    except Exception:
+        pts = [v.Point for v in e.Vertexes]
+    pts = [p for p in pts if abs(p.x) < 1e12 and abs(p.y) < 1e12]
+    if not pts:
+        return None
+    return min(p.x for p in pts), max(p.x for p in pts), min(p.y for p in pts), max(p.y for p in pts)
+
+
 def _caixa_da_vista(vista):
     """(xmin, xmax, ymin, ymax) das arestas visíveis da vista, sem escala, em coordenadas da vista."""
     xs, ys = [], []
@@ -60,9 +76,11 @@ def _caixa_da_vista(vista):
     for e in arestas:
         if e.Length < 1e-4:
             continue                       # ponto perdido do cálculo de linhas ocultas (ver UsinixVistas)
-        bb = e.BoundBox
-        xs += [bb.XMin, bb.XMax]
-        ys += [bb.YMin, bb.YMax]
+        c = caixa_aresta(e)
+        if c is None:
+            continue
+        xs += [c[0], c[1]]
+        ys += [c[2], c[3]]
     if not xs:
         return -10.0, 10.0, -10.0, 10.0
     # o TechDraw devolve as arestas já na escala da vista (conferido no 1.1: Ø30 em 1:2 → 60): volta para o modelo

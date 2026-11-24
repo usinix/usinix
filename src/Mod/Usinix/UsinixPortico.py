@@ -342,6 +342,25 @@ class Modelo:
             res.append((f, phi))
         return res
 
+    def _pares_em_x(self, grupos):
+        """Pares de barras só de tração que se cruzam (as duas diagonais de um X)."""
+        pontas = {}
+        for ch, membros in grupos.items():
+            nos = [self.barras[nb].i for nb in membros] + [self.barras[nb].j for nb in membros]
+            pts = [np.array(self.nos[q], dtype=float) for q in nos]
+            d = pts[1] - pts[0] if len(pts) > 1 else np.zeros(3)
+            d = d / max(float(np.linalg.norm(d)), 1e-12)
+            proj = [float(p @ d) for p in pts]
+            pontas[ch] = (pts[int(np.argmin(proj))], pts[int(np.argmax(proj))])
+        chs = list(grupos)
+        pares = []
+        for a in range(len(chs)):
+            for b in range(a + 1, len(chs)):
+                (a0, a1), (b0, b1) = pontas[chs[a]], pontas[chs[b]]
+                if _cruzam(a0, a1, b0, b1):
+                    pares.append((chs[a], chs[b]))
+        return pares
+
     def _texto_mecanismo(self, Kff, livres):
         """Mensagem do mecanismo apontando o nó e a direção que se movem sem resistência."""
         txt = "a estrutura é instável (mecanismo): faltam apoios ou travamentos"
@@ -531,6 +550,7 @@ class Modelo:
         # barras só de tração: tira as comprimidas e devolve as que voltam a esticar, até estabilizar
         self.ciclos_tracao = 0
         self.tracao_sem_convergir = False
+        self.folgadas = set()
         if any(b.so_tracao for b in self.barras):
             # a barra do Usinix (vários elementos: trechos e divisões) liga e desliga inteira; senão um elemento
             # desligado no meio corta a diagonal tracionada
@@ -573,10 +593,41 @@ class Modelo:
                 ncr[chave] = math.pi ** 2 * sec.E * min(sec.Iy, sec.Iz) / max(Ltot, 1e-9) ** 2
                 trocas[chave] = 0
             self.tracao_sem_convergir = False
+            # X com as duas diagonais folgadas (só o peso: os pilares encurtam e as duas encurtam junto): na prática a
+            # que esticar no primeiro deslocamento de lado segura a estrutura; sem nenhuma, o pórtico com base
+            # rotulada virava mecanismo. Fica no modelo a que menos encurtou, marcada como folgada: entra na rigidez
+            # e na estabilidade, mas a compressão dela (fictícia) sai zerada do resultado
+            pares = self._pares_em_x(grupos)
+            folgada_de = {}
+
+            def _alonga(ch):
+                tot = 0.0
+                for nb in grupos[ch]:
+                    R, L, T, k, fe, _d, _p, idx, lib = info[nb]
+                    tot += (T @ u[idx])[6] - (T @ u[idx])[0]
+                return tot
+
+            def _folgas():
+                novo = {}
+                for ch in list(folgada_de.values()):
+                    for nb in grupos[ch]:
+                        ativos[nb] = False
+                for ka, kb in pares:
+                    if ativos[grupos[ka][0]] or ativos[grupos[kb][0]]:
+                        continue
+                    ch = ka if _alonga(ka) >= _alonga(kb) else kb
+                    novo[(ka, kb)] = ch
+                for ch in novo.values():
+                    for nb in grupos[ch]:
+                        ativos[nb] = True
+                mudou = novo != folgada_de
+                folgada_de.clear()
+                folgada_de.update(novo)
+                return mudou
             for self.ciclos_tracao in range(1, 31):
                 mudou = False
                 for chave, membros in grupos.items():
-                    if trocas[chave] > 3:
+                    if trocas[chave] > 3 or chave in folgada_de.values():
                         continue
                     alonga, normais, kmax = 0.0, [], 1.0
                     for nb in membros:
@@ -598,6 +649,8 @@ class Modelo:
                             ativos[nb] = True
                         trocas[chave] += 1
                         mudou = True
+                if _folgas():
+                    mudou = True
                 if not mudou:
                     break
                 if self.ciclos_tracao == 30:
@@ -615,6 +668,7 @@ class Modelo:
                                      "comprimidos fora do modelo)")
                 u = np.zeros(ndof)
                 u[livres] = uf
+            self.folgadas = {nb for ch in folgada_de.values() for nb in grupos[ch]}
         u1 = u.copy()
         iteracoes = 0
         if segunda_ordem:
@@ -655,6 +709,7 @@ class Modelo:
         reac = K @ u - F
         res = Resultado(self, u, reac, presos)
         res.ativos = list(ativos)
+        res.folgadas = set(getattr(self, "folgadas", set()))
         res.segunda_ordem = segunda_ordem
         res.iteracoes = iteracoes
         res.amplificacao = amplificacao_horizontal(u1, u, n)
@@ -670,7 +725,26 @@ class Modelo:
             res.locais.append(ul)
             res.cargas.append((dist, pont))
             res.geo.append((R, L))
+        for nb in res.folgadas:
+            # diagonal folgada: a compressão que a conta linear dá a ela não existe (a barra fica frouxa)
+            res.extremos[nb] = np.zeros_like(res.extremos[nb])
         return res
+
+
+def _cruzam(a0, a1, b0, b1, tol=1.0):
+    """Os segmentos a0-a1 e b0-b1 se cruzam no meio (não só se tocam nas pontas)?"""
+    da, db = a1 - a0, b1 - b0
+    r = a0 - b0
+    A, B, C = float(da @ da), float(da @ db), float(db @ db)
+    D, E = float(da @ r), float(db @ r)
+    den = A * C - B * B
+    if den <= 1e-12 * max(A * C, 1e-12):
+        return False
+    s = (B * E - C * D) / den
+    t = (A * E - B * D) / den
+    if not (0.02 < s < 0.98 and 0.02 < t < 0.98):
+        return False
+    return float(np.linalg.norm((a0 + s * da) - (b0 + t * db))) < tol
 
 
 def amplificacao_horizontal(u1, u2, n):

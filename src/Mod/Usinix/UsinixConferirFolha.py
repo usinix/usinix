@@ -125,8 +125,10 @@ def _esperar_vistas(page, segundos=60.0):
                 # círculos e arcos passam dos vértices (a vista de topo de um eixo só tem o centro e a costura)
                 xs = []
                 for _n, e in V._arestas(i):
-                    bb = e.BoundBox
-                    xs += [bb.XMin, bb.XMax]
+                    import UsinixDetalhe as _D
+                    c = _D.caixa_aresta(e)
+                    if c is not None:
+                        xs += [c[0], c[1]]
                 if xs:
                     obtida = max(xs) - min(xs)
             return 0.55 * esperada <= obtida <= 1.05 * esperada + 1e-6

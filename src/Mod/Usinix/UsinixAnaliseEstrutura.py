@@ -272,13 +272,17 @@ def montar_modelo(est, casos, apoios, liberacoes=None):
         mapa["secoes"][i] = prop
         mapa["linhas"][i] = (p0, t, L)
         xs = sorted(cortes)
-        # cada trecho em 4 elementos: diagramas mais finos e efeito P-δ na análise de 2ª ordem
-        finos = []
-        for a, b in zip(xs[:-1], xs[1:]):
-            finos += [a + (b - a) * k / 4.0 for k in range(4)]
-        xs = finos + [xs[-1]]
-        mapa["barras"][i] = []
         lib = (liberacoes or {}).get(i, "")
+        if lib not in TRELICAS:
+            # cada trecho em 4 elementos: diagramas mais finos e efeito P-δ na análise de 2ª ordem. Barra de
+            # treliça e tirante só têm esforço normal: os nós do meio ficariam presos só pela flexão de uma barra
+            # redonda fina (ou por nada, com o tirante comprimido fora do cálculo) e o cálculo parava com "nó
+            # solto" no quarto do contraventamento
+            finos = []
+            for a, b in zip(xs[:-1], xs[1:]):
+                finos += [a + (b - a) * k / 4.0 for k in range(4)]
+            xs = finos + [xs[-1]]
+        mapa["barras"][i] = []
         ini = lib in ("Rótula no início", "Rótula nas duas pontas") or lib in TRELICAS
         fim = lib in ("Rótula no fim", "Rótula nas duas pontas") or lib in TRELICAS
         for a, b in zip(xs[:-1], xs[1:]):
