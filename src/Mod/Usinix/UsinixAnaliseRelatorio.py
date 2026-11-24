@@ -151,6 +151,11 @@ def _corpo(analise, doc, imgs, largura):
     h += "<h2>Detalhe por barra</h2>"
     for i, v in sorted(calc.verificacao.items()):
         md = v["modos"]
+        if v.get("so_tracao"):
+            h += "<p><b>Barra %d</b> (%s) — combinação %s. Tirante só de tração: verificado só à tração (%s); " \
+                 "esticado, a flexão do peso e a compressão (barra frouxa) não se aplicam.</p>" % (
+                     i + 1, calc.mapa["secoes"][i]["nome"], v["combinacao"], md["N"])
+            continue
         h += "<p><b>Barra %d</b> (%s) — combinação %s. Normal: %s. Flexão x: %s. Flexão y: %s. " \
              "Cortante: %s. Interação: %s.</p>" % (i + 1, calc.mapa["secoes"][i]["nome"], v["combinacao"],
                                                   md["N"], md["Mx"], md["My"], md["Vz"], md["interacao"])

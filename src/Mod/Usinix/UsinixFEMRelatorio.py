@@ -21,7 +21,7 @@ DPI = 300
 MARGEM_MM = 18.0
 
 CSS = """
-body { font-family: 'Poppins', 'Noto Sans', 'Noto Sans Math', 'Noto Sans Symbols 2'; font-size: 14px; color: %(INK)s; }
+body { font-family: 'Poppins', 'Noto Sans', 'Noto Sans Math', 'Noto Sans Symbols 2', 'Usinix Simbolos'; font-size: 14px; color: %(INK)s; }
 h1 { font-size: 24px; color: %(NAVY)s; font-weight: 700; margin-top: 18px; margin-bottom: 6px; }
 h2 { font-size: 18px; color: %(NAVY)s; font-weight: 600; margin-top: 12px; margin-bottom: 4px; }
 p { margin-top: 2px; margin-bottom: 6px; line-height: 140%%; }

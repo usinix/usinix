@@ -15,6 +15,20 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.3 — 24/11/2026
+
+### Estruturas
+
+- **Tirante só de tração verificado só à tração:** no X de barra redonda, o nó do cruzamento fica preso pela barra
+  contínua e o peso dele fletia o tirante (Ø 12,7 do mezanino reprovava com taxa 1,81 pela flexão e saía flambagem
+  com L/r = 1576). O tirante esticado trabalha só à tração; flexão, compressão e flambagem não se aplicam, e a
+  memória diz isso numa linha própria.
+
+### Relatórios
+
+- **Símbolos dos nomes de tubo (□ ▭ ○) com fonte do Usinix:** eram as únicas letras que o Windows ainda completava
+  com a Tahoma. A fonte nova é instalada na sua conta junto com as outras e vale a partir da segunda abertura.
+
 ## 1.29.2 — 24/11/2026
 
 ### Relatórios

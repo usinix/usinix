@@ -670,6 +670,7 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
         pior = None
         tracao_max = 0.0
         elems_m = [eb for j in _ls for eb, _a in mapa["barras"][j]] if len(_ls) > 1 else None
+        so_tracao = mapa["liberacoes"].get(i, "") == TRELICAS[1]
         for nome, tipo, _f in calc.combinacoes:
             if tipo != "ELU":
                 continue
@@ -678,8 +679,16 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
             if elems_m:
                 esf["Mcb"] = _cb_do_membro(r, elems_m, m)
             tracao_max = max(tracao_max, esf["Nmax"])
+            normais = sorted({esf["Nmax"], esf["Nmin"]})
+            if so_tracao:
+                # tirante só de tração: trabalha esticado, só à tração. A flexão que o modelo dá a ele (o peso do
+                # nó do cruzamento do X, segurado pela barra contínua ali) e a compressão (barra frouxa) não são
+                # esforços de tirante; antes o Ø 12,7 reprovava pela flexão do próprio peso e saía flambagem com
+                # L/r = 1576
+                esf = dict(esf, Mx=0.0, My=0.0, Vz=0.0, Vy=0.0)
+                normais = [max(esf["Nmax"], 0.0)]
             # tração e compressão: verifica as duas se aparecerem
-            for Nv in sorted({esf["Nmax"], esf["Nmin"]}):
+            for Nv in normais:
                 e2 = dict(esf, N=Nv)
                 ver = N.verificar(prop, fy, fu, Lm, e2, balanco=balanco)
                 ver["combinacao"] = nome
@@ -687,6 +696,11 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
                 ver["membro"] = (Lm, Kb, balanco)
                 if pior is None or ver["taxa"] > pior["taxa"]:
                     pior = ver
+        if so_tracao and pior is not None:
+            pior["modos"]["interacao"] = ("tirante só de tração: só a tração (esticado; flexão e compressão "
+                                          "não se aplicam)")
+            pior["so_tracao"] = True
+            pior["avisos"] = []          # avisos de flexão e flambagem da seção (método geral etc.) não se aplicam
         calc.verificacao[i] = pior
         txt_furos = furos_em(i) if tracao_max > 1e-6 else ""
         if txt_furos:

@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.2** (24/11/2026): PDF das memórias com a fonte embutida; tirante só de tração sem fletir
+**Versão atual: 1.29.3** (24/11/2026): tirante só de tração verificado só à tração; símbolos dos nomes de tubo
+com fonte do Usinix nos PDFs.
+
+Na 1.29.2: PDF das memórias com a fonte embutida; tirante só de tração sem fletir
 com o próprio peso; linha nova no esqueleto vira barra no recálculo; título longo cabendo no carimbo.
 
 Na 1.29.1: cotas acima de 10 m em milímetros; lista de corte com peças de outros objetos.

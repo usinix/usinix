@@ -244,10 +244,12 @@ _fontes_registradas = {"ok": None}
 
 # Documentos (PDF dos relatórios): a Poppins no texto e as Noto só nos símbolos que ela não tem (letras gregas,
 # setas, ≤ ⌀ ✓ ✗...). Sem elas o Windows completava com a Tahoma e a MS UI Gothic do sistema.
-FAMILIAS_DOCUMENTO = ["Poppins", "Noto Sans", "Noto Sans Math", "Noto Sans Symbols 2"]
+FAMILIAS_DOCUMENTO = ["Poppins", "Noto Sans", "Noto Sans Math", "Noto Sans Symbols 2", "Usinix Simbolos"]
 CSS_FAMILIAS = ", ".join("'%s'" % f for f in FAMILIAS_DOCUMENTO)
 _ARQUIVO_DA_FAMILIA = {"Noto Sans": "NotoSans-Regular.ttf", "Noto Sans Math": "NotoSansMath-Regular.ttf",
-                       "Noto Sans Symbols 2": "NotoSansSymbols2-Regular.ttf"}
+                       "Noto Sans Symbols 2": "NotoSansSymbols2-Regular.ttf",
+                       # □ ▭ ○ dos nomes de tubo (nenhuma Noto recortada tinha; o Windows completava com a Tahoma)
+                       "Usinix Simbolos": "UsinixSimbolos-Regular.ttf"}
 
 
 def fonte_documento(pixels=None, pontos=None, peso=None):

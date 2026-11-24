@@ -22098,3 +22098,33 @@ class T169AchadosDa1291(unittest.TestCase):
         sem_virgula = "X" * 80
         t2 = F.caber_no_campo(sem_virgula, w, fs, neg)
         self.assertTrue(t2.endswith("…") and F.largura_texto(t2, fs, neg) <= w)
+
+
+class T170TiranteSoATracao(unittest.TestCase):
+    """1.29.3: tirante só de tração verificado só à tração. No X, o nó do cruzamento fica preso pela barra contínua
+    e o peso dele fletia o tirante (Ø 12,7 do mezanino com taxa 1,81 pela flexão e flambagem com L/r = 1576)."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT170")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_x_de_barra_redonda(self):
+        import UsinixEstrutura as E
+        import UsinixAnaliseEstrutura as A
+        sk = esboco_linhas(self.doc, [((0, 0), (0, 3000)), ((6000, 0), (6000, 3000)), ((0, 3000), (6000, 3000)),
+                                      ((0, 0), (6000, 3000)), ((0, 3000), (6000, 0))], "XZ")
+        est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A36", grupos_extras=[
+            {"nome": "Tirantes", "perfil": "Barra redonda Ø 12,7 (1/2\")", "arestas": [3, 4]}])
+        self.doc.recompute()
+        ap = {A._chave_no((0, 0, 0)): "Engaste", A._chave_no((6000, 0, 0)): "Engaste"}
+        lib = {3: A.TRELICAS[1], 4: A.TRELICAS[1]}
+        calc = A.calcular(est, [A.caso_padrao()], ap, liberacoes=lib)
+        for i in (3, 4):
+            v = calc.verificacao[i]
+            self.assertTrue(v.get("so_tracao"))
+            self.assertLess(v["taxa"], 0.05, v["taxas"])
+            self.assertEqual(v["taxas"]["Flexão x"], 0.0)
+            self.assertNotIn("L/r", v["modos"]["N"])
