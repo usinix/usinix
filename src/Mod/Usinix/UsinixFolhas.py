@@ -273,6 +273,133 @@ def texto_massa(r):
     return "ver catálogo" if r.de_catalogo else ""
 
 
+# ---------------------------------------------------------------- campos da legenda que não cabem
+_AVANCOS = {}
+_CAMPOS_SVG = {}
+
+
+def _larguras_ttf(caminho):
+    """{código: avanço em em} pela tabela cmap (formato 4) e hmtx da fonte, sem dependências."""
+    import struct
+    with open(caminho, "rb") as f:
+        dados = f.read()
+    n = struct.unpack(">H", dados[4:6])[0]
+    tab = {}
+    for i in range(n):
+        tag, _ck, off, ln = struct.unpack(">4sIII", dados[12 + 16 * i: 28 + 16 * i])
+        tab[tag.decode("latin-1")] = off
+    upm = struct.unpack(">H", dados[tab["head"] + 18: tab["head"] + 20])[0]
+    nh = struct.unpack(">H", dados[tab["hhea"] + 34: tab["hhea"] + 36])[0]
+    hm = tab["hmtx"]
+    avancos = [struct.unpack(">H", dados[hm + 4 * i: hm + 4 * i + 2])[0] for i in range(nh)]
+    c = tab["cmap"]
+    nt = struct.unpack(">H", dados[c + 2: c + 4])[0]
+    sub = None
+    for i in range(nt):
+        pid, eid, off = struct.unpack(">HHI", dados[c + 4 + 8 * i: c + 12 + 8 * i])
+        if struct.unpack(">H", dados[c + off: c + off + 2])[0] == 4 and (pid, eid) in ((3, 1), (0, 3), (0, 4), (0, 1)):
+            sub = c + off
+            break
+    res = {}
+    if sub is None:
+        return res
+    segx2 = struct.unpack(">H", dados[sub + 6: sub + 8])[0]
+    seg = segx2 // 2
+    ends = struct.unpack(">%dH" % seg, dados[sub + 14: sub + 14 + segx2])
+    p = sub + 16 + segx2
+    starts = struct.unpack(">%dH" % seg, dados[p: p + segx2])
+    deltas = struct.unpack(">%dh" % seg, dados[p + segx2: p + 2 * segx2])
+    ro_pos = p + 2 * segx2
+    ros = struct.unpack(">%dH" % seg, dados[ro_pos: ro_pos + segx2])
+    for i in range(seg):
+        for cp in range(starts[i], min(ends[i], 0x24FF) + 1):
+            if cp == 0xFFFF:
+                continue
+            if ros[i] == 0:
+                g = (cp + deltas[i]) & 0xFFFF
+            else:
+                a = ro_pos + 2 * i + ros[i] + 2 * (cp - starts[i])
+                g = struct.unpack(">H", dados[a: a + 2])[0]
+                if g:
+                    g = (g + deltas[i]) & 0xFFFF
+            if g:
+                res[cp] = avancos[min(g, nh - 1)] / float(upm)
+    return res
+
+
+def largura_texto(txt, fonte_mm, negrito=False):
+    """Largura (mm) do texto em Poppins no tamanho fonte_mm, pelos avanços da própria fonte."""
+    chave = "Bold" if negrito else "Regular"
+    if chave not in _AVANCOS:
+        try:
+            import UsinixEstilo
+            _AVANCOS[chave] = _larguras_ttf(os.path.join(UsinixEstilo.FONT_DIR, "Poppins-%s.ttf" % chave))
+        except Exception:
+            _AVANCOS[chave] = {}
+    av = _AVANCOS[chave]
+    return sum(av.get(ord(c), 0.62) for c in txt) * fonte_mm
+
+
+def campos_do_modelo(caminho):
+    """{campo: (largura útil mm, fonte mm, negrito)} dos campos editáveis do modelo SVG que têm outro campo à
+    direita na mesma linha (a largura vai até ele)."""
+    if caminho in _CAMPOS_SVG:
+        return _CAMPOS_SVG[caminho]
+    import re
+    res = {}
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            svg = f.read()
+        campos = []
+        for m in re.finditer(r"<text\b[^>]*>", svg):
+            t = m.group(0)
+            k = re.search(r'freecad:editable="([^"]+)"', t)
+            x = re.search(r'\bx="([-0-9.]+)"', t)
+            y = re.search(r'\by="([-0-9.]+)"', t)
+            fs = re.search(r"font-size:([0-9.]+)", t)
+            if k and x and y and fs:
+                campos.append((k.group(1), float(x.group(1)), float(y.group(1)), float(fs.group(1)),
+                               "bold" in t))
+        for k, x, y, fs, neg in campos:
+            dir_ = [x2 for _k2, x2, y2, _f, _n in campos if abs(y2 - y) < 2.5 and x2 > x + 1.0]
+            if dir_:
+                res[k] = (min(dir_) - x - 3.5, fs, neg)
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: campos do modelo %s: %s\n" % (caminho, exc))
+    _CAMPOS_SVG[caminho] = res
+    return res
+
+
+def caber_no_campo(txt, largura, fonte_mm, negrito=False):
+    """Texto que cabe na largura: tira as partes do fim (separadas por vírgula) e, se ainda não couber, corta
+    com reticências. Antes um título longo invadia "Tipo de documento"."""
+    txt = str(txt or "")
+    if largura <= 0 or largura_texto(txt, fonte_mm, negrito) <= largura:
+        return txt
+    partes = [p for p in txt.split(", ")]
+    while len(partes) > 1:
+        partes.pop()
+        t = ", ".join(partes)
+        if largura_texto(t, fonte_mm, negrito) <= largura:
+            return t
+    t = partes[0]
+    while t and largura_texto(t + "…", fonte_mm, negrito) > largura:
+        t = t[:-1]
+    return t.rstrip(" ,;-") + "…"
+
+
+def ajustar_campos(tpl, et):
+    """Cada campo da legenda ajustado à largura da célula no modelo da folha (et alterado e devolvido)."""
+    try:
+        larg = campos_do_modelo(tpl.Template)
+    except Exception:
+        return et
+    for k, (w, fs, neg) in larg.items():
+        if et.get(k):
+            et[k] = caber_no_campo(et[k], w, fs, neg)
+    return et
+
+
 def lembrar_campos(campos):
     """Guarda as tolerâncias gerais para as próximas folhas. O cadastro (empresa, CREA…) não muda por aqui: o que
     se altera numa prancha fica só nela; o padrão de todas é o das Preferências."""
@@ -308,7 +435,7 @@ def nova_folha(doc, formato=FORMATO_PADRAO, norma=NORMA_PADRAO, retrato=None, ca
     for k, val in valores.items():
         if k in et:
             et[k] = str(val)
-    tpl.EditableTexts = et
+    tpl.EditableTexts = ajustar_campos(tpl, et)
     if objs and len(objs) == 1:
         try:
             import UsinixPropriedades
@@ -1021,7 +1148,7 @@ class PainelLegenda(P.PainelTarefa):
                 et[k] = v
                 mudou = True
         if mudou:
-            tpl.EditableTexts = et
+            tpl.EditableTexts = ajustar_campos(tpl, et)
             lembrar_campos({k: et[k] for k in ("empresa", "desenhista", "resp_tecnico", "crea") if k in et})
             self.page.Document.recompute()
         return self.page

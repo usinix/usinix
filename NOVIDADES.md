@@ -15,6 +15,31 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.2 — 24/11/2026
+
+### Relatórios
+
+- **PDF com o texto em Poppins:** no Windows, depois de certos relatórios, os PDFs da mesma sessão (memória da
+  análise por barras e outros) saíam com o texto desenhado em curvas, sem a fonte embutida e sem dar para selecionar.
+  Agora a fonte é sempre a instalada; quem já estava com o Usinix aberto deve fechar e abrir de novo.
+
+### Estruturas
+
+- **Tirante só de tração:** o peso próprio vai para os nós e a barra redonda não flete mais como viga (Ø 12,7 com
+  5 m dava flecha de centímetros e taxa perto de 2). A flecha do tirante deixa de contar no limite de serviço.
+- **Barra crítica:** quando a maior taxa vem da flecha, o resultado diz flecha, limite e combinação, em vez de
+  "Combinada".
+- **Esqueleto alterado:** linha nova no esboço 3D vira barra no recálculo, sem precisar de Atualizar.
+
+### Folhas
+
+- **Título longo no carimbo:** cabe na célula (corta nas vírgulas) e não invade mais "Tipo de documento".
+- **Massa e material no carimbo** de objetos que informam os seus (os mesmos da lista de materiais).
+
+### Conexão com IA
+
+- grupo_das_barras com a lista vazia dá erro claro.
+
 ## 1.29.1 — 23/11/2026
 
 ### Desenho

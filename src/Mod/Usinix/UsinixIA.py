@@ -380,6 +380,8 @@ def f_esboco(pontos=None, segmentos=None, plano="XY", fechado=False, nome="Esboc
 def f_grupo_das_barras(barras, grupo, perfil=None, giro=None, fixacao=None, espelhar=None, estrutura=None):
     import UsinixEstrutura as E
     doc = _doc()
+    if not barras:
+        raise ValueError("nenhuma barra informada: passe os nomes (Barra015) ou rótulos das barras do grupo")
     if estrutura:
         est = doc.getObject(estrutura) or (doc.getObjectsByLabel(estrutura) or [None])[0]
     else:

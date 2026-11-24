@@ -708,6 +708,8 @@ def calcular(est, casos, apoios, fy=250.0, fu=400.0, nome_material="", limite_fl
         if tuple(ls) in feitos:
             continue
         feitos.add(tuple(ls))
+        if any(mapa["liberacoes"].get(j, "") == TRELICAS[1] for j in ls):
+            continue                     # tirante só de tração: esticado, a flecha dele não é limite de serviço
         t = mapa["linhas"][ls[0]][1]
         horizontal = abs(t.z) < 0.7
         if horizontal:
@@ -1000,7 +1002,13 @@ class Analise:
         tx = calc.taxa_maxima
         obj.TaxaMaxima = round(tx, 4)
         piores = sorted(calc.verificacao.items(), key=lambda kv: -kv[1]["taxa"])
-        if piores:
+        flecha = max(calc.flechas.items(), key=lambda kv: kv[1][2], default=None)
+        if flecha is not None and flecha[1][2] > (piores[0][1]["taxa"] if piores else 0.0):
+            # a taxa máxima vem de flecha ou deslocamento (ELS): dizer isso, não o rótulo da resistência
+            j, f = flecha
+            obj.BarraCritica = "Barra %d (%s): %s de %.1f mm para o limite de %.1f mm (taxa %.2f, %s)" % (
+                j + 1, calc.mapa["secoes"][j]["nome"], f[4], f[0], f[1], f[2], f[3] or "ELS")
+        elif piores:
             i, v = piores[0]
             obj.BarraCritica = "Barra %d (%s): %s" % (i + 1, calc.mapa["secoes"][i]["nome"], v["governa"])
         obj.DeslocamentoMax = round(max([f[0] for f in calc.flechas.values()] or [0.0]), 3)

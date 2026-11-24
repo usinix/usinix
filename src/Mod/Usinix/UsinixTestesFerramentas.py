@@ -20151,9 +20151,17 @@ class T156AchadosDaSegundaBateria(unittest.TestCase):
         est = E.criar(self.doc, sk, "W 200 x 22,5", material="ASTM A36")
         sk.addGeometry(Part.LineSegment(FreeCAD.Vector(3000, 0, 0), FreeCAD.Vector(6000, 0, 0)))
         self.doc.recompute()
-        self.assertEqual(E.linhas_sem_barra_desenhada(est), [1])
+        # 1.29.2: a linha nova vira barra no próprio recálculo (antes ficava pendente até Atualizar)
+        self.assertEqual(E.linhas_sem_barra_desenhada(est), [])
+        self.assertEqual(len(E.barras_de(est)), 2)
         ap = {A._chave_no((0, 0, 0)): "Engaste"}
-        calc = A.calcular(est, [A.caso_padrao()], ap)
+        # o aviso continua para o caso de a linha ainda não ter barra (ex.: cálculo antes do recálculo)
+        original = E.linhas_sem_barra_desenhada
+        E.linhas_sem_barra_desenhada = lambda e: [1]
+        try:
+            calc = A.calcular(est, [A.caso_padrao()], ap)
+        finally:
+            E.linhas_sem_barra_desenhada = original
         self.assertTrue(any("esqueleto mudou" in a and "linha 2" in a for a in calc.avisos), calc.avisos)
         E.atualizar(est)
         self.assertEqual(E.linhas_sem_barra_desenhada(est), [])
@@ -21993,3 +22001,100 @@ class T168CotaAcimaDe10mELista(unittest.TestCase):
         o.Proxy = P()
         self.assertTrue(E.tem_lista_de_corte(o))
         self.assertEqual(E.lista_de_corte([o])[0][4], 4)
+
+
+class T169AchadosDa1291(unittest.TestCase):
+    """1.29.2: achados da bateria da 1.29.1 — fonte do PDF (nenhum módulo registra a cópia da Poppins à parte),
+    peso próprio do tirante nos nós e rótulo da barra crítica pela flecha, linha nova no esqueleto vira barra no
+    recálculo, grupo de barras vazio, objeto com massa própria e título longo do carimbo."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT169")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_so_o_estilo_registra_a_poppins(self):
+        # addApplicationFont da Poppins fazia o Qt desenhar o texto do PDF em curvas (sem a fonte embutida) no
+        # Windows, em todos os PDFs da sessão; o UsinixEstilo é o único que decide qual cópia usar
+        import re
+        import UsinixUtil
+        pasta = os.path.dirname(os.path.abspath(UsinixUtil.__file__))
+        culpados = []
+        for nome in os.listdir(pasta):
+            if nome.endswith(".py") and nome != "UsinixEstilo.py" and not nome.startswith("UsinixTestes"):
+                with open(os.path.join(pasta, nome), encoding="utf-8") as f:
+                    if re.search(r"addApplicationFont(FromData)?\s*\(", f.read()):
+                        culpados.append(nome)
+        self.assertEqual(culpados, [])
+
+    def test_peso_proprio_do_tirante_vai_para_os_nos(self):
+        import UsinixPortico as PT
+        m = PT.Modelo()
+        r_ = 12.7 / 2.0
+        a = math.pi * r_ ** 2
+        s = PT.Secao(a, math.pi * r_ ** 4 / 4, math.pi * r_ ** 4 / 4, math.pi * r_ ** 4 / 2, massa_kgm=0.994)
+        n0, n1 = m.no((0, 0, 0)), m.no((5000, 0, 0))
+        m.barras.append(PT.Barra(n0, n1, s, (0, 1, 0), liberados=PT.TRELICA, so_tracao=True))
+        m.apoios[n0] = [1, 1, 1, 1, 1, 1]
+        m.apoios[n1] = [0, 1, 1, 1, 1, 1]
+        c = PT.Caso("G", peso_proprio=True)
+        c.nos.append((n1, [1.0, 0, 0], [0, 0, 0]))                       # esticado com 1 kN
+        r = m.resolver(c)
+        # antes: a barra fletia como viga (momento q·L²/8 no meio e flecha de centímetros)
+        self.assertLess(abs(r.esforcos(0, 2500.0)["My"]), 1.0)
+        self.assertLess(abs(r.esforcos(0, 2500.0)["Mz"]), 1.0)
+        rz = r.reacao(n0)[0][2] + r.reacao(n1)[0][2]                     # kN
+        self.assertAlmostEqual(rz, 0.994 * 5.0 * 9.80665 / 1000.0, delta=0.002)   # o peso inteiro chega aos apoios
+        self.assertAlmostEqual(r.esforcos(0, 2500.0)["N"], 1000.0, delta=1.0)
+
+    def test_linha_nova_no_esqueleto_vira_barra_no_recalculo(self):
+        import UsinixEsboco3D as S
+        import UsinixEstrutura as E
+        V = FreeCAD.Vector
+        sk = S.criar(self.doc, [V(0, 0, 0), V(0, 0, 2000), V(2000, 0, 2000)])
+        self.doc.recompute()
+        est = E.criar(self.doc, sk, "W 150 x 13,0")
+        self.assertEqual(len(E.barras_de(est)), 2)
+        sk.Pontos = list(sk.Pontos) + [V(2000, 0, 0)]
+        self.doc.recompute()
+        # antes só virava barra depois de Atualizar a estrutura
+        self.assertEqual(len(E.barras_de(est)), 3)
+
+    def test_grupo_das_barras_vazio(self):
+        import UsinixIA
+        with self.assertRaises(ValueError):
+            UsinixIA.FERRAMENTAS["grupo_das_barras"]["funcao"]([], "Vigas")
+
+    def test_massa_propria_do_objeto(self):
+        import Part
+        import UsinixMassa
+
+        class P:
+            def massa_usinix(self, obj):
+                return 12.5
+
+            def material_usinix(self, obj):
+                return "ASTM A36", 7850.0
+        o = self.doc.addObject("Part::FeaturePython", "Peca")
+        o.Proxy = P()
+        o.Shape = Part.makeCompound([Part.makeBox(100, 100, 100), Part.makeBox(100, 100, 100, FreeCAD.Vector(300, 0, 0))])
+        r = UsinixMassa.calcular([o])
+        self.assertAlmostEqual(r.massa, 12.5, places=6)
+        self.assertAlmostEqual(r.cg.x, 200.0, places=3)
+
+    def test_titulo_longo_cabe_no_carimbo(self):
+        import UsinixFolhas as F
+        cam = os.path.join(os.path.dirname(os.path.abspath(F.__file__)), "Resources", "folhas",
+                           "Usinix_A3_Paisagem_NBR10068.svg")
+        w, fs, neg = F.campos_do_modelo(cam)["titulo"]
+        self.assertTrue(110.0 < w < 135.0)
+        longo = "LINHA DE VIDA RÍGIDA 12,0 M, TRILHO W 150 X 13,0, 2 PESSOAS, APOIOS EM MÃO FRANCESA"
+        t = F.caber_no_campo(longo, w, fs, neg)
+        self.assertEqual(t, "LINHA DE VIDA RÍGIDA 12,0 M, TRILHO W 150 X 13,0")
+        self.assertLessEqual(F.largura_texto(t, fs, neg), w)
+        self.assertEqual(F.caber_no_campo("CURTO", w, fs, neg), "CURTO")
+        sem_virgula = "X" * 80
+        t2 = F.caber_no_campo(sem_virgula, w, fs, neg)
+        self.assertTrue(t2.endswith("…") and F.largura_texto(t2, fs, neg) <= w)

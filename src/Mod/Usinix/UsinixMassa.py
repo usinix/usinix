@@ -88,6 +88,19 @@ def calcular(objs, densidade_padrao=None, com_catalogo=False):
             dens = densidade_padrao
             r.sem_material.append(obj.Label)
         rho = dens * 1e-9  # kg/mm³
+        # objeto que sabe a própria massa (complementos: a da lista de materiais, sem peças só de
+        # referência): os sólidos levam a densidade que dá essa massa, para o CG e a inércia acompanharem
+        massa_propria = None
+        try:
+            f = getattr(getattr(obj, "Proxy", None), "massa_usinix", None)
+            if f is not None:
+                massa_propria = float(f(obj))
+        except Exception:
+            massa_propria = None
+        if massa_propria is not None and massa_propria > 0:
+            vt = sum(s.Volume for s in sh.Solids if s.Volume > 0)
+            if vt > 0:
+                rho = massa_propria / vt
         vol = 0.0
         for sol in sh.Solids:
             v = sol.Volume

@@ -1316,6 +1316,14 @@ class Estrutura:
             av.append("Regras de pórtico ligadas, mas %d canto(s) foram ajustados à mão e valem sobre elas (nesses "
                       "nós o pilar pode sair de outro comprimento). Para seguir só as regras, limpe os ajustes em "
                       "Cantos." % len(manuais))
+        try:
+            if obj.Esqueleto and linhas_sem_barra_desenhada(obj):
+                # linha nova no esqueleto: a barra é criada logo depois do recálculo (não dá para criar objetos
+                # durante ele). Antes só aparecia com "Atualizar estrutura", embora o aviso já visse a linha
+                _pendentes.add((obj.Document.Name, obj.Name))
+                _observar_recalculo()
+        except Exception:
+            pass
         if list(obj.Avisos) != av:
             obj.Avisos = av
 
@@ -1796,6 +1804,40 @@ def linhas_sem_barra_desenhada(est):
         return []
     quer = {i for i in range(n) if i not in sem_barra(est)}
     return sorted(quer - {b.Indice for b in barras_de(est)})
+
+
+_pendentes = set()
+_obs_recalculo = {"obj": None, "dentro": False}
+
+
+class _ObsRecalculo:
+    def slotRecomputedDocument(self, doc):
+        if _obs_recalculo["dentro"]:
+            return
+        alvo = [n for d, n in list(_pendentes) if d == doc.Name]
+        if not alvo:
+            return
+        _obs_recalculo["dentro"] = True
+        try:
+            for n in alvo:
+                _pendentes.discard((doc.Name, n))
+                est = doc.getObject(n)
+                if est is not None and linhas_sem_barra_desenhada(est):
+                    novas, _ap = sincronizar_barras(est)
+                    if novas:
+                        FreeCAD.Console.PrintMessage("Usinix: %s ganhou %d barra(s) das linhas novas do "
+                                                     "esqueleto.\n" % (est.Label, len(novas)))
+            doc.recompute()
+        except Exception as exc:
+            FreeCAD.Console.PrintLog("Usinix: barras das linhas novas: %s\n" % exc)
+        finally:
+            _obs_recalculo["dentro"] = False
+
+
+def _observar_recalculo():
+    if _obs_recalculo["obj"] is None:
+        _obs_recalculo["obj"] = _ObsRecalculo()
+        FreeCAD.addDocumentObserver(_obs_recalculo["obj"])
 
 
 def atualizar(est):

@@ -222,7 +222,13 @@ class Modelo:
         dist, pont = [], []
         if caso.peso_proprio and b.secao.massa_kgm:
             q = R @ np.array([0.0, 0.0, -b.secao.massa_kgm * G_GRAV])      # N/mm (kg/m · g)
-            dist.append((0.0, L, q, q.copy()))
+            if getattr(b, "so_tracao", False):
+                # tirante: esticado (pré-tensionado), não flete com o próprio peso; o peso vai metade para cada nó.
+                # Antes a barra redonda fletia como viga (Ø 12,7 com 5 m: flecha de centímetros e taxa ≈ 2)
+                pont.append((0.0, q * L / 2.0))
+                pont.append((L, q * L / 2.0))
+            else:
+                dist.append((0.0, L, q, q.copy()))
         for item in caso.distribuidas:
             k, q, glob = item[0], item[1], item[2]
             if k != nb:

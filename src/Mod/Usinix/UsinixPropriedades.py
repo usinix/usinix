@@ -123,6 +123,7 @@ def atualizar_legenda(page):
         novo = dict(et)
         ultima = dict(page.LegendaUltima) if "LegendaUltima" in page.PropertiesList else {}
         escritos = dict(ultima)
+        feitos = set()
         for k, val in legenda_de(obj).items():
             val = str(val)
             if k not in novo or not val:
@@ -134,6 +135,14 @@ def atualizar_legenda(page):
                 continue
             novo[k] = val
             escritos[k] = val
+            feitos.add(k)
+        try:
+            import UsinixFolhas
+            novo = UsinixFolhas.ajustar_campos(tpl, novo)      # título longo: cabe na célula
+            for k in feitos:
+                escritos[k] = novo[k]
+        except Exception:
+            pass
         if escritos != ultima and "LegendaUltima" in page.PropertiesList:
             page.LegendaUltima = escritos
         if novo != et:

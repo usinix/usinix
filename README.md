@@ -35,8 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.1** (23/11/2026): cotas acima de 10 m em milímetros; lista de corte com peças de outros
-objetos.
+**Versão atual: 1.29.2** (24/11/2026): PDF das memórias com a fonte embutida; tirante só de tração sem fletir
+com o próprio peso; linha nova no esqueleto vira barra no recálculo; título longo cabendo no carimbo.
+
+Na 1.29.1: cotas acima de 10 m em milímetros; lista de corte com peças de outros objetos.
 
 Na 1.29.0: contraventamento só de tração e de treliça calculando sem nó solto;
 cantoneira de contraventamento sem cortar o pilar; memória de cálculo com responsável e ART; conferência da folha sem
