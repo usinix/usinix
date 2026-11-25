@@ -544,6 +544,49 @@ def _rodape(p, W, H, k, pagina, total):
                    QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, "Página %d de %d" % (pagina, total))
 
 
+def _guardar_exibicao(est):
+    """Campo, modo de exibição e câmera da tela antes das figuras: depois do relatório a tela ficava na
+    deformação (última figura) em vez da tensão que estava antes."""
+    g = {}
+    p = getattr(est, "pipeline", None)          # o relatório da validação não tem simulação
+    if p is not None and getattr(p, "ViewObject", None) is not None:
+        for prop in ("DisplayMode", "Field", "VectorMode"):
+            try:
+                g[prop] = getattr(p.ViewObject, prop)
+            except Exception:
+                pass
+    try:
+        v = _vista()
+        if v is not None and hasattr(v, "getCamera"):
+            g["camera"] = v.getCamera()
+    except Exception:
+        pass
+    return g
+
+
+def _restaurar_exibicao(est, g):
+    p = getattr(est, "pipeline", None)
+    if p is not None and getattr(p, "ViewObject", None) is not None:
+        for prop in ("DisplayMode", "Field", "VectorMode"):
+            if prop in g:
+                try:
+                    if getattr(p.ViewObject, prop) != g[prop]:
+                        setattr(p.ViewObject, prop, g[prop])
+                except Exception:
+                    pass
+        try:
+            if p.ViewObject.Visibility:
+                p.ViewObject.show()               # a barra de cores volta com o campo de antes
+        except Exception:
+            pass
+    try:
+        v = _vista()
+        if g.get("camera") and v is not None:
+            v.setCamera(g["camera"])
+    except Exception:
+        pass
+
+
 def gerar(est, caminho, corpo=None, capturas=None):
     """PDF do estudo. `corpo(est, doc, imgs, largura)` troca o texto (o relatório da bancada usa o seu);
     `capturas(est, pasta)` troca as imagens."""
@@ -551,6 +594,7 @@ def gerar(est, caminho, corpo=None, capturas=None):
     # estado de visibilidade para restaurar depois
     objs = [o for o in est.doc.Objects if hasattr(o, "ViewObject") and o.ViewObject is not None]
     vis = {o.Name: o.ViewObject.Visibility for o in objs}
+    exibicao = _guardar_exibicao(est)
     imgs = {}
     try:
         if capturas is not None:
@@ -567,6 +611,7 @@ def gerar(est, caminho, corpo=None, capturas=None):
                 o.ViewObject.Visibility = vis.get(o.Name, o.ViewObject.Visibility)
             except Exception:
                 pass
+        _restaurar_exibicao(est, exibicao)
 
     _garantir_poppins()
     w = QtGui.QPdfWriter(caminho)

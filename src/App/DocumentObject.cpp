@@ -888,7 +888,11 @@ void DocumentObject::onEarlyChange(const Property* prop)
 /// get called by the container when a Property was changed
 void DocumentObject::onChanged(const Property* prop)
 {
-    if (prop == &Label && _pDoc && _pDoc->containsObject(this) && oldLabel != Label.getStrValue()) {
+    // Usinix: Label.touch() (feito ao ligar uma vista em Python) não passa por onBeforeChange e deixa oldLabel
+    // velho; o rótulo era registrado duas vezes e, apagado o objeto, ficava ocupado ("Escada005" num documento
+    // novo depois da prévia). Só troca o registro se o rótulo antigo estava mesmo registrado.
+    if (prop == &Label && _pDoc && _pDoc->containsObject(this) && oldLabel != Label.getStrValue()
+        && _pDoc->containsLabel(oldLabel)) {
         _pDoc->unregisterLabel(oldLabel);
         _pDoc->registerLabel(Label.getStrValue());
     }

@@ -22264,3 +22264,136 @@ class T171TesteDeInterface1293(unittest.TestCase):
         self.assertTrue(sel)
         self.assertIn(sel[0], (body, box))
         FreeCADGui.Selection.clearSelection()
+
+
+class T172TesteDeInterface1294(unittest.TestCase):
+    """1.29.5: achados do teste de interface da 1.29.4 — roda do mouse que dava foco ao campo (WheelFocus),
+    rótulo "Escada004" (registro de rótulos do documento), linha escondida no painel, sinal da verificação
+    reprovada e tela da simulação depois do relatório; atualização que exige o pacote completo quando o C++ muda."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT172")
+        FreeCAD.setActiveDocument(self.doc.Name)
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_campo_sem_foco_pela_roda(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixRodaSegura
+        from PySide import QtCore, QtWidgets
+        UsinixRodaSegura.instalar()
+        area = QtWidgets.QScrollArea()
+        w = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(w)
+        s = QtWidgets.QDoubleSpinBox()
+        c = QtWidgets.QComboBox()
+        lay.addWidget(s)
+        lay.addWidget(c)
+        area.setWidget(w)
+        area.show()
+        QtWidgets.QApplication.processEvents()
+        try:
+            # com Qt.WheelFocus o Qt dava o foco ao campo na própria roda, antes do filtro (3000 → 2997)
+            for campo in (s, c):
+                self.assertNotEqual(campo.focusPolicy(), QtCore.Qt.WheelFocus)
+                self.assertTrue(campo.focusPolicy() & QtCore.Qt.ClickFocus)
+        finally:
+            area.close()
+
+    def test_rotulo_ocupado_so_no_registro(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixPainel
+
+        class _Vista:
+            def __init__(self, v):
+                v.Proxy = self
+
+            def attach(self, v):
+                self.v = v
+
+        # objeto com vista em Python apagado: o FreeCAD deixava o rótulo dele registrado (Label.touch no attach)
+        self.doc.openTransaction("prévia")
+        for _i in range(2):
+            o = self.doc.addObject("App::FeaturePython", "Escada")
+            _Vista(o.ViewObject)
+            FreeCADGui.updateGui()
+            self.doc.removeObject(o.Name)
+        o = self.doc.addObject("App::FeaturePython", "Escada")
+        _Vista(o.ViewObject)
+        o.Label = "Escada"
+        self.doc.commitTransaction()
+        UsinixPainel.limpar_rotulos(self.doc, [o])
+        self.assertEqual(o.Label, "Escada")
+        p = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+        self.assertFalse(p.GetBool("DuplicateLabels", False))     # a preferência volta ao que era
+        # com outro objeto usando "Escada" de verdade, o número fica
+        b = self.doc.addObject("App::FeaturePython", "Escada")
+        rot_b = b.Label
+        self.assertRegex(rot_b, r"^Escada\d{3}$")
+        UsinixPainel.limpar_rotulos(self.doc, [b])
+        self.assertEqual(b.Label, rot_b)
+
+    def test_esconder_linha_do_painel(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixPainel as P
+        from PySide import QtWidgets
+        f = P.Formulario("Teste") if hasattr(P, "Formulario") else None
+        sec = f.secao("Seção", "info") if f is not None else P.Secao("Seção", "info")
+        campo = P.lista(["a", "b"], "a")
+        sec.linha("tipo", campo, "dica", "Onde")
+        rot = [lb for lb in sec.findChildren(QtWidgets.QLabel) if lb.text() == "Onde"][0]
+        jan = f if f is not None else sec
+        jan.show()
+        QtWidgets.QApplication.processEvents()
+        try:
+            sec.mostrar_linha(campo, False)
+            self.assertFalse(campo.isVisible())
+            self.assertFalse(rot.isVisible())
+            sec.mostrar_linha(campo, True)
+            self.assertTrue(rot.isVisible())
+        finally:
+            jan.close()
+
+    def test_sinal_da_tensao_reprovada(self):
+        import UsinixFEMBancada as B
+        self.assertIn(" ≤ ", B.texto_tensao_elu(200.0, 250.0, 1.1))
+        t = B.texto_tensao_elu(300.0, 250.0, 1.1)
+        self.assertIn(" > ", t)
+        self.assertNotIn("≤", t)
+
+    def test_base_minima_com_cpp_novo(self):
+        import UsinixComplemento
+        import UsinixVersao
+        # a 1.29.4 mudou C++ com a base antiga e o atualizador instalou só o complemento
+        self.assertFalse(UsinixComplemento.mais_nova("1.29.5", UsinixComplemento.BASE_MINIMA))
+        ok, motivo = UsinixComplemento.compativel({"base_minima": UsinixComplemento.BASE_MINIMA}, "1.29.4")
+        self.assertFalse(ok)
+        self.assertIn("pacote completo", motivo)
+        self.assertFalse(UsinixComplemento.mais_nova(UsinixComplemento.BASE_MINIMA, UsinixVersao.VERSAO))
+        wf = os.path.join(os.path.dirname(UsinixVersao.__file__), "..", "..", "..", ".github", "workflows",
+                          "publicar.yml")
+        if os.path.isfile(wf):
+            with open(wf, encoding="utf-8") as fh:
+                self.assertIn("C++ mudou e BASE_MINIMA não", fh.read())
+
+    def test_tela_da_simulacao_depois_do_relatorio(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixFEMBancada as B
+        aux = T151RelatorioMEFDaBancadaEIA("test_situacao_reacoes_e_pdf")
+        aux.doc = self.doc
+        a, est = aux._calculada()
+        p = est.pipeline
+        self.assertIsNotNone(p)
+        import UsinixFEM as F
+        F.mostrar_campo(est, "tensao")
+        FreeCADGui.updateGui()
+        self.assertEqual(p.ViewObject.Field, "von Mises Stress")
+        B.gerar_pdf(a, os.path.join(tempfile.mkdtemp(), "rel.pdf"))
+        # a última figura é a da deformação; a tela volta para a tensão que estava
+        self.assertEqual(p.ViewObject.Field, "von Mises Stress")
+        self.assertTrue(p.ViewObject.Visibility)

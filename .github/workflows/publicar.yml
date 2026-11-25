@@ -122,6 +122,19 @@ jobs:
               echo "::error title=Versão diferente da do código::Você digitou ${v}, mas o código no main está na ${codigo}. Publique como ${codigo}."
               exit 1
             fi
+            # 24/11/2026: a 1.29.4 mudou C++ (barra de status) com BASE_MINIMA antiga; o atualizador aplicou só o
+            # complemento e o C++ novo não chegou. C++ mudado desde a última versão publicada => BASE_MINIMA = esta.
+            anterior=$(gh api "repos/${REPO}/releases?per_page=1" --jq '.[0].tag_name' 2>/dev/null || true)
+            if [[ "$anterior" =~ ^v[0-9] ]]; then
+              cpp=$(gh api "repos/${REPO}/compare/${anterior}...${SHA}" --paginate --jq '.files[].filename' 2>/dev/null \
+                    | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx)$' || true)
+              base=$(gh api "repos/${REPO}/contents/src/Mod/Usinix/UsinixComplemento.py?ref=${SHA}" --jq .content 2>/dev/null \
+                     | base64 -d 2>/dev/null | sed -n 's/^BASE_MINIMA = "\([^"]*\)".*/\1/p' | head -1)
+              if [[ -n "$cpp" && -n "$base" && "$base" != "${v%%-*}" ]]; then
+                echo "::error title=C++ mudou e BASE_MINIMA não::Desde ${anterior} mudou C++ ($(echo "$cpp" | head -3 | tr '\n' ' ')), mas BASE_MINIMA em UsinixComplemento.py é ${base}. Ponha BASE_MINIMA = \"${v%%-*}\": senão o atualizador instala só o complemento e o C++ novo não chega."
+                exit 1
+              fi
+            fi
           fi
           echo "Versão: ${v:-(só compilar)}"
 

@@ -896,8 +896,7 @@ def avaliar(est, elu=True, gama=GAMA_A1, fs_min=1.5):
         if elu:
             lim = sy / gama
             verif = {"criterio": "σ von Mises ≤ fy / γa1 (cargas majoradas, ELU)", "limite": lim, "taxa": svm / lim,
-                     "ok": svm <= lim, "texto": "%s ≤ %s / %s = %s" % (_fmt(svm, 1, "MPa"), _fmt(sy, 0), _fmt(gama, 2),
-                                                                       _fmt(lim, 1, "MPa"))}
+                     "ok": svm <= lim, "texto": texto_tensao_elu(svm, sy, gama)}
         else:
             fs = sy / svm
             verif = {"criterio": "Fator de segurança ao escoamento fy / σ ≥ %s" % _fmt(fs_min, 2), "limite": fs_min,
@@ -1161,6 +1160,13 @@ def _captura_modelo(est, pasta):
                 vo.DisplayMode, vo.ShapeColor, vo.Visibility = modo, cor, vis
             except Exception:
                 pass
+
+
+def texto_tensao_elu(svm, sy, gama):
+    """"σ ≤ fy/γ = lim" quando atende; com ">" quando não atende (o "≤" ao lado de "não atende" confundia)."""
+    lim = sy / gama
+    return "%s %s %s / %s = %s" % (_fmt(svm, 1, "MPa"), "≤" if svm <= lim else ">", _fmt(sy, 0), _fmt(gama, 2),
+                                   _fmt(lim, 1, "MPa"))
 
 
 def esconder_legendas(doc):

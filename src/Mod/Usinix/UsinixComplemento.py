@@ -38,7 +38,8 @@ TENTATIVAS_MAX = 2
 # 1.6.0: C++ novo (canto do modo limpo do esboço considera o ponto coincidente da outra linha)
 # 1.21.0: o módulo passou a se chamar Usinix (pasta Mod/Usinix, arquivos UsinixX.py): um complemento novo sobre
 # um pacote antigo (Mod/Prumo3D) carregaria os dois módulos juntos
-BASE_MINIMA = "1.21.0"
+# 1.29.5: C++ novo (barra de status em português); a 1.29.4 já tinha essa mudança, mas saiu com a base antiga
+BASE_MINIMA = "1.29.5"
 
 _estado = {"aqui": None, "usuario": False, "delegou": None, "motivo": ""}
 

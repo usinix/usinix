@@ -15,6 +15,26 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.5 — 25/11/2026
+
+### Atualização
+
+- **Pacote completo quando o programa muda:** a 1.29.4 trazia uma mudança no programa (barra de status em português),
+  mas a atualização aplicou só o complemento e essa parte não chegou. Esta versão pede o pacote completo; a
+  publicação passa a conferir isso sozinha.
+
+### Painéis
+
+- **Roda do mouse (de novo):** o campo ganhava o foco pela própria roda e mudava o valor (Lance até 3000 virou 2997).
+  Agora só muda depois de clicado; fora disso a roda rola o painel.
+- **Nome sem número:** a escada num documento novo ainda saía "Escada004". Os objetos apagados pela prévia
+  deixavam o nome ocupado no documento.
+
+### Simulação
+
+- **Tela depois do relatório:** volta para o resultado que estava (a tensão), em vez de ficar na deformação.
+- **Verificação reprovada com o sinal certo:** "σ > fy/γ" quando não atende.
+
 ## 1.29.4 — 24/11/2026
 
 ### Conexão com IA

@@ -203,6 +203,7 @@ class Secao(QtWidgets.QWidget):
             ic.setToolTip(dica)
             widget.setToolTip(dica)
         self.grade.addWidget(ic, self._linha, 0)
+        lb = None
         if rotulo:
             caixa = QtWidgets.QVBoxLayout()
             caixa.setSpacing(1)
@@ -214,7 +215,17 @@ class Secao(QtWidgets.QWidget):
         else:
             self.grade.addWidget(widget, self._linha, 1)
         self._linha += 1
+        if not hasattr(self, "_partes"):
+            self._partes = {}
+        self._partes[id(widget)] = (ic, lb)
         return widget
+
+    def mostrar_linha(self, widget, visivel):
+        """Mostra ou esconde a linha inteira do campo (ícone, rótulo e campo)."""
+        widget.setVisible(bool(visivel))
+        for w in (getattr(self, "_partes", {}) or {}).get(id(widget), ()):
+            if w is not None:
+                w.setVisible(bool(visivel))
 
     def texto(self, texto):
         lb = QtWidgets.QLabel(texto)
@@ -548,8 +559,23 @@ def limpar_rotulos(doc, objs):
             if any(x.Label == base for x in doc.Objects if x is not o):
                 continue
             o.Label = base
+            if o.Label != base:
+                # nenhum objeto usa o rótulo, mas o registro do documento ainda o dá como ocupado (objetos da prévia
+                # com vista em Python, apagados: o FreeCAD registrava o rótulo deles duas vezes)
+                _rotular_sem_registro(o, base)
         except Exception:
             continue
+
+
+def _rotular_sem_registro(obj, rotulo):
+    """Põe o rótulo mesmo que o registro do documento o dê como ocupado (sem objeto que o use)."""
+    g = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Document")
+    antes = g.GetBool("DuplicateLabels", False)
+    try:
+        g.SetBool("DuplicateLabels", True)
+        obj.Label = rotulo
+    finally:
+        g.SetBool("DuplicateLabels", antes)
 
 
 EM_PREVIA = {"ativa": False, "avisos": []}   # durante a prévia: avisos vão para o painel, sem janela

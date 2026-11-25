@@ -47,13 +47,34 @@ def em_edicao(campo):
     return fw is not None and (fw is campo or campo.isAncestorOf(fw))
 
 
+def sem_foco_pela_roda(campo):
+    """Tira do campo o foco pela roda (Qt.WheelFocus, padrão do spin box): com ele, o Qt dá o foco ao campo na
+    própria roda, antes deste filtro, e o campo parecia em edição (Lance até 3000 virou 2997 no teste pelo mouse).
+    Clique e Tab continuam dando o foco."""
+    pol = campo.focusPolicy()
+    roda = QtCore.Qt.WheelFocus
+    if pol == roda:
+        campo.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+
 class _Filtro(QtCore.QObject):
     def eventFilter(self, obj, ev):
-        if ev.type() != QtCore.QEvent.Wheel:
+        tipo = ev.type()
+        if tipo == QtCore.QEvent.Polish:
+            try:
+                if isinstance(obj, (QtWidgets.QAbstractSpinBox, QtWidgets.QComboBox)):
+                    sem_foco_pela_roda(obj)
+            except Exception:
+                pass
+            return False
+        if tipo != QtCore.QEvent.Wheel:
             return False
         try:
             campo = _campo(obj)
-            if campo is None or em_edicao(campo):
+            if campo is None:
+                return False
+            sem_foco_pela_roda(campo)              # campo criado antes do filtro: vale da próxima vez
+            if em_edicao(campo):
                 return False
             rolar_em_vez_de_mudar(campo, ev.angleDelta().y())
             return True                          # o valor não muda

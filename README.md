@@ -35,11 +35,12 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.4** (24/11/2026): conexão de IA conferida pelo painel e com porta exclusiva; roda do mouse
-não muda campo sem edição; vista ajustada ao criar; peça da simulação escolhida na vista.
+**Versão atual: 1.29.5** (25/11/2026): atualização pelo pacote completo (traz a parte do programa que a 1.29.4
+não levou); roda do mouse que não dá mais foco ao campo; nome sem número da prévia; tela da simulação de volta à
+tensão depois do relatório.
 
-Na 1.29.3: tirante só de tração verificado só à tração; símbolos dos nomes de tubo
-com fonte do Usinix nos PDFs.
+Na 1.29.4: conexão de IA conferida pelo painel e com porta exclusiva; vista ajustada ao criar; peça da simulação
+escolhida na vista.
 
 Na 1.29.2: PDF das memórias com a fonte embutida; tirante só de tração sem fletir
 com o próprio peso; linha nova no esqueleto vira barra no recálculo; título longo cabendo no carimbo.
