@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.6** (25/11/2026): cerca de 1.300 textos das bancadas que ainda estavam em inglês traduzidos
+**Versão atual: 1.29.7** (25/11/2026): na simulação do modelo de vigas a legenda da tela passa a mostrar a tensão
+em MPa e o deslocamento em mm (antes saía em Pa e m); o documento novo deixa de aparecer como "Unnamed" na barra
+de status.
+
+Na 1.29.6: cerca de 1.300 textos das bancadas que ainda estavam em inglês traduzidos
 (Chapa, Desenho, Simulação e as demais); a cópia antiga do complemento, que ficava na pasta do usuário depois de
 instalar o pacote completo, é apagada ao abrir.
 

@@ -22394,9 +22394,12 @@ class T172TesteDeInterface1294(unittest.TestCase):
         FreeCADGui.updateGui()
         self.assertEqual(p.ViewObject.Field, "von Mises Stress")
         B.gerar_pdf(a, os.path.join(tempfile.mkdtemp(), "rel.pdf"))
-        # a última figura é a da deformação; a tela volta para a tensão que estava
+        # a última figura é a da deformação; a tela volta para a tensão que estava (1.29.7: em MPa, pelo filtro
+        # de unidade do modelo de vigas; o de deslocamento, criado nas figuras, fica escondido)
         self.assertEqual(p.ViewObject.Field, "von Mises Stress")
-        self.assertTrue(p.ViewObject.Visibility)
+        vis = [f.UsinixUnidade for f in F.filtros_de_unidade(p) if f.ViewObject.Visibility]
+        self.assertEqual(vis, ["tensao"] if F.unidade_si(est, "tensao") else [])
+        self.assertEqual(p.ViewObject.Visibility, not vis)
 
 
 class T173CopiaVelhaDoComplemento(unittest.TestCase):
@@ -22479,6 +22482,10 @@ class T174VarreduraDeTraducao(unittest.TestCase):
         import UsinixI18n
         if UsinixI18n._state["tr"] is None:
             self.skipTest("tradução Usinix desligada")
+        # bancada carregada há pouco (pré-carga da faixa) pode ter posto o tradutor dela por cima; no programa a
+        # volta ao topo vem pelo laço de eventos, que o teste não roda
+        FreeCADGui.updateGui()
+        UsinixI18n.raise_priority()
         self.assertEqual(self._tr("SMUnfoldTaskPanel", "Manual K-Factor"), "Fator K manual")
         self.assertEqual(self._tr("TechDrawGui::TaskSectionView", "Scale type"), "Tipo de escala")
         self.assertEqual(self._tr("TaskCreateElementSet", "Delete new meshes"), "Apagar as malhas novas")
@@ -22492,3 +22499,125 @@ class T174VarreduraDeTraducao(unittest.TestCase):
         self.assertIn("CmdSketcherTrimming", UsinixRibbon._contextos_do_comando("Sketcher_Trimming"))
         if FreeCAD.GuiUp:
             self.assertNotEqual(self._tr("StdCmdPaste", "&Paste"), "&Paste")
+
+
+class T175DocumentoNovoSemUnnamed(unittest.TestCase):
+    """1.29.6: o documento do Novo deixava "Unnamed" na barra de status ("Pré-seleção: Unnamed.Caixa.Face6");
+    agora o nome interno é "Sem_nome" e o rótulo "Sem nome". Com nome dado, nada muda."""
+
+    def setUp(self):
+        self.antes = set(FreeCAD.listDocuments())
+
+    def tearDown(self):
+        for n in set(FreeCAD.listDocuments()) - self.antes:
+            try:
+                FreeCAD.closeDocument(n)
+            except Exception:
+                pass
+
+    def test_instalado_e_sem_efeito_com_nome(self):
+        import UsinixDocumentoNovo
+        UsinixDocumentoNovo.instalar()
+        UsinixDocumentoNovo.instalar()                     # duas vezes não embrulha de novo
+        self.assertTrue(getattr(FreeCAD.newDocument, "_usinix", False))
+        self.assertFalse(getattr(FreeCAD.newDocument._original, "_usinix", False))
+        d = FreeCAD.newDocument("UsinixT175")
+        self.assertEqual(d.Name, "UsinixT175")
+        self.assertEqual(d.Label, "UsinixT175")
+        d2 = FreeCAD.newDocument("UsinixT175b", "Rótulo dado")
+        self.assertEqual(d2.Label, "Rótulo dado")
+        d3 = FreeCAD.newDocument(name="UsinixT175c", hidden=True)
+        self.assertEqual(d3.Name, "UsinixT175c")
+
+    def test_sem_nome(self):
+        import UsinixDocumentoNovo
+        UsinixDocumentoNovo.instalar()
+        d = FreeCAD.newDocument()
+        self.assertTrue(d.Name.startswith("Sem_nome"), d.Name)
+        self.assertEqual(d.Label, "Sem nome")
+        self.assertNotIn("Unnamed", FreeCAD.listDocuments())
+
+    def test_comando_novo_e_barra_de_status(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import FreeCADGui
+        from PySide import QtWidgets
+        FreeCADGui.runCommand("Std_New", 0)
+        FreeCADGui.updateGui()
+        novos = set(FreeCAD.listDocuments()) - self.antes
+        self.assertEqual(len(novos), 1, novos)
+        nome = novos.pop()
+        self.assertTrue(nome.startswith("Sem_nome"), nome)
+        d = FreeCAD.getDocument(nome)
+        self.assertEqual(d.Label, "Sem nome")
+        b = d.addObject("Part::Box", "Caixa")
+        d.recompute()
+        FreeCADGui.Selection.setPreselection(b, "Face6", 1.0, 2.0, 10.0)
+        FreeCADGui.updateGui()
+        msg = FreeCADGui.getMainWindow().statusBar().currentMessage()
+        FreeCADGui.Selection.clearPreselection()
+        self.assertNotIn("Unnamed", msg)
+        if msg:
+            self.assertIn("Sem_nome", msg)
+        InitGui = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "InitGui.py"), encoding="utf-8").read()
+        self.assertIn("UsinixDocumentoNovo.instalar()", InitGui)
+
+
+class T176LegendaDaSimulacaoEmMPa(unittest.TestCase):
+    """1.29.7: no modelo de vigas o resultado vem em Pa e m e a barra de cores da tela mostrava "+4.060e+07"
+    para 40,6 MPa. Agora a tela mostra um filtro Calculadora do próprio pipeline com o campo em MPa (ou mm), e o
+    relatório não converte de novo."""
+
+    def setUp(self):
+        self.base = T151RelatorioMEFDaBancadaEIA("test_situacao_reacoes_e_pdf")   # mesma grade de vigas
+        self.base.setUp()
+
+    def tearDown(self):
+        self.base.tearDown()
+
+    def _calculada(self):
+        return self.base._calculada()
+
+    def test_tensao_e_deslocamento_em_mpa_e_mm(self):
+        import UsinixFEM as F
+        import UsinixFEMRelatorio as R
+        a, est = self._calculada()
+        st = F.estatisticas(est)
+        p = est.pipeline
+        self.assertIsNotNone(F.unidade_si(est, "tensao"), "o modelo de vigas não veio em SI: o teste não vale")
+        F.mostrar_campo(est, "tensao")
+        FreeCADGui.updateGui()
+        fs = F.filtros_de_unidade(p)
+        self.assertEqual(len(fs), 1)
+        f = fs[0]
+        self.assertTrue(f.ViewObject.Visibility)
+        self.assertFalse(p.ViewObject.Visibility)
+        self.assertEqual(f.ViewObject.Field, "Tensão de von Mises (MPa)")
+        lo, hi = f.Data.GetPointData().GetArray("Tensão de von Mises (MPa)").GetRange()
+        self.assertAlmostEqual(hi, st["svm_max"], delta=0.002)
+        self.assertTrue(lo == 0.0 or lo >= 0.001, lo)          # sem notação científica na barra
+        self.assertIsNone(R._unidade_do_relatorio(est, "tensao"), "o relatório converteria duas vezes")
+        F.mostrar_campo(est, "deslocamento")
+        FreeCADGui.updateGui()
+        fs = F.filtros_de_unidade(p)
+        self.assertEqual(len(fs), 2)
+        d = [x for x in fs if x.UsinixUnidade == "deslocamento"][0]
+        self.assertTrue(d.ViewObject.Visibility)
+        self.assertFalse(f.ViewObject.Visibility)
+        hi = d.Data.GetPointData().GetArray("Deslocamento (mm)").GetRange()[1]
+        self.assertAlmostEqual(hi, st["u_max"], delta=0.002)
+        F.mostrar_campo(est, "tensao")                       # de novo: reaproveita o filtro
+        self.assertEqual(len(F.filtros_de_unidade(p)), 2)
+        F.mostrar_campo(est, "modelo")
+        self.assertFalse([x for x in F.filtros_de_unidade(p) if x.ViewObject.Visibility])
+        self.assertFalse(p.ViewObject.Visibility)
+
+    def test_figura_do_relatorio_com_a_barra_em_mpa(self):
+        import tempfile
+        import UsinixFEM as F
+        import UsinixFEMRelatorio as R
+        a, est = self._calculada()
+        pasta = tempfile.mkdtemp()
+        cam = R._captura(est, "tensao", pasta)
+        self.assertTrue(cam and os.path.isfile(cam))
+        self.assertTrue([x for x in F.filtros_de_unidade(est.pipeline) if x.ViewObject.Visibility])

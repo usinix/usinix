@@ -15,6 +15,19 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.7 — 25/11/2026
+
+### Simulação
+
+- **Legenda em MPa e mm na tela:** no modelo de vigas a barra de cores mostrava o resultado em Pa e m
+  ("+4.060e+07" para 40,6 MPa). Agora a tensão aparece em MPa e o deslocamento em mm, como no relatório; o
+  resultado convertido fica na árvore como "Tensão de von Mises (MPa)" e "Deslocamento (mm)".
+
+### Interface
+
+- **Documento novo:** o documento criado pelo Novo aparecia como "Unnamed" na barra de status (pré-seleção);
+  agora se chama "Sem_nome".
+
 ## 1.29.6 — 25/11/2026
 
 ### Tradução

@@ -72,3 +72,9 @@ else:
             UsinixCopiaVelha.apagar_depois()
         except Exception as _usinix_exc2:
             FreeCAD.Console.PrintLog("Usinix: cópia antiga do complemento: {}\n".format(_usinix_exc2))
+        # documento novo sem nome: "Sem_nome" em vez de "Unnamed" (ver UsinixDocumentoNovo)
+        try:
+            import UsinixDocumentoNovo
+            UsinixDocumentoNovo.instalar()
+        except Exception as _usinix_exc3:
+            FreeCAD.Console.PrintLog("Usinix: nome do documento novo: {}\n".format(_usinix_exc3))

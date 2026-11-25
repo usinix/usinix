@@ -774,6 +774,91 @@ def resumo_resultado(est):
     return txt
 
 
+# ------------------------------------------------------------------ resultado em MPa e mm na tela
+# O modelo de vigas guarda o resultado em unidades SI (Pa, m) e a barra de cores mostrava "+4.060e+07" para
+# 40,6 MPa. Um filtro Calculadora no próprio pipeline mostra o campo convertido; os valores abaixo da
+# resolução da barra (0,001) vão a zero, senão um mínimo de 65 Pa (0,000065 MPa) punha a barra em notação
+# científica.
+UNIDADES = {"tensao": ("Tensão de von Mises (MPa)", 1e-6, "MPa"),
+            "deslocamento": ("Deslocamento (mm)", 1e3, "mm")}
+
+
+def _campo_bruto(p, modo):
+    pd = p.Data.GetPointData()
+    if modo == "tensao":
+        return "von Mises Stress" if pd.GetArray("von Mises Stress") else None
+    for c in ("Displacement Magnitude", "Displacement"):
+        if pd.GetArray(c):
+            return c
+    return None
+
+
+def unidade_si(est, modo):
+    """(campo, fator, mínimo, máximo) quando o resultado está em SI e a tela/figura precisa converter para MPa
+    ou mm; None quando já está nas unidades de engenharia (modelo de sólidos, em mm) ou sem resultado."""
+    p = est.pipeline
+    if p is None or modo not in UNIDADES:
+        return None
+    try:
+        campo = _campo_bruto(p, modo)
+        if campo is None:
+            return None
+        arr = p.Data.GetPointData().GetArray(campo)
+        comp = -1 if arr.GetNumberOfComponents() > 1 else 0
+        lo, hi = arr.GetRange(comp)
+        vmax = max(abs(lo), abs(hi))
+        st = estatisticas(est) or {}
+        ref = st.get("svm_max") if modo == "tensao" else st.get("u_max")
+    except Exception:
+        return None
+    if not ref or not vmax:
+        return None
+    r = vmax / abs(ref)
+    if modo == "tensao" and 1e5 < r < 1e7:
+        return campo, 1e-6, lo * 1e-6, hi * 1e-6           # Pa → MPa
+    if modo == "deslocamento" and 1e-4 < r < 1e-2:
+        return campo, 1e3, lo * 1e3, hi * 1e3              # m → mm
+    return None
+
+
+def filtros_de_unidade(p):
+    return [o for o in (getattr(p, "Group", None) or []) if "UsinixUnidade" in o.PropertiesList]
+
+
+def filtro_de_unidade(est, modo):
+    """Filtro Calculadora com o campo em MPa ou mm (criado na primeira vez), ou None quando não precisa."""
+    conv = unidade_si(est, modo)
+    if conv is None:
+        return None
+    p = est.pipeline
+    nome, fator, _u = UNIDADES[modo]
+    campo = conv[0]
+    var = campo.replace(" ", "_")
+    if campo == "Displacement":
+        var = "mag(Displacement)"
+    # arredonda em 0,001 da unidade final: round(x·fator·1000)/1000
+    funcao = "round(%s*%r)*0.001" % (var, fator * 1000.0)
+    f = None
+    for o in filtros_de_unidade(p):
+        if o.UsinixUnidade == modo:
+            f = o
+    if f is None:
+        f = est.doc.addObject("Fem::FemPostCalculatorFilter", "UsinixUnidade")
+        f.addProperty("App::PropertyString", "UsinixUnidade", "Usinix", "Campo convertido para a tela")
+        f.UsinixUnidade = modo
+        f.setPropertyStatus("UsinixUnidade", "Hidden")
+        p.addObject(f)
+    if f.Function != funcao:
+        f.Function = funcao
+    if f.FieldName != nome:
+        f.FieldName = nome
+    f.Label = nome
+    est.doc.recompute()
+    if FreeCADGui is not None:
+        FreeCADGui.updateGui()                   # a lista de campos do filtro só aparece depois dos dados
+    return f
+
+
 def mostrar_campo(est, campo):
     """campo: 'tensao' | 'deslocamento' | 'modelo'."""
     p = est.pipeline
@@ -800,6 +885,21 @@ def mostrar_campo(est, campo):
                             p.ViewObject.VectorMode = "Magnitude"
                         except Exception:
                             pass
+            conv = None
+            if vis:
+                try:
+                    conv = filtro_de_unidade(est, campo)
+                except Exception as exc:
+                    FreeCAD.Console.PrintLog("Usinix: campo em MPa/mm: {}\n".format(exc))
+            for f in filtros_de_unidade(p):
+                if f is not conv and f.ViewObject.Visibility:
+                    f.ViewObject.Visibility = False
+            if conv is not None:
+                p.ViewObject.Visibility = False
+                conv.ViewObject.DisplayMode = "Surface"
+                conv.ViewObject.Field = UNIDADES[campo][0]
+                conv.ViewObject.Visibility = True
+                conv.ViewObject.show()           # a barra de cores compartilhada fica com o campo convertido
         peca = est.peca
         if peca is not None:
             peca.ViewObject.Visibility = not vis

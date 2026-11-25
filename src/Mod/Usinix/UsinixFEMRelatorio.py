@@ -97,31 +97,15 @@ def _esconder_solidos(est):
 
 
 def _unidade_do_relatorio(est, modo):
-    """(campo, fator) para a barra de cores da figura sair nas unidades do texto (MPa e mm), ou None. Resultado
-    guardado em unidades SI (Pa, m: modelo de vigas) mostrava 1.013e+08 na legenda com o texto em MPa."""
-    p = est.pipeline
-    if p is None or modo not in ("tensao", "deslocamento"):
+    """(campo, fator, mínimo, máximo) para a barra de cores da figura sair nas unidades do texto (MPa e mm), ou
+    None. Resultado guardado em unidades SI (Pa, m: modelo de vigas) mostrava 1.013e+08 na legenda com o texto
+    em MPa. Com o filtro de unidade na tela (F.mostrar_campo) a barra já sai em MPa ou mm."""
+    p = getattr(est, "pipeline", None)
+    if p is None:
         return None
-    campo = "von Mises Stress" if modo == "tensao" else p.ViewObject.Field
-    try:
-        arr = p.Data.GetPointData().GetArray(campo)
-        vmax = max(abs(x) for x in arr.GetRange(-1 if arr.GetNumberOfComponents() > 1 else 0))
-        st = F.estatisticas(est) or {}
-        ref = st.get("svm_max") if modo == "tensao" else st.get("u_max")
-    except Exception:
+    if any(f.ViewObject.Visibility for f in F.filtros_de_unidade(p) if getattr(f, "ViewObject", None)):
         return None
-    if not ref or not vmax:
-        return None
-    r = vmax / abs(ref)
-    try:
-        lo, hi = arr.GetRange(-1 if arr.GetNumberOfComponents() > 1 else 0)
-    except Exception:
-        return None
-    if modo == "tensao" and 1e5 < r < 1e7:
-        return campo, 1e-6, lo * 1e-6, hi * 1e-6           # Pa → MPa
-    if modo == "deslocamento" and 1e-4 < r < 1e-2:
-        return campo, 1e3, lo * 1e3, hi * 1e3              # m → mm
-    return None
+    return F.unidade_si(est, modo)
 
 
 # cores da barra padrão do FreeCAD (Blue-Cyan-Green-Yellow-Red), de baixo para cima
@@ -577,6 +561,9 @@ def _restaurar_exibicao(est, g):
         try:
             if p.ViewObject.Visibility:
                 p.ViewObject.show()               # a barra de cores volta com o campo de antes
+            for f in F.filtros_de_unidade(p):
+                if f.ViewObject.Visibility:
+                    f.ViewObject.show()
         except Exception:
             pass
     try:
@@ -611,6 +598,14 @@ def gerar(est, caminho, corpo=None, capturas=None):
                 o.ViewObject.Visibility = vis.get(o.Name, o.ViewObject.Visibility)
             except Exception:
                 pass
+        # filtro de unidade criado durante as figuras (o de deslocamento) não estava na tela antes
+        p = getattr(est, "pipeline", None)
+        for f in (F.filtros_de_unidade(p) if p is not None else []):
+            if f.Name not in vis:
+                try:
+                    f.ViewObject.Visibility = False
+                except Exception:
+                    pass
         _restaurar_exibicao(est, exibicao)
 
     _garantir_poppins()
