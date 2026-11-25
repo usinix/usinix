@@ -15,6 +15,24 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.6 — 25/11/2026
+
+### Tradução
+
+- **Varredura das bancadas:** todos os textos de Esboço, Peça, Sólidos, Montagem, Desenho, Planilha, Chapa,
+  Simulação, Superfícies, Draft, Materiais e Malhas foram conferidos contra a tradução carregada, e cada comando foi
+  aberto um a um. Cerca de 1.300 textos que apareciam em inglês foram traduzidos, entre eles os painéis da Chapa
+  (planificação, abas, bainha, recortes, forma base), os painéis do Desenho (cortes, cotas, hachuras) e os da
+  Simulação.
+- **Faixa:** Colar, Recalcular, Refazer e Novo grupo apareciam em inglês; o aviso de seleção ao clicar numa
+  ferramenta também.
+
+### Atualização
+
+- **Cópia antiga do complemento apagada:** depois de instalar o pacote completo por cima de uma atualização só do
+  complemento, a cópia antiga ficava na pasta do usuário e era ela que decidia, a cada abertura, qual versão usar.
+  Agora o Usinix apaga sozinho, ao abrir, a cópia igual ou anterior ao programa instalado; uma cópia mais nova fica.
+
 ## 1.29.5 — 25/11/2026
 
 ### Atualização

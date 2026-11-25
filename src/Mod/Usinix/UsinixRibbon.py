@@ -608,6 +608,20 @@ def _cmd_actions(name):
 _OWN_ACTIONS = {}
 
 
+def _contextos_do_comando(name, cmd=None):
+    """Contextos de tradução de um comando. Os do Python usam o nome (Assembly_Insert); os do C++ usam o nome da
+    classe, que o getInfo não dá: Std_Paste -> StdCmdPaste, Sketcher_Trim -> CmdSketcherTrim (sem isso Colar,
+    Recalcular, Refazer e Novo grupo ficavam em inglês na faixa)."""
+    ctxs = [name]
+    if "_" in name:
+        pre, resto = name.split("_", 1)
+        resto = resto.replace("_", "")
+        ctxs += [pre + "Cmd" + resto, "Cmd" + pre + resto]
+    if cmd is not None and hasattr(cmd, "__class__"):
+        ctxs.append(cmd.__class__.__name__)
+    return ctxs
+
+
 def _own_action(name, cmd):
     """O FreeCAD só cria a QAction de um comando Python quando alguma barra/menu o usa.
 
@@ -628,7 +642,7 @@ def _own_action(name, cmd):
         # getInfo devolve o texto de origem (inglês): traduz como o FreeCAD faria
         if not texto:
             return texto
-        for ctx in (name, cmd.__class__.__name__ if hasattr(cmd, "__class__") else name):
+        for ctx in _contextos_do_comando(name, cmd):
             t = QtCore.QCoreApplication.translate(ctx, texto)
             if t and t != texto:
                 return t

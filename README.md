@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.5** (25/11/2026): atualização pelo pacote completo (traz a parte do programa que a 1.29.4
+**Versão atual: 1.29.6** (25/11/2026): cerca de 1.300 textos das bancadas que ainda estavam em inglês traduzidos
+(Chapa, Desenho, Simulação e as demais); a cópia antiga do complemento, que ficava na pasta do usuário depois de
+instalar o pacote completo, é apagada ao abrir.
+
+Na 1.29.5: atualização pelo pacote completo (traz a parte do programa que a 1.29.4
 não levou); roda do mouse que não dá mais foco ao campo; nome sem número da prévia; tela da simulação de volta à
 tensão depois do relatório.
 

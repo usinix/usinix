@@ -22397,3 +22397,98 @@ class T172TesteDeInterface1294(unittest.TestCase):
         # a última figura é a da deformação; a tela volta para a tensão que estava
         self.assertEqual(p.ViewObject.Field, "von Mises Stress")
         self.assertTrue(p.ViewObject.Visibility)
+
+
+class T173CopiaVelhaDoComplemento(unittest.TestCase):
+    """1.29.6: a cópia do complemento na pasta do usuário que ficou igual ou anterior ao programa instalado é
+    apagada ao abrir; a mais nova (que espera outro pacote ou falhou) fica."""
+
+    def _pastas(self, meu, dele):
+        import tempfile
+        raiz = tempfile.mkdtemp(prefix="usinix_copia_")
+        usuario = os.path.join(raiz, "dados", "Mod", "Usinix")
+        programa = os.path.join(raiz, "programa", "Mod", "Usinix")
+        for pasta, versao in ((usuario, meu), (programa, dele)):
+            os.makedirs(pasta)
+            open(os.path.join(pasta, "InitGui.py"), "w").close()
+            if versao is not None:
+                with open(os.path.join(pasta, "UsinixVersao.py"), "w", encoding="utf-8") as f:
+                    f.write('VERSAO = "%s"\n' % versao)
+        return raiz, usuario, programa
+
+    def test_apaga_a_copia_anterior(self):
+        import UsinixCopiaVelha as C
+        raiz, usuario, programa = self._pastas("1.29.4", "1.29.5")
+        self.assertEqual(C.apagar(usuario, programa), "1.29.4")
+        self.assertFalse(os.path.exists(usuario))
+        self.assertTrue(os.path.isdir(programa))
+        # vai para fora de Mod e some
+        self.assertFalse(os.path.exists(os.path.join(raiz, "dados", "Usinix-complemento", "Usinix.antigo")))
+
+    def test_apaga_a_copia_igual(self):
+        import UsinixCopiaVelha as C
+        _, usuario, programa = self._pastas("1.29.5", "1.29.5")
+        self.assertEqual(C.apagar(usuario, programa), "1.29.5")
+        self.assertFalse(os.path.exists(usuario))
+
+    def test_mantem_a_copia_mais_nova(self):
+        import UsinixCopiaVelha as C
+        _, usuario, programa = self._pastas("1.29.6", "1.29.5")
+        self.assertEqual(C.apagar(usuario, programa), "")
+        self.assertTrue(os.path.isdir(usuario))
+        _, usuario, programa = self._pastas("1.30.0", "1.30.0-beta")
+        self.assertEqual(C.apagar(usuario, programa), "")
+
+    def test_nao_mexe_sem_saber_a_versao_do_programa(self):
+        import UsinixCopiaVelha as C
+        _, usuario, programa = self._pastas("1.29.4", None)
+        self.assertEqual(C.apagar(usuario, programa), "")
+        self.assertTrue(os.path.isdir(usuario))
+
+    def test_nao_apaga_o_proprio_programa(self):
+        import UsinixCopiaVelha as C
+        _, _, programa = self._pastas("1.29.4", "1.29.5")
+        self.assertEqual(C.apagar(programa, programa), "")
+        self.assertTrue(os.path.isdir(programa))
+
+    def test_initgui_chama_a_limpeza(self):
+        texto = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "InitGui.py"), encoding="utf-8").read()
+        self.assertIn("UsinixCopiaVelha.apagar_depois()", texto)
+
+
+class T174VarreduraDeTraducao(unittest.TestCase):
+    """1.29.6: textos em inglês achados na varredura das bancadas (painéis do SheetMetal, TechDraw, FEM, Peça...) e
+    comandos do C++ na faixa (Colar, Recalcular) traduzidos."""
+
+    def _tr(self, ctx, txt):
+        from PySide import QtCore
+        return QtCore.QCoreApplication.translate(ctx, txt)
+
+    def test_tabela_carrega_e_sem_marcadores_perdidos(self):
+        import re
+        import UsinixTraducaoVarredura as V
+        self.assertGreater(len(V.TRAD), 1000)
+        for (ctx, src), pt in V.TRAD.items():
+            self.assertTrue(pt and pt != src, (ctx, src))
+            for m in re.findall(r"%\d|\{[a-z]*\}", src):
+                self.assertIn(m, pt, (ctx, src))
+
+    def test_paineis_traduzidos(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixI18n
+        if UsinixI18n._state["tr"] is None:
+            self.skipTest("tradução Usinix desligada")
+        self.assertEqual(self._tr("SMUnfoldTaskPanel", "Manual K-Factor"), "Fator K manual")
+        self.assertEqual(self._tr("TechDrawGui::TaskSectionView", "Scale type"), "Tipo de escala")
+        self.assertEqual(self._tr("TaskCreateElementSet", "Delete new meshes"), "Apagar as malhas novas")
+        # só no contexto em que faltava: o mesmo texto noutro contexto segue a tradução que tinha
+        self.assertEqual(self._tr("ContextoQueNaoExiste", "Manual K-Factor"), "Manual K-Factor")
+
+    def test_contextos_dos_comandos_do_cpp(self):
+        import UsinixRibbon
+        ctxs = UsinixRibbon._contextos_do_comando("Std_Paste")
+        self.assertIn("StdCmdPaste", ctxs)
+        self.assertIn("CmdSketcherTrimming", UsinixRibbon._contextos_do_comando("Sketcher_Trimming"))
+        if FreeCAD.GuiUp:
+            self.assertNotEqual(self._tr("StdCmdPaste", "&Paste"), "&Paste")

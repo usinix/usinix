@@ -665,6 +665,12 @@ class UsinixTranslator(QtCore.QTranslator):
         for (c, k), v in GLOSSARIO.items():
             self._ctx[(c, k)] = v
             self._ctx.setdefault((c, k.replace("&", "")), v.replace("&", ""))
+        try:
+            from UsinixTraducaoVarredura import TRAD     # textos em inglês achados na varredura das bancadas
+        except Exception:  # pragma: no cover
+            TRAD = {}
+        for (c, k), v in TRAD.items():
+            self._ctx.setdefault((c, k), v)
         self._qm = QtCore.QTranslator()
         self._qm_ok = bool(qm_path) and self._qm.load(qm_path)
 

@@ -66,3 +66,9 @@ else:
         FreeCADGui.addWorkbench(UsinixWorkbench())
         if _usinix_usuario:
             UsinixComplemento.abriu_bem()
+        # cópia do complemento igual ou anterior ao programa instalado: não serve mais (ver UsinixCopiaVelha)
+        try:
+            import UsinixCopiaVelha
+            UsinixCopiaVelha.apagar_depois()
+        except Exception as _usinix_exc2:
+            FreeCAD.Console.PrintLog("Usinix: cópia antiga do complemento: {}\n".format(_usinix_exc2))

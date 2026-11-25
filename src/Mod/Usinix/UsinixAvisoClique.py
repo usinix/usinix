@@ -21,10 +21,24 @@ _ESTADO = {"aviso": None, "ultimo": ""}
 
 # ------------------------------------------------------------------ o porquê
 def _info(nome):
+    """menuText e toolTip do comando já traduzidos (o getInfo devolve o texto de origem, em inglês)."""
     try:
-        return FreeCADGui.Command.get(nome).getInfo() or {}
+        info = dict(FreeCADGui.Command.get(nome).getInfo() or {})
     except Exception:
         return {}
+    try:
+        import UsinixRibbon
+        ctxs = UsinixRibbon._contextos_do_comando(nome)
+    except Exception:
+        ctxs = [nome]
+    for chave in ("menuText", "toolTip"):
+        texto = info.get(chave) or ""
+        for ctx in ctxs:
+            t = QtCore.QCoreApplication.translate(ctx, texto) if (texto and QtCore is not None) else texto
+            if t and t != texto:
+                info[chave] = t
+                break
+    return info
 
 
 def _rotulo(nome, rotulo=None):
