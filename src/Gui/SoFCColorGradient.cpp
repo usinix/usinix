@@ -23,6 +23,7 @@
 
 #include <sstream>
 #include <QCoreApplication>
+#include <QLocale>
 #include <Inventor/fields/SoMFString.h>
 #include <Inventor/nodes/SoBaseColor.h>
 #include <Inventor/nodes/SoCoordinate3.h>
@@ -69,6 +70,19 @@ SoFCColorGradient::SoFCColorGradient()
     coords->ref();
     labels = new SoSeparator;
     labels->ref();
+    titleRoot = new SoSeparator;
+    titleRoot->ref();
+    titleTrans = new SoTransform;
+    titleColor = new SoBaseColor;
+    titleFont = new SoFont;
+    titleFont->name.setValue("Helvetica,Arial,Times New Roman");
+    titleText = new SoColorBarLabel;
+    titleText->justification = SoText2::RIGHT;
+    titleRoot->addChild(titleTrans);
+    titleRoot->addChild(titleColor);
+    titleRoot->addChild(titleFont);
+    titleRoot->addChild(titleText);
+    SoFCColorGradient::applyFormat(getFormat());
 
     _cColGrad.setStyle(App::ColorBarStyle::FLOW);
     setColorModel(0);
@@ -83,6 +97,7 @@ SoFCColorGradient::~SoFCColorGradient()
     // delete THIS;
     coords->unref();
     labels->unref();
+    titleRoot->unref();
 }
 
 // doc from parent
@@ -115,6 +130,13 @@ void SoFCColorGradient::applyFormat(const SoLabelTextFormat& fmt)
             font->size.setValue(static_cast<float>(fmt.textSize));
         }
     }
+    titleColor->rgb.setValue(textColor.r, textColor.g, textColor.b);
+    titleFont->size.setValue(static_cast<float>(fmt.textSize));
+}
+
+void SoFCColorGradient::setTitle(const char* title)
+{
+    titleText->string.setValue(title ? title : "");
 }
 
 void SoFCColorGradient::setMarkerLabel(const SoMFString& label)
@@ -159,7 +181,19 @@ void SoFCColorGradient::setViewportSize(const SbVec2s& size)
     float fMinY {};
     float fMaxX {};
     float fMaxY {};
+    // the title is left out of the width, so the bar stays at the right edge as without it
+    SbBool notify = enableNotify(FALSE);
+    int titleIndex = findChild(titleRoot);
+    if (titleIndex >= 0) {
+        removeChild(titleIndex);
+    }
     float boxWidth = getBounds(size, fMinX, fMinY, fMaxX, fMaxY);
+    if (titleIndex >= 0) {
+        insertChild(titleRoot, titleIndex);
+    }
+    enableNotify(notify);
+    // right-aligned with the end of the labels, just above the bar
+    titleTrans->translation.setValue(fMinX, fMaxY + 0.3F, 0.0F);
 
     // search for the labels
     int num = 0;
@@ -228,7 +262,14 @@ std::string getLabelText(float value, int prec, std::ios::fmtflags flags)
     str.precision(prec);
     str.setf(flags);
     str << value;
-    return str.str();
+    std::string text = str.str();
+    // decimal separator of the locale (comma in pt-BR), as in the number fields
+    const std::string sep = QString(QLocale().decimalPoint()).toStdString();
+    std::string::size_type pos = text.find('.');
+    if (pos != std::string::npos && !sep.empty() && sep != ".") {
+        text.replace(pos, 1, sep);
+    }
+    return text;
 }
 }  // namespace
 
@@ -399,6 +440,7 @@ void SoFCColorGradient::rebuildGradient()
 
     addChild(ttype);
     addChild(labels);
+    addChild(titleRoot);
     addChild(coords);
     addChild(mat);
     addChild(matBinding);

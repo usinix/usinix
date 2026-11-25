@@ -31,7 +31,14 @@ th { background-color: %(NAVY)s; color: #FFFFFF; font-weight: 600; text-align: l
 .destaque { font-size: 16px; font-weight: 700; color: %(NAVY)s; }
 .nota { font-size: 12px; color: %(INK2)s; }
 .legenda { font-size: 12px; color: %(INK2)s; }
+.aviso { font-size: 14px; font-weight: 600; color: %(NAVY)s; background-color: #FFF4D6; }
 """ % dict(INK=INK, NAVY=NAVY, INK2=INK2)
+
+
+def _aviso_de_ordem(est):
+    """Parágrafo de aviso quando a malha é de 1ª ordem (ver UsinixFEM.aviso_de_ordem); lista vazia se não."""
+    txt = F.aviso_de_ordem(est)
+    return ["<p class='aviso'>%s</p>" % txt] if txt else []
 
 
 # ------------------------------------------------------------------ imagens da vista 3D
@@ -315,6 +322,7 @@ def _corpo(est, doc, imgs, largura):
                        _par("Fator de segurança ao escoamento (Sy ÷ σmáx)",
                             "<span class='destaque'>%s</span>" % (F.fmt(fs, 2) if fs else "—"))],
                       larguras=["55%", "45%"]))
+        h += _aviso_de_ordem(est)
         if est.get("UsinixDetalhe", False):
             h += _detalhe(est, e)
         h.append(_img(doc, "tensao", imgs.get("tensao"),
@@ -326,6 +334,7 @@ def _corpo(est, doc, imgs, largura):
     else:
         h.append(_tab([[str(md), F.fmt(f, 3, "Hz")] for md, f in e.get("modos", [])],
                       cab=["Modo", "Frequência"], larguras=["30%", "70%"]))
+        h += _aviso_de_ordem(est)
         h.append(_img(doc, "deslocamento", imgs.get("deslocamento"), "Figura 3 — Forma do modo exibido", largura))
 
     conv = F.linhas_convergencia(est) if tipo == "static" else []

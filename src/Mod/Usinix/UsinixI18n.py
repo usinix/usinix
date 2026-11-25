@@ -637,6 +637,17 @@ GLOSSARIO = {
 }
 
 
+# Estado do objeto na barra de status ao passar pela árvore ("Valid, Nome interno: Perfil"): o FreeCAD
+# traduz usando o tipo do objeto como contexto ("Sketcher::SketchObject"), que nenhum arquivo de
+# tradução cobre. Vale para qualquer tipo (contexto com "::").
+ESTADOS_DO_OBJETO = {
+    "Valid": "Válido",
+    "Touched": "Modificado",
+    "Freezed": "Congelado",
+    "Error": "Erro",
+}
+
+
 class UsinixTranslator(QtCore.QTranslator):
     """Um único tradutor: dicionário EXTRA primeiro, depois o .qm completo.
 
@@ -681,6 +692,8 @@ class UsinixTranslator(QtCore.QTranslator):
                 return hit
         if context == "App::PropertyEnumeration":
             return self._enums.get(sourceText)
+        if sourceText in ESTADOS_DO_OBJETO and "::" in (context or ""):
+            return ESTADOS_DO_OBJETO[sourceText]
         hit = self._ctx.get((context, sourceText)) or self._t.get(sourceText)
         if hit:
             return hit

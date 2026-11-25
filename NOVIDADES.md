@@ -15,6 +15,22 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.8 — 25/11/2026
+
+### Simulação
+
+- **Aviso de malha de 1ª ordem:** com "Elementos de 2ª ordem" desmarcado a tensão e o deslocamento saem menores
+  que os reais e nada indicava isso. Agora o painel de resultados e o relatório PDF avisam: "Malha de 1ª ordem:
+  tensões e deslocamentos subestimados; use 2ª ordem para verificação" (na análise de frequências, "frequências
+  superestimadas").
+- **Barra de cores:** os números usam vírgula decimal ("+18,703") e a barra ganha título com o campo e a unidade
+  ("Tensão de von Mises (MPa)", "Deslocamento (mm)").
+
+### Interface
+
+- **Barra de status da árvore:** passar o mouse num objeto da árvore mostrava "Valid, Nome interno: …"; agora
+  aparece "Válido" (e "Modificado", "Congelado" ou "Erro").
+
 ## 1.29.7 — 25/11/2026
 
 ### Simulação

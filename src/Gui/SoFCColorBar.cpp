@@ -248,6 +248,13 @@ void SoFCColorBar::setFormat(const SoLabelTextFormat& fmt)
     }
 }
 
+void SoFCColorBar::setTitle(const char* title)
+{
+    for (auto it : _colorBars) {
+        it->setTitle(title);
+    }
+}
+
 void SoFCColorBar::setViewportSize(const SbVec2s& size)
 {
     boost::ignore_unused(size);

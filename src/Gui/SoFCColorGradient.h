@@ -36,6 +36,10 @@ class SoMaterial;
 class SoMaterialBinding;
 class SoMFString;
 class SoTransparencyType;
+class SoTransform;
+class SoBaseColor;
+class SoFont;
+class SoText2;
 class SbVec2s;
 
 namespace Gui
@@ -57,6 +61,7 @@ public:
      * \a prec indicates the post decimal positions, \a prec should be in between 0 and 6.
      */
     void setRange(float fMin, float fMax, int prec = 3) override;
+    void setTitle(const char* title) override;
     /**
      * Returns the associated color to the value \a fVal.
      */
@@ -129,6 +134,12 @@ private:
 private:
     SoCoordinate3* coords;
     SoSeparator* labels;
+    // title above the bar (field and unit); not counted in the width of the labels
+    SoSeparator* titleRoot;
+    SoTransform* titleTrans;
+    SoBaseColor* titleColor;
+    SoFont* titleFont;
+    SoText2* titleText;
     SbBox2f _bbox;
     int _precision {3};
     App::ColorGradient _cColGrad;

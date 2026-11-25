@@ -1012,6 +1012,8 @@ def corpo(est, doc, imgs, largura, a=None):
     h.append(R._tab([R._par("Tensão máxima de von Mises", "<span class='destaque'>%s</span>" % _fmt(e.get("svm_max"), 1, "MPa")),
                      R._par("Deslocamento máximo", "<span class='destaque'>%s</span>" % _fmt(e.get("u_max"), 3, "mm"))],
                     larguras=["55%", "45%"]))
+    if not a["vigas"]:
+        h += R._aviso_de_ordem(est)
     h.append(R._img(doc, "tensao", imgs.get("tensao"), "Figura 2 — Tensão equivalente de von Mises: de 0 (azul) a %s "
                     "(vermelho)" % _fmt(e.get("svm_max"), 1, "MPa"), largura))
     h.append(R._img(doc, "deslocamento", imgs.get("deslocamento"), "Figura 3 — Deslocamento total: de 0 (azul) a %s "

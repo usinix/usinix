@@ -914,6 +914,32 @@ def mostrar_campo(est, campo):
         pass
 
 
+# ------------------------------------------------------------------ ordem dos elementos
+AVISO_1A_ORDEM = "Malha de 1ª ordem: tensões e deslocamentos subestimados; use 2ª ordem para verificação."
+AVISO_1A_ORDEM_FREQ = "Malha de 1ª ordem: frequências superestimadas; use 2ª ordem para verificação."
+
+
+def malha_de_1a_ordem(est):
+    """True quando a malha do estudo é de sólidos ou cascas com elementos de 1ª ordem (tetraedro de 4 nós,
+    triângulo de 3 nós). Esses elementos são rígidos demais: a tensão e o deslocamento saem menores que
+    os reais, sem nada no resultado que denuncie. Modelo só de vigas não entra no aviso."""
+    m = est.malha
+    if m is None or getattr(m, "ElementOrder", "2nd") != "1st":
+        return False
+    try:
+        fm = m.FemMesh
+        return bool(fm.VolumeCount or fm.FaceCount)
+    except Exception:
+        return True
+
+
+def aviso_de_ordem(est):
+    """Texto do aviso de malha de 1ª ordem para o painel de resultados e o relatório; vazio se não couber."""
+    if not malha_de_1a_ordem(est):
+        return ""
+    return AVISO_1A_ORDEM_FREQ if est.tipo == "frequency" else AVISO_1A_ORDEM
+
+
 # =========================================================================== operações (sem interface)
 def gerar_malha(est, tamanho, ordem="2nd", nivel=None, lados_retos=None):
     """Cria/atualiza a malha Gmsh da peça e gera. Retorna (ok, mensagem).
@@ -2025,6 +2051,12 @@ class Assistente(QtWidgets.QWidget):
         self.grid_res.addWidget(self.c_desl, 0, 1)
         self.grid_res.addWidget(self.c_fs, 1, 0, 1, 2)
         lay.addLayout(self.grid_res)
+        self.lb_ordem = QtWidgets.QLabel("")     # malha de 1ª ordem: resultado subestimado
+        self.lb_ordem.setObjectName("SwMsg")
+        self.lb_ordem.setProperty("nivel", "aviso")
+        self.lb_ordem.setWordWrap(True)
+        self.lb_ordem.setVisible(False)
+        lay.addWidget(self.lb_ordem)
         self.lb_interp = QtWidgets.QLabel("")
         self.lb_interp.setObjectName("SwMsg")
         self.lb_interp.setWordWrap(True)
@@ -2128,6 +2160,9 @@ class Assistente(QtWidgets.QWidget):
         for w in (self.c_tensao, self.c_desl, self.c_fs):
             w.setVisible(not freq)
         self.tab_modos.setVisible(freq)
+        aviso = aviso_de_ordem(est) if e else ""
+        self.lb_ordem.setText(aviso)
+        self.lb_ordem.setVisible(bool(aviso))
         if not e:
             self.lb_interp.setVisible(False)
             return

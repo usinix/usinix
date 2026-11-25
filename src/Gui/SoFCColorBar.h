@@ -128,6 +128,13 @@ public:
     /** Returns the format for the label text.
      */
     SoLabelTextFormat getFormat() const;
+    /** Sets the title shown above the color bar (e.g. the field name with its unit).
+     *  An empty title hides it. The default implementation ignores the title.
+     */
+    virtual void setTitle(const char* title)
+    {
+        (void)title;
+    }
 
 protected:
     /** Applies the format to the label text */
@@ -229,6 +236,7 @@ public:
         return "Color Bar";
     }
     void setFormat(const SoLabelTextFormat& fmt) override;
+    void setTitle(const char* title) override;
 
 protected:
     /**

@@ -22501,6 +22501,18 @@ class T174VarreduraDeTraducao(unittest.TestCase):
             self.assertNotEqual(self._tr("StdCmdPaste", "&Paste"), "&Paste")
 
 
+def mensagem_da_barra(contendo):
+    """Texto da barra de status que contém `contendo`: o FreeCAD escreve num rótulo próprio da barra
+    (MainWindow::showMessage), não em statusBar().currentMessage()."""
+    from PySide import QtWidgets
+    sb = FreeCADGui.getMainWindow().statusBar()
+    textos = [sb.currentMessage()] + [lb.text() for lb in sb.findChildren(QtWidgets.QLabel)]
+    for t in textos:
+        if contendo in (t or ""):
+            return t
+    return ""
+
+
 class T175DocumentoNovoSemUnnamed(unittest.TestCase):
     """1.29.6: o documento do Novo deixava "Unnamed" na barra de status ("Pré-seleção: Unnamed.Caixa.Face6");
     agora o nome interno é "Sem_nome" e o rótulo "Sem nome". Com nome dado, nada muda."""
@@ -22554,11 +22566,11 @@ class T175DocumentoNovoSemUnnamed(unittest.TestCase):
         d.recompute()
         FreeCADGui.Selection.setPreselection(b, "Face6", 1.0, 2.0, 10.0)
         FreeCADGui.updateGui()
-        msg = FreeCADGui.getMainWindow().statusBar().currentMessage()
+        msg = mensagem_da_barra("Caixa.Face6")
         FreeCADGui.Selection.clearPreselection()
+        self.assertTrue(msg, "a pré-seleção não apareceu na barra de status")
         self.assertNotIn("Unnamed", msg)
-        if msg:
-            self.assertIn("Sem_nome", msg)
+        self.assertIn("Sem_nome", msg)
         InitGui = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "InitGui.py"), encoding="utf-8").read()
         self.assertIn("UsinixDocumentoNovo.instalar()", InitGui)
 
@@ -22621,3 +22633,163 @@ class T176LegendaDaSimulacaoEmMPa(unittest.TestCase):
         cam = R._captura(est, "tensao", pasta)
         self.assertTrue(cam and os.path.isfile(cam))
         self.assertTrue([x for x in F.filtros_de_unidade(est.pipeline) if x.ViewObject.Visibility])
+
+
+class T177EstadoNaBarraDeStatus(unittest.TestCase):
+    """1.29.8: passar o mouse num esboço da árvore mostrava "Valid, Nome interno: Perfil": o estado vem do
+    FreeCAD com o tipo do objeto como contexto de tradução, que nenhum arquivo cobre."""
+
+    def setUp(self):
+        self.antes = set(FreeCAD.listDocuments())
+
+    def tearDown(self):
+        for n in set(FreeCAD.listDocuments()) - self.antes:
+            try:
+                FreeCAD.closeDocument(n)
+            except Exception:
+                pass
+
+    def test_estados_traduzidos_para_qualquer_tipo(self):
+        import UsinixI18n
+        from PySide import QtCore
+        if FreeCAD.GuiUp:
+            FreeCADGui.updateGui()
+        UsinixI18n.raise_priority()
+        tr = QtCore.QCoreApplication.translate
+        for ctx in ("Sketcher::SketchObject", "PartDesign::Body", "Part::FeaturePython"):
+            self.assertEqual(tr(ctx, "Valid"), "Válido")
+            self.assertEqual(tr(ctx, "Touched"), "Modificado")
+            self.assertEqual(tr(ctx, "Freezed"), "Congelado")
+        self.assertEqual(tr("UsinixT177", "Valid"), "Valid")      # fora de tipo de objeto: não mexe
+
+    def test_barra_ao_passar_pelo_esboco_na_arvore(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixI18n
+        from PySide import QtCore, QtWidgets
+        d = FreeCAD.newDocument("UsinixT177")
+        body = d.addObject("PartDesign::Body", "Body")
+        sk = body.newObject("Sketcher::SketchObject", "Perfil")
+        d.recompute()
+        FreeCADGui.updateGui()
+        UsinixI18n.raise_priority()
+        mw = FreeCADGui.getMainWindow()
+        item = arvore = None
+        for t in mw.findChildren(QtWidgets.QTreeWidget):
+            achados = t.findItems(sk.Label, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive, 0)
+            if achados:
+                arvore, item = t, achados[0]
+                break
+        self.assertIsNotNone(item, "esboço não achado na árvore")
+        arvore.itemEntered.emit(item, 0)
+        FreeCADGui.updateGui()
+        msg = mensagem_da_barra(": Perfil")
+        self.assertTrue(msg, "a barra de status não mostrou o esboço")
+        self.assertNotIn("Valid", msg)
+        self.assertIn("Válido", msg)
+
+
+class T178AvisoDeMalhaDe1aOrdem(unittest.TestCase):
+    """1.29.8: com "Elementos de 2ª ordem" desmarcado a tensão saiu ~35% menor e nada avisava. Agora o painel
+    de resultados e o relatório avisam quando a malha calculada é de 1ª ordem."""
+
+    def setUp(self):
+        self.doc = FreeCAD.newDocument("UsinixT178")
+
+    def tearDown(self):
+        try:
+            FreeCAD.closeDocument(self.doc.Name)
+        except Exception:
+            pass
+
+    def _estudo(self):
+        import ObjectsFem
+        import UsinixFEM as F
+        cx = self.doc.addObject("Part::Box", "Barra")          # viga em balanço 100 × 20 × 20 mm
+        cx.Length, cx.Width, cx.Height = 100, 20, 20
+        self.doc.recompute()
+        est = F.Estudo(self.doc)
+        est.garantir(peca=cx)
+        m = ObjectsFem.makeMaterialSolid(self.doc, "Material")
+        m.Material = {"Name": "Aço ASTM A36", "YoungsModulus": "200000 MPa", "PoissonRatio": "0.3",
+                      "Density": "7850 kg/m^3", "YieldStrength": "250 MPa"}
+        est.analise.addObject(m)
+        fx = ObjectsFem.makeConstraintFixed(self.doc, "Fixa")
+        fx.References = [(cx, "Face1")]
+        est.analise.addObject(fx)
+        fo = ObjectsFem.makeConstraintForce(self.doc, "Forca")
+        fo.References = [(cx, "Face6")]                       # face de cima, carga para baixo
+        fo.Force = "1000 N"
+        fo.Reversed = True
+        est.analise.addObject(fo)
+        self.doc.recompute()
+        return est
+
+    def _calcular(self, est, ordem):
+        import UsinixFEM as F
+        ok, msg = F.gerar_malha(est, 6.0, ordem)
+        if not ok:
+            self.skipTest("gmsh não gerou malha: %s" % msg)
+        ok, erro, _dt = F.calcular(est)
+        if not ok and ("ccx" in (erro or "").lower() or "calculix" in (erro or "").lower()):
+            self.skipTest("sem CalculiX: %s" % erro)
+        self.assertTrue(ok, erro)
+        return F.estatisticas(est)
+
+    def test_aviso_no_painel_e_no_relatorio(self):
+        import UsinixFEM as F
+        import UsinixFEMRelatorio as R
+        from PySide import QtGui
+        est = self._estudo()
+        e1 = self._calcular(est, "1st")
+        self.assertTrue(F.malha_de_1a_ordem(est))
+        self.assertEqual(F.aviso_de_ordem(est), F.AVISO_1A_ORDEM)
+        self.assertIn("Malha de 1ª ordem: tensões e deslocamentos subestimados; use 2ª ordem para verificação.",
+                      F.AVISO_1A_ORDEM)
+        html = R._corpo(est, QtGui.QTextDocument(), {}, 600)
+        self.assertIn(F.AVISO_1A_ORDEM, html)
+        if FreeCAD.GuiUp:
+            w = F.Assistente()
+            try:
+                w._mostrar_resultados(est)
+                self.assertFalse(w.lb_ordem.isHidden())
+                self.assertEqual(w.lb_ordem.text(), F.AVISO_1A_ORDEM)
+                self.assertEqual(w.lb_ordem.property("nivel"), "aviso")
+            finally:
+                w.deleteLater()
+        e2 = self._calcular(est, "2nd")
+        self.assertFalse(F.malha_de_1a_ordem(est))
+        self.assertEqual(F.aviso_de_ordem(est), "")
+        self.assertNotIn("Malha de 1ª ordem", R._corpo(est, QtGui.QTextDocument(), {}, 600))
+        if FreeCAD.GuiUp:
+            w = F.Assistente()
+            try:
+                w._mostrar_resultados(est)
+                self.assertTrue(w.lb_ordem.isHidden())
+            finally:
+                w.deleteLater()
+        # o que o aviso diz: a 1ª ordem dá tensão e deslocamento menores (conta à mão: σ ≈ 75 MPa)
+        self.assertLess(e1["svm_max"], e2["svm_max"])
+        self.assertLess(e1["u_max"], e2["u_max"])
+
+    def test_frequencias_e_vigas(self):
+        import UsinixFEM as F
+
+        class Malha:
+            ElementOrder = "1st"
+
+            class FemMesh:
+                VolumeCount = 0
+                FaceCount = 0
+                EdgeCount = 30
+
+        class Est:
+            malha = Malha()
+            tipo = "static"
+        self.assertFalse(F.malha_de_1a_ordem(Est()))        # só vigas: sem aviso
+        Malha.FemMesh.VolumeCount = 100
+        self.assertEqual(F.aviso_de_ordem(Est()), F.AVISO_1A_ORDEM)
+        Est.tipo = "frequency"
+        self.assertEqual(F.aviso_de_ordem(Est()), F.AVISO_1A_ORDEM_FREQ)
+        Malha.ElementOrder = "2nd"
+        self.assertEqual(F.aviso_de_ordem(Est()), "")

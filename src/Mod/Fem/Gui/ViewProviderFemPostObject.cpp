@@ -693,6 +693,7 @@ void ViewProviderFemPostObject::WriteColorData(bool ResetColorBarRange)
         // since there is no field, set the range to the default
         // range as if a new object is created
         setRangeOfColorBar(-0.5, 0.5);
+        m_colorBar->setTitle("");
         return;
     };
 
@@ -715,6 +716,9 @@ void ViewProviderFemPostObject::WriteColorData(bool ResetColorBarRange)
         double range[2];
         data->GetRange(range, component);
         setRangeOfColorBar(static_cast<float>(range[0]), static_cast<float>(range[1]));
+        // title of the color bar: the field shown (its name carries the unit when it has one)
+        QString title = QApplication::translate("App::PropertyEnumeration", Field.getValueAsString());
+        m_colorBar->setTitle(title.toUtf8().constData());
     }
 
     vtkIdType numPts = pd->GetNumberOfPoints();
