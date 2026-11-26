@@ -23341,3 +23341,52 @@ class T183Defeitos1302(unittest.TestCase):
             B.comando_ativo = orig
             caixa.close()
             caixa.deleteLater()
+
+
+class T184TangenteSoOndeEExata(unittest.TestCase):
+    """1.30.3: a Tangente aceitava face de perfil livre (came em B-spline), cone e toro, que o cálculo da montagem
+    não trata (cai numa condição plano-plano genérica) e montava errado sem avisar."""
+
+    _esp = T62PainelDeComando._esp
+    setUp = T80MontagemComoSolidWorks.setUp
+    tearDown = T80MontagemComoSolidWorks.tearDown
+    _junta = T80MontagemComoSolidWorks._junta
+
+    def test_conferencia_das_faces(self):
+        c = self.M.conferir_tangente
+        for ok in (["Cylinder", "Plane"], ["Plane", "Sphere"], ["Cylinder", "Cylinder"], ["Sphere", "Cylinder"],
+                   ["Sphere", "Sphere"]):
+            self.assertIsNone(c(ok), ok)
+        for ruim in (["Cylinder", "BSplineSurface"], ["SurfaceOfExtrusion", "Cylinder"], ["Cone", "Plane"],
+                     ["Toroid", "Plane"], ["Cylinder", "SurfaceOfRevolution"]):
+            msg = c(ruim)
+            self.assertTrue(msg and "só é exata" in msg, ruim)
+        self.assertIn("forma livre", c(["Cylinder", "BSplineSurface"]))
+        self.assertIn("cônica", c(["Cone", "Plane"]))
+        self.assertIn("Coincidente", c(["Plane", "Plane"]))
+        # a escolha automática não propõe mais Tangente para cone na face plana
+        self.assertIsNone(self.M.escolher_junta(("cone", {}), ("plano", {})))
+
+    def test_came_de_perfil_livre_recusado(self):
+        import Part
+        V = FreeCAD.Vector
+        pts = [V(40 * math.cos(a) + (12 if math.cos(a) > 0.3 else 0) * math.cos(a),
+                 30 * math.sin(a), 0) for a in [i * 2 * math.pi / 24 for i in range(24)]]
+        curva = Part.BSplineCurve()
+        curva.interpolate(pts, PeriodicFlag=True)
+        perfil = Part.Face(Part.Wire(curva.toShape()))
+        came = self.asm.newObject("Part::Feature", "Came")
+        came.Shape = perfil.extrude(V(0, 0, 20))
+        came.Placement.Base = V(100, 50, 140)
+        self.doc.recompute()
+        lateral = [n for n, f in zip(["Face%d" % (i + 1) for i in range(len(came.Shape.Faces))], came.Shape.Faces)
+                   if type(f.Surface).__name__ != "Plane"]
+        self.assertTrue(lateral)
+        task = self._junta("tangente", (self.rolo, "Face1"), (came, lateral[0]))
+        self.assertFalse(task.accept(), "a Tangente aceitou o came de perfil livre")
+        self.assertIn("só é exata", task.ultimo_aviso)
+        bt = getattr(task, "_usinix_conserto", None)
+        self.assertTrue(bt is None or bt.isHidden(), "não há conserto automático para o came")
+        self.assertIsNotNone(FreeCADGui.Control.activeDialog(), "o painel continua aberto para corrigir")
+        task.reject()
+        FreeCADGui.Control.closeDialog()

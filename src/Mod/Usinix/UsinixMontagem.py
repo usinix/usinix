@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """Montagem: restrições com os nomes do SolidWorks que faltavam e padrão de componentes.
 
-- Tangente: a junta "Distância" do FreeCAD com 0 entre uma face curva (cilindro, esfera, cone, toro) e outra
-  face (plana ou curva) já é tangência no solver; faltava o botão e a conferência das faces.
+- Tangente: a junta "Distância" do FreeCAD com 0 entre uma face curva (cilindro ou esfera) e outra face (plana,
+  cilíndrica ou esférica) vira no solver uma condição exata (ex.: eixo do cilindro a um raio do plano). Cone, toro
+  e superfície livre (perfil de came, B-spline) o solver não sabe tratar: cai numa condição plano-plano genérica e
+  monta errado sem avisar; a conferência recusa esses casos.
 - Coincidente: a mesma junta com 0, com o nome que se procura (faces, arestas ou pontos encostados).
 - Padrão de componentes (linear e circular): cópias ligadas (App::Link) do componente, com o Placement amarrado
   ao do original por expressão: mexeu no original, as cópias acompanham.
@@ -19,6 +21,8 @@ except ImportError:  # pragma: no cover
 
 
 CURVAS = ("Cylinder", "Sphere", "Cone", "Toroid", "SurfaceOfRevolution")
+# faces em que a tangência do solver é exata (AssemblyObject::makeMbdJointDistance)
+TANGENTE_EXATA = ("Plane", "Cylinder", "Sphere")
 NOMES_SUP = {"Plane": "plana", "Cylinder": "cilíndrica", "Sphere": "esférica", "Cone": "cônica",
              "Toroid": "tórica", "SurfaceOfRevolution": "de revolução"}
 
@@ -60,8 +64,14 @@ def conferir_tangente(tipos):
     if any(t in ("Edge", "Vertex") for t in tipos):
         return ("Tangente é entre faces: escolha uma face curva (cilindro, esfera, cone) e outra face, plana ou "
                 "curva.")
-    if not any(t in CURVAS for t in tipos):
+    if not any(t in CURVAS for t in tipos) and all(t == "Plane" for t in tipos):
         return "As duas faces são planas: para encostar faces planas use Coincidente."
+    fora = [t for t in tipos if t not in TANGENTE_EXATA]
+    if fora:
+        nome = NOMES_SUP.get(fora[0], "de forma livre")
+        return ("A Tangente só é exata entre faces planas, cilíndricas e esféricas. Uma face %s (como o perfil de "
+                "um came, um cone ou um toro) o cálculo da montagem não sabe tratar: a peça ficaria no lugar errado. "
+                "Para came de perfil livre, acione o seguidor pela Simulação com a lei de deslocamento." % nome)
     return None
 
 
@@ -293,7 +303,6 @@ REGRAS_JUNTA = {
     ("plano", "plano"): ("Distance", "coincidente", "Coincidente", "duas faces planas: encostadas"),
     ("cilindro", "plano"): ("Distance", "tangente", "Tangente", "face cilíndrica numa face plana: encostada"),
     ("esfera", "plano"): ("Distance", "tangente", "Tangente", "esfera numa face plana: encostada"),
-    ("cone", "plano"): ("Distance", "tangente", "Tangente", "face cônica numa face plana: encostada"),
     ("cilindro", "esfera"): ("Distance", "tangente", "Tangente", "esfera encostada no cilindro"),
     ("circulo", "plano"): ("Distance", "coincidente", "Coincidente", "borda redonda apoiada na face plana"),
     ("plano", "reta"): ("Distance", "coincidente", "Coincidente", "aresta apoiada na face plana"),

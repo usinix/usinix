@@ -15,6 +15,15 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.30.3 — 26/11/2026
+
+### Montagem
+
+- **Tangente só onde é exata:** a restrição Tangente aceita faces planas, cilíndricas e esféricas, que o cálculo da
+  montagem trata com exatidão. Face de perfil livre (como o perfil de um came em B-spline), cônica ou tórica passa a
+  ser recusada com uma explicação; antes a montagem aceitava e punha a peça no lugar errado, sem aviso. Para came de
+  perfil livre, o caminho é acionar o seguidor pela Simulação com a lei de deslocamento.
+
 ## 1.30.2 — 26/11/2026
 
 ### Peça

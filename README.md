@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.30.2** (26/11/2026): chaves da engrenagem evolvente no lugar certo; na busca de comandos, a
+**Versão atual: 1.30.3** (26/11/2026): a restrição Tangente da montagem só aceita faces planas, cilíndricas e
+esféricas e explica quando recusa (came de perfil livre, cone ou toro montavam errado sem aviso).
+
+Na 1.30.2: chaves da engrenagem evolvente no lugar certo; na busca de comandos, a
 linha marcada de início fica legível e cai no primeiro comando que roda.
 
 Na 1.30.1: Novo corpo ignora, sem erro, a face de uma extrusão selecionada; engrenagem
