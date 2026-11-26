@@ -23221,7 +23221,7 @@ class T182Defeitos1301(unittest.TestCase):
             self.assertEqual(pal.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight).name().upper(), "#FFF4CC")
             self.assertEqual(pal.color(QtGui.QPalette.Active, QtGui.QPalette.HighlightedText).name().upper(),
                              "#1E2A38")
-            self.assertIn("item:selected:active", caixa.styleSheet())
+            self.assertIn("#UsinixBuscaLista::item:selected", caixa.styleSheet())
             rodados = []
             orig = B.rodar
             try:
@@ -23263,3 +23263,81 @@ class T182Defeitos1301(unittest.TestCase):
             self.assertEqual(b.Origin.Label, "Origem" + num, "%s com %s" % (b.Label, b.Origin.Label))
             pontos = [f.Label for f in b.Origin.OriginFeatures if f.TypeId == "App::Point"]
             self.assertEqual(pontos, ["Ponto de origem" + num])
+
+
+class T183Defeitos1302(unittest.TestCase):
+    """1.30.2: chaves da engrenagem fora da célula do formulário (36); linha marcada de início ilegível e
+    marcação num comando inativo na busca (37)."""
+
+    _esp = T62PainelDeComando._esp
+    _ok = T62PainelDeComando._ok
+    _fechar_janelas = T63FerramentasDePontaAPonta._fechar_janelas
+    setUp = T69Fixacao.setUp
+    tearDown = T69Fixacao.tearDown
+    _corpo = T69Fixacao._corpo
+
+    def test_chaves_da_engrenagem_na_celula_certa(self):
+        from PySide import QtWidgets
+        FreeCADGui.activateWorkbench("PartDesignWorkbench")
+        body, _p = self._corpo()
+        FreeCADGui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
+        avisos = []
+        from PySide import QtCore
+
+        def captura(tipo, ctx, msg):
+            avisos.append(msg)
+        antigo = QtCore.qInstallMessageHandler(captura)
+        try:
+            FreeCADGui.runCommand("PartDesign_InvoluteGear", 0)
+            self._esp(1.5)
+            panel = self.C._painel_de_tarefas()
+            self.C.chaves_da_engrenagem(panel)
+            self._esp(0.3)
+        finally:
+            QtCore.qInstallMessageHandler(antigo)
+        self.assertEqual([a for a in avisos if "already occupied" in a], [])
+        for nome in self.C.CHAVES_DA_ENGRENAGEM:
+            cb = panel.findChild(QtWidgets.QComboBox, nome)
+            lay = cb.parentWidget().layout()
+            rot = panel.findChild(QtWidgets.QLabel, nome.replace("comboBox_", "label_"))
+            linha, _papel = lay.getWidgetPosition(rot)
+            self.assertGreaterEqual(linha, 0)
+            campo = lay.itemAt(linha, QtWidgets.QFormLayout.FieldRole).widget()
+            self.assertEqual(campo.objectName(), nome.replace("comboBox_", "UsinixLinha_"),
+                             "%s: a chave não está ao lado do rótulo" % nome)
+            ch = campo.findChild(QtWidgets.QWidget, nome.replace("comboBox_", "UsinixChave_"))
+            self.assertTrue(ch.isVisible())
+            # nada sobreposto: a chave fica na mesma altura do seu rótulo
+            self.assertLess(abs(ch.mapTo(panel, ch.rect().center()).y() - rot.mapTo(panel, rot.rect().center()).y()),
+                            rot.height())
+        self.assertTrue(self._ok())
+
+    def test_busca_linha_marcada_legivel_e_primeiro_ativo(self):
+        import UsinixBuscaComandos as B
+        from PySide import QtCore, QtGui
+        caixa = B.BuscaComandos()
+        orig = B.comando_ativo
+        try:
+            caixa.show()
+            caixa.filtrar("caixa")
+            caixa.campo.setFocus()
+            self._esp(0.3)
+            self.assertGreater(caixa.lista.count(), 1)
+            li = caixa.lista.currentItem()
+            r = caixa.lista.visualItemRect(li)
+            img = caixa.lista.viewport().grab().toImage()
+            dpr = img.devicePixelRatio() or 1.0
+            cor = img.pixelColor(int((r.right() - 6) * dpr), int(r.center().y() * dpr))
+            alvo = QtGui.QColor("#FFF4CC")
+            self.assertLess(abs(cor.red() - alvo.red()) + abs(cor.green() - alvo.green()) + abs(cor.blue() - alvo.blue()),
+                            40, "linha marcada com fundo %s em vez do amarelo-claro" % cor.name())
+            # primeiro resultado inativo: a marcação vai para o primeiro que roda
+            primeiro = caixa.lista.item(0).data(QtCore.Qt.UserRole)[0]
+            B.comando_ativo = lambda c, p=primeiro: c != p
+            caixa.filtrar("caixa")
+            self.assertEqual(caixa.lista.currentRow(), 1)
+            self.assertEqual(caixa.lista.item(0).foreground().color().name().upper(), "#6B7682")
+        finally:
+            B.comando_ativo = orig
+            caixa.close()
+            caixa.deleteLater()

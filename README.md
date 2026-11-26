@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.30.1** (26/11/2026): Novo corpo ignora, sem erro, a face de uma extrusão selecionada; engrenagem
+**Versão atual: 1.30.2** (26/11/2026): chaves da engrenagem evolvente no lugar certo; na busca de comandos, a
+linha marcada de início fica legível e cai no primeiro comando que roda.
+
+Na 1.30.1: Novo corpo ignora, sem erro, a face de uma extrusão selecionada; engrenagem
 evolvente e roda dentada com nome em português, chaves liga/desliga e aviso de que o resultado é um perfil a
 extrudar; busca de comandos com linha marcada legível e clique simples que roda; painel volta para a Árvore depois
 do OK; origens numeradas pelo corpo; a bateria de testes não fecha mais documentos já abertos.

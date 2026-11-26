@@ -15,6 +15,18 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.30.2 — 26/11/2026
+
+### Peça
+
+- **Engrenagem evolvente:** as chaves "Alta precisão" e "Engrenagem externa" ficam ao lado dos seus rótulos (antes
+  uma chave ficava solta por cima de outro campo e as linhas apareciam vazias).
+
+### Interface
+
+- **Procurar comando:** a linha marcada de início fica legível (fundo amarelo-claro, texto escuro) e a marcação vai
+  para o primeiro comando que roda; os indisponíveis aparecem em cinza.
+
 ## 1.30.1 — 26/11/2026
 
 ### Peça

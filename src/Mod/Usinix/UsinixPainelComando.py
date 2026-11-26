@@ -4406,12 +4406,16 @@ def chaves_da_engrenagem(panel=None):
         if isinstance(lay, QtWidgets.QFormLayout):
             linha, _papel = lay.getWidgetPosition(cb)
             caixa = QtWidgets.QWidget()
+            caixa.setObjectName(nome.replace("comboBox_", "UsinixLinha_"))
             h = QtWidgets.QHBoxLayout(caixa)
             h.setContentsMargins(0, 0, 0, 0)
             h.addWidget(ch)
             h.addStretch(1)
-            lay.setWidget(linha, QtWidgets.QFormLayout.FieldRole, caixa)
+            # a célula ainda tinha a lista: sem tirá-la, o setWidget recusava ("Cell already occupied") e a
+            # chave ficava solta por cima de outro rótulo
+            lay.removeWidget(cb)
             cb.hide()
+            lay.setWidget(linha, QtWidgets.QFormLayout.FieldRole, caixa)
         else:
             cb.parentWidget().layout().addWidget(ch) if cb.parentWidget() and cb.parentWidget().layout() else None
             cb.hide()

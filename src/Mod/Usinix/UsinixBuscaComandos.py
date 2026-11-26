@@ -235,6 +235,16 @@ def rodar(item, ribbon=None):
     AV.executar(cmd, lambda: FreeCADGui.runCommand(cmd, 0), _rot)
 
 
+def comando_ativo(cmd):
+    """O comando (o principal de "A|B") roda agora? Sem como saber, conta como ativo."""
+    try:
+        import FreeCADGui
+        acts = FreeCADGui.Command.get(str(cmd).split("|")[0]).getAction() or []
+        return not acts or any(a.isEnabled() for a in acts)
+    except Exception:
+        return True
+
+
 def icone_do_comando(cmd):
     """Ícone do comando (o primeiro de um grupo "A|B"): o mesmo do botão da faixa, ou o do comando."""
     from PySide import QtGui
@@ -280,6 +290,7 @@ if QtWidgets is not None:
             self.campo.setClearButtonEnabled(True)
             lay.addWidget(self.campo)
             self.lista = QtWidgets.QListWidget()
+            self.lista.setObjectName("UsinixBuscaLista")
             self.lista.setMinimumWidth(380)
             self.lista.setMinimumHeight(260)
             self.lista.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -307,9 +318,10 @@ if QtWidgets is not None:
                 "QListWidget { border: none; background: transparent; color: %s; }"
                 "QListWidget::item { padding: 5px 4px; border-radius: 4px; }"
                 # linha marcada: o tema geral (item:selected:active) deixava fundo branco e texto cinza-claro
-                "QListWidget::item:selected, QListWidget::item:selected:active, QListWidget::item:selected:!active,"
-                " QListWidget::item:selected:focus { background: #FFF4CC; color: #1E2A38; }"
-                "QListWidget::item:hover:!selected { background: %s; }"
+                # pelo nome da lista: o tema geral tem regras de linha marcada mais específicas, que ganhavam
+                # (fundo branco e texto cinza-claro na linha marcada de início, com o foco no campo)
+                "QListWidget#UsinixBuscaLista::item:selected { background: #FFF4CC; color: #1E2A38; }"
+                "QListWidget#UsinixBuscaLista::item:hover:!selected { background: %s; }"
                 % (fundo, borda, borda, texto, texto, "#2A333D" if escuro else "#EEF2F6"))
             pal = self.lista.palette()
             for grupo in (QtGui.QPalette.Active, QtGui.QPalette.Inactive):
@@ -333,7 +345,16 @@ if QtWidgets is not None:
                 li.setData(QtCore.Qt.UserRole, it)
                 self.lista.addItem(li)
             if self.lista.count():
-                self.lista.setCurrentRow(0)
+                # marca o primeiro comando que roda aqui; os inativos (de outra aba) ficam em cinza
+                inicial = 0
+                for r in range(self.lista.count() - 1, -1, -1):
+                    li = self.lista.item(r)
+                    if comando_ativo(li.data(QtCore.Qt.UserRole)[0]):
+                        inicial = r
+                    else:
+                        li.setForeground(QtGui.QBrush(QtGui.QColor("#6B7682")))
+                        li.setToolTip("Indisponível agora (abra a aba ou selecione o que o comando pede)")
+                self.lista.setCurrentRow(inicial)
             self.dica.setText(("Ferramentas da aba · digite para procurar todas · clique ou Enter roda · Esc fecha"
                                if not texto and getattr(self, "padrao", None)
                                else "Clique ou Enter roda · ↑↓ escolhe · Esc fecha") if self.lista.count() or not texto
