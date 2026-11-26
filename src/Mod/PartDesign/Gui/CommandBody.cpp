@@ -159,8 +159,30 @@ void CmdPartDesignBody::activated(int iMsg)
                 // if a standard Part feature (not a PartDesign feature) is selected then check
                 // the number of solids/shells
                 else if (!baseFeature->isDerivedFrom<PartDesign::Feature>()) {
-                    const TopoDS_Shape& shape
-                        = static_cast<Part::Feature*>(baseFeature)->Shape.getValue();
+                    // Usinix: ask before turning the selected solid into the base of the new body
+                    // (a part selected by chance became the base without a way out)
+                    QMessageBox::StandardButton answer = QMessageBox::question(
+                        Gui::getMainWindow(),
+                        QObject::tr("New body"),
+                        QObject::tr(
+                            "Use \"%1\" as the base of the new body?\n\n"
+                            "Yes: the new body starts from this solid.\n"
+                            "No: the new body starts empty."
+                        )
+                            .arg(QString::fromUtf8(baseFeature->Label.getValue())),
+                        QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+                        QMessageBox::No
+                    );
+                    if (answer == QMessageBox::Cancel) {
+                        return;
+                    }
+                    if (answer != QMessageBox::Yes) {
+                        baseFeature = nullptr;
+                    }
+                    TopoDS_Shape shape;
+                    if (baseFeature) {
+                        shape = static_cast<Part::Feature*>(baseFeature)->Shape.getValue();
+                    }
                     if (!shape.IsNull()) {
                         int numSolids = 0;
                         int numShells = 0;

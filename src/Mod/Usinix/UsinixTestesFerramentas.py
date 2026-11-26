@@ -22950,3 +22950,149 @@ class T180JanelaDeCorECtrlCliqueNaArvore(unittest.TestCase):
         FreeCADGui.updateGui()
         nomes = sorted(o.Name for o in FreeCADGui.Selection.getSelection(self.doc.Name))
         self.assertEqual(nomes, ["PecaA", "PecaB"])
+
+
+class T181Defeitos130(unittest.TestCase):
+    """1.30.0: caixa "Como funciona" que pulava para o rodapé (24); pergunta do Novo corpo (25); engrenagem
+    evolvente na busca (26); Posicionamento de peça presa (27); vista que se ajusta depois do recurso (28)."""
+
+    _esp = T62PainelDeComando._esp
+    _ok = T62PainelDeComando._ok
+    _fechar_janelas = T63FerramentasDePontaAPonta._fechar_janelas
+    setUp = T69Fixacao.setUp
+    tearDown = T69Fixacao.tearDown
+    _corpo = T69Fixacao._corpo
+
+    def _extrusao(self, body, larg=40.0, x=0.0):
+        sk = esboco_retangulo(body, larg, 20.0)
+        if x:
+            sk.AttachmentOffset = FreeCAD.Placement(FreeCAD.Vector(x, 0, 0), FreeCAD.Rotation())
+        pad = body.newObject("PartDesign::Pad", "Extrusao")
+        pad.Profile = sk
+        pad.Length = 10
+        sk.Visibility = False
+        self.doc.recompute()
+        return sk, pad
+
+    def test_guia_fica_no_topo(self):
+        import UsinixGuia
+        from PySide import QtWidgets
+        UsinixGuia.install()
+        body, _p = self._corpo()
+        _sk, pad = self._extrusao(body)
+        for _rodada in range(3):
+            FreeCADGui.ActiveDocument.setEdit(pad.Name)
+            self._esp(1.5)
+            g = UsinixGuia._guia["obj"]
+            self.assertTrue(g._valid(), "a caixa Como funciona não apareceu")
+            lay = g.frame.parentWidget().layout()
+            self.assertEqual(lay.indexOf(g.frame), 0, "a caixa Como funciona saiu do topo")
+            cartoes = self.C.painel()
+            self.assertIsNotNone(cartoes)
+            self.assertGreater(lay.indexOf(cartoes), 0)
+            # algo que entre acima dela é empurrado para baixo no tique seguinte
+            intruso = QtWidgets.QLabel("intruso")
+            lay.insertWidget(0, intruso)
+            g._tick()
+            self.assertEqual(lay.indexOf(g.frame), 0)
+            intruso.deleteLater()
+            FreeCADGui.Control.closeDialog()
+            self._esp(0.6)
+
+    def test_textos_do_novo_corpo(self):
+        import UsinixI18n
+        from PySide import QtCore
+        FreeCADGui.updateGui()
+        UsinixI18n.raise_priority()
+        tr = QtCore.QCoreApplication.translate
+        self.assertEqual(tr("QObject", "New body"), "Novo corpo")
+        txt = tr("QObject", "Use \"%1\" as the base of the new body?\n\nYes: the new body starts from this solid.\n"
+                            "No: the new body starts empty.")
+        self.assertTrue(txt.startswith("Usar \"%1\" como base do corpo novo?"), txt)
+        self.assertIn("Não: o corpo novo começa vazio.", txt)
+        # o texto em inglês é o mesmo do C++ (CommandBody.cpp)
+        import os
+        src = os.path.join(FreeCAD.getHomePath(), "..", "src", "Mod", "PartDesign", "Gui", "CommandBody.cpp")
+        if os.path.isfile(src):
+            with open(src, encoding="utf-8") as f:
+                self.assertIn('"Use \\"%1\\" as the base of the new body?\\n\\n"', f.read())
+
+    def test_busca_acha_engrenagem_e_menu_da_setinha(self):
+        import UsinixBuscaComandos as B
+        import UsinixRibbon as R
+        FreeCADGui.activateWorkbench("PartDesignWorkbench")
+        self._esp(0.3)
+        peca = [t for t in R.TABS if t["id"] == "peca"][0]
+        todos = [c for _p, itens in peca["panels"] for item in itens for c in item[0].split("|")]
+        self.assertIn("PartDesign_InvoluteGear", todos)
+        itens = B.indice()
+        for termo in ("engrenagem", "evolvente", "involute"):
+            self.assertIn("PartDesign_InvoluteGear", [it[0] for it in B.procurar(termo, itens)], termo)
+        self.assertIn("Part_Box", [it[0] for it in B.procurar("caixa", itens)], "item do menu do Sólido")
+        cmds = [it[0] for it in itens]
+        self.assertEqual(len(cmds), len(set(cmds)), "comando repetido no índice")
+        # botão com menu: a busca roda o comando principal (antes mandava "A|B" inteiro)
+        chamados = []
+        orig = FreeCADGui.runCommand
+        try:
+            FreeCADGui.runCommand = lambda c, i=0: chamados.append(c)
+            B.rodar(("Std_New|Std_Open", "Novo", None))      # sempre ativo
+        finally:
+            FreeCADGui.runCommand = orig
+        self.assertEqual(chamados, ["Std_New"])
+
+    def test_nota_do_posicionamento_de_peca_presa(self):
+        body, _p = self._corpo()
+        sk, _pad = self._extrusao(body)
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(sk)
+        FreeCADGui.runCommand("Std_Placement", 0)
+        self._esp(1.0)
+        nota = self.C.nota_do_posicionamento()
+        self.assertIsNotNone(nota, "sem nota para o esboço preso ao plano")
+        self.assertTrue(nota.isVisible())
+        self.assertIn("deslocamento da fixação", nota.text())
+        FreeCADGui.Control.closeDialog()
+        self._esp(0.4)
+        solta = self.doc.addObject("Part::Box", "Solta")
+        self.doc.recompute()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(solta)
+        FreeCADGui.runCommand("Std_Placement", 0)
+        self._esp(1.0)
+        self.assertIsNone(self.C.nota_do_posicionamento(), "peça solta não leva a nota")
+        FreeCADGui.Control.closeDialog()
+
+    def test_vista_se_ajusta_depois_do_recurso(self):
+        body, _p = self._corpo()
+        _sk, pad = self._extrusao(body, larg=40.0, x=3000.0)
+        view = FreeCADGui.ActiveDocument.ActiveView
+        estado = {}
+        FreeCADGui.ActiveDocument.setEdit(pad.Name)
+        self._esp(1.0)
+        self.assertFalse(self.C.ajuste_de_vista(estado))
+        self.assertIn("edicao", estado)
+        self.assertTrue(self._ok())
+        self._esp(0.4)
+        self.assertIsNone(self.C.em_edicao(), "a edição não terminou com o OK")
+        # a vista olha para a origem, longe da peça (x = 3000 mm)
+        view.viewIsometric()
+        view.setCameraType("Orthographic")
+        cam = view.getCameraNode()
+        cam.position.setValue(0, 0, 500)
+        cam.height.setValue(100)
+        self._esp(0.3)
+        self.assertTrue(self.C.ajuste_de_vista(estado), "a vista não se ajustou com a peça fora da tela")
+        self._esp(0.3)
+        w, h = view.getSize()
+        bb = body.Shape.BoundBox
+        for i in range(8):
+            x, y = view.getPointOnViewport(bb.getPoint(i))
+            self.assertTrue(0 <= x <= w and 0 <= y <= h, "canto da peça fora da tela depois do ajuste")
+        # com tudo à vista, não mexe
+        FreeCADGui.ActiveDocument.setEdit(pad.Name)
+        self._esp(1.0)
+        self.C.ajuste_de_vista(estado)
+        self.assertTrue(self._ok())
+        self._esp(0.4)
+        self.assertFalse(self.C.ajuste_de_vista(estado))

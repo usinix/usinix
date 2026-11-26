@@ -53,6 +53,8 @@ SINONIMOS = {
     "peso": "massa", "medir": "medir", "interferencia": "interferencia", "colisao": "interferencia",
     "explodida": "explodida", "motor": "simulacao", "fem": "simulacao estudo", "tensao": "simulacao",
     "junta": "restricao", "fixar": "fixar peca", "ground": "fixar", "lock": "travar",
+    "evolvente": "engrenagem", "involute": "engrenagem evolvente", "pinhao": "engrenagem", "coroa": "engrenagem",
+    "sprocket": "roda dentada", "catraca": "roda dentada", "corrente": "roda dentada",
     "gradil": "barra varredura", "grade": "barra varredura", "xadrez": "barra varredura",
     "chapa expandida": "barra varredura", "vergalhao": "barra varredura", "lote": "folhas lote", "pranchas": "folhas lote", "automatico": "arredondamento automatico",
 }
@@ -103,19 +105,38 @@ def indice(tabs=None):
         for grupo, itens in t.get("panels", []):
             for item in itens:
                 cmd, _tam, rot = item[0], item[1], item[2]
-                if cmd in vistos or (existentes is not None and cmd.split("|")[0] not in existentes):
+                partes = cmd.split("|")
+                if cmd in vistos or (existentes is not None and partes[0] not in existentes):
                     continue
                 vistos.add(cmd)
                 menu = dica = ""
                 if FreeCADGui is not None:
                     try:
-                        info = FreeCADGui.Command.get(cmd).getInfo()
+                        info = FreeCADGui.Command.get(partes[0]).getInfo()
                         menu, dica = info.get("menuText", ""), info.get("toolTip", "")
                     except Exception:
                         pass
                 rot = " ".join(str(rot).split())
                 busca = normalizar(" ".join((rot, menu, t["label"], grupo, dica[:200])))
                 res.append((cmd, rot, t["id"], t["label"], grupo, busca, _nomes_outros_cad(cmd)))
+                # os do menu da setinha (ex.: Esboço › Engrenagem evolvente) também se acham pelo próprio nome
+                for sub in partes[1:]:
+                    if sub in vistos or (existentes is not None and sub not in existentes) or FreeCADGui is None:
+                        continue
+                    try:
+                        c = FreeCADGui.Command.get(sub)
+                        info = c.getInfo()
+                        acts = c.getAction() or []
+                    except Exception:
+                        continue
+                    # o texto do botão já vem traduzido; o getInfo devolve o original ("Involute Gear")
+                    texto = acts[0].text() if acts and acts[0].text() else info.get("menuText", "")
+                    srot = " ".join(texto.replace("&", "").replace("…", "").replace("...", "").split())
+                    if not srot:
+                        continue
+                    vistos.add(sub)
+                    sbusca = normalizar(" ".join((srot, rot, t["label"], grupo, info.get("toolTip", "")[:200])))
+                    res.append((sub, srot, t["id"], t["label"], grupo, sbusca, _nomes_outros_cad(sub)))
     # ferramentas da barra de vistas (embaixo da vista 3D): não têm aba
     try:
         import UsinixBarraVista
@@ -191,6 +212,7 @@ def rodar(item, ribbon=None):
     """Vai para a aba da ferramenta e roda o comando."""
     import FreeCADGui
     cmd, _rot, aba = item[0], item[1], item[2]
+    cmd = cmd.split("|")[0]                 # botão com menu na setinha: roda o principal
     if ribbon is not None and aba:
         try:
             ribbon.select_tab(aba, user=True)

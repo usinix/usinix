@@ -15,6 +15,26 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.30.0 — 26/11/2026
+
+### Peça
+
+- **Novo corpo com uma peça selecionada:** antes a peça virava a base do corpo novo sem perguntar (o aviso só tinha
+  OK). Agora pergunta "Usar … como base do corpo novo?", com Sim, Não (corpo vazio) e Cancelar.
+- **Posicionamento de peça presa:** em Editar › Posicionamento, um esboço preso a um plano (ou outra peça com
+  fixação) não se movia, porque o FreeCAD recalcula a posição pela fixação. Agora o diálogo edita o deslocamento
+  da fixação, com uma nota explicando.
+- **Vista depois do recurso:** ao confirmar uma extrusão, uma primitiva ou outro recurso de sólido, a vista se
+  ajusta se a peça ficou fora da tela (como na escada); se tudo aparece, não mexe.
+- **Engrenagem evolvente e roda dentada** no menu do botão Esboço.
+
+### Interface
+
+- **Caixa "Como funciona"** fica sempre no topo do painel; antes às vezes ia para o rodapé e o campo da medida mudava
+  de lugar.
+- **Procurar comando (Ctrl+K):** acha também o que fica no menu da setinha dos botões (ex.: "engrenagem",
+  "evolvente", "caixa"), pelo nome em português.
+
 ## 1.29.9 — 26/11/2026
 
 ### Peça

@@ -628,6 +628,12 @@ GLOSSARIO = {
     ("SheetMetal", "Create hems on edges.\n1. Select edges to create bends with walls.\n2. Use Property editor to "
                    "modify other parameters"):
         "Cria bainhas nas arestas\n1. Selecione as arestas.\n2. Ajuste os demais parâmetros",
+    # Novo corpo com um sólido selecionado (CommandBody.cpp): pergunta antes de usá-lo como base
+    ("QObject", "New body"): "Novo corpo",
+    ("QObject", "Use \"%1\" as the base of the new body?\n\nYes: the new body starts from this solid.\n"
+                "No: the new body starts empty."):
+        "Usar \"%1\" como base do corpo novo?\n\nSim: o corpo novo começa por este sólido.\n"
+        "Não: o corpo novo começa vazio.",
     # Janela de cor do Qt: o arquivo de tradução do Qt não traz estes (o resto da janela sai em português)
     ("QColorDialog", "Select Color"): "Selecionar cor",
     ("QColorDialog", "&Pick Screen Color"): "&Capturar cor da tela",

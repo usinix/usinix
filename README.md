@@ -35,9 +35,13 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.9** (26/11/2026): peça solta no corpo (Caixa sem referência) ganha o cartão "Posição" com
-X, Y e Z; nas primitivas soltas, os campos da rotação dizem que são o eixo e o ângulo; janela de cor toda em
-português.
+**Versão atual: 1.30.0** (26/11/2026): Novo corpo pergunta antes de usar a peça selecionada como base;
+Posicionamento de esboço preso a plano passa a mover pelo deslocamento da fixação; a vista se ajusta depois de uma
+extrusão ou primitiva que saiu da tela; a busca de comandos acha o que está no menu dos botões (engrenagem
+evolvente, caixa…); a caixa "Como funciona" não muda mais de lugar no painel.
+
+Na 1.29.9: peça solta no corpo (Caixa sem referência) ganha o cartão "Posição" com X, Y e Z; nas primitivas soltas,
+os campos da rotação dizem que são o eixo e o ângulo; janela de cor toda em português.
 
 Na 1.29.8: a simulação avisa no painel e no relatório quando a malha é de 1ª ordem (tensões e deslocamentos
 subestimados); a barra de cores usa vírgula decimal e mostra o campo e a unidade; a barra de status da árvore mostra

@@ -115,7 +115,10 @@ TABS = [
     ]},
     {"id": "peca", "label": "Peça", "wb": "PartDesignWorkbench", "wb_extra": ["PartWorkbench"], "panels": [
         ("Corpo", [
-            ("PartDesign_Body", L, "Novo\ncorpo"), ("PartDesign_CompSketches|Usinix_Esboco3D", L, "Esboço"),
+            # no menu do Esboço, os perfis prontos para extrudar (engrenagem evolvente, roda dentada): antes só no
+            # menu Peça, e a busca (Ctrl+K) não os achava
+            ("PartDesign_Body", L, "Novo\ncorpo"),
+            ("PartDesign_CompSketches|Usinix_Esboco3D|PartDesign_InvoluteGear|PartDesign_Sprocket", L, "Esboço"),
             # um botão só: subforma (a mais completa), forma e clone no menu da setinha
             ("PartDesign_SubShapeBinder|PartDesign_ShapeBinder|PartDesign_Clone", L, "Vínculo"),
             # referências: só o Novo plano (grupo Ferramentas); o grupo Eixo, ponto, sistema saiu

@@ -40,7 +40,9 @@ TENTATIVAS_MAX = 2
 # um pacote antigo (Mod/Prumo3D) carregaria os dois módulos juntos
 # 1.29.5: C++ novo (barra de status em português); a 1.29.4 já tinha essa mudança, mas saiu com a base antiga
 # 1.29.8: C++ novo (barra de cores com vírgula decimal e título com o campo e a unidade)
-BASE_MINIMA = "1.29.8"
+# 1.30.0: C++ novo (Novo corpo pergunta antes de usar a seleção como base; Posicionamento de peça presa edita o
+# deslocamento da fixação)
+BASE_MINIMA = "1.30.0"
 
 _estado = {"aqui": None, "usuario": False, "delegou": None, "motivo": ""}
 

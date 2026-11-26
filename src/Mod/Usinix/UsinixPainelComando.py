@@ -4282,7 +4282,100 @@ def rotulos_da_localizacao(panel=None):
     return True
 
 
+# Editar › Posicionamento numa peça presa (esboço num plano, primitiva com referência): o FreeCAD recalcula a
+# posição pela fixação, então o diálogo passa a editar o deslocamento da fixação; a nota diz isso.
+NOTA_POSICIONAMENTO_PRESO = ("Peça presa a uma referência: estes valores são o deslocamento da fixação, medido a "
+                             "partir da referência (não a posição absoluta).")
+
+
+def _presa(obj):
+    return ("AttachmentOffset" in getattr(obj, "PropertiesList", []) and
+            getattr(obj, "MapMode", "Deactivated") != "Deactivated")
+
+
+def nota_do_posicionamento(panel=None):
+    """Põe a nota no diálogo de posicionamento quando todos os objetos selecionados estão presos.
+    Devolve o QLabel da nota (ou None)."""
+    panel = panel if panel is not None else _painel_de_tarefas()
+    if panel is None:
+        return None
+    dlg = next((w for w in panel.findChildren(QtWidgets.QWidget)
+                if w.metaObject().className() == "Gui::Dialog::Placement"), None)
+    if dlg is None:
+        return None
+    nota = dlg.findChild(QtWidgets.QLabel, "UsinixNotaPresa")
+    sel = FreeCADGui.Selection.getSelection()
+    if not sel or not all(_presa(o) for o in sel):
+        if nota is not None:
+            nota.hide()
+        return None
+    if nota is None:
+        nota = QtWidgets.QLabel(NOTA_POSICIONAMENTO_PRESO, dlg)
+        nota.setObjectName("UsinixNotaPresa")
+        nota.setWordWrap(True)
+        nota.setStyleSheet("background:#FFF6D6; color:#4D3B00; border-left:3px solid #E0A100; padding:6px 8px;")
+        lay = dlg.layout()
+        if lay is not None and hasattr(lay, "insertWidget"):
+            lay.insertWidget(0, nota)
+        elif lay is not None and hasattr(lay, "addWidget") and isinstance(lay, QtWidgets.QGridLayout):
+            lay.addWidget(nota, lay.rowCount(), 0, 1, max(1, lay.columnCount()))
+    nota.show()
+    return nota
+
+
+def _vivo_doc_obj(doc_nome, obj_nome):
+    try:
+        doc = FreeCAD.getDocument(doc_nome)
+    except Exception:
+        return None
+    return doc.getObject(obj_nome) if doc is not None else None
+
+
+def ajuste_de_vista(estado=None):
+    """Depois de uma extrusão, primitiva ou outro recurso de sólido (OK no painel), ajusta a vista se a peça
+    saiu da tela, como já acontece na escada; se tudo aparece, não mexe. Vale também para as primitivas soltas
+    (quadro Localização). Devolve True quando ajustou."""
+    estado = estado if estado is not None else _estado.setdefault("vista", {})
+    obj = em_edicao()
+    if obj is not None:
+        estado["edicao"] = (obj.Document.Name, obj.Name)
+        return False
+    ajustou = False
+    ant = estado.pop("edicao", None)
+    if ant is not None and not FreeCADGui.Control.activeDialog():
+        o = _vivo_doc_obj(*ant)                 # cancelar um recurso novo apaga o objeto: aí não mexe
+        if o is not None and getattr(o, "Shape", None) is not None and not o.Shape.isNull():
+            corpo = o.getParentGeoFeatureGroup() if hasattr(o, "getParentGeoFeatureGroup") else None
+            import UsinixUtil
+            ajustou = UsinixUtil.enquadrar_se_fora([corpo if corpo is not None else o])
+    # primitivas soltas: o quadro Localização aberto marca os objetos que já existiam
+    panel = _painel_de_tarefas()
+    loc = panel is not None and panel.findChild(QtWidgets.QGroupBox, "RotationGB") is not None
+    doc = FreeCAD.ActiveDocument
+    if loc and doc is not None:
+        estado.setdefault("primitivas", (doc.Name, set(o.Name for o in doc.Objects)))
+    elif "primitivas" in estado and not loc:
+        nome, antes = estado.pop("primitivas")
+        try:
+            d = FreeCAD.getDocument(nome)
+        except Exception:
+            d = None
+        novos = [o for o in (d.Objects if d is not None else []) if o.Name not in antes and hasattr(o, "Shape")]
+        if novos:
+            import UsinixUtil
+            ajustou = UsinixUtil.enquadrar_se_fora(novos) or ajustou
+    return ajustou
+
+
 def _tick_localizacao():
+    try:
+        ajuste_de_vista()
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: ajuste da vista: {}\n".format(exc))
+    try:
+        nota_do_posicionamento()
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: nota do posicionamento: {}\n".format(exc))
     try:
         rotulos_da_localizacao()
     except Exception as exc:

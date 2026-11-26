@@ -31,12 +31,15 @@
 
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <algorithm>
+#include <string>
 
 #include <App/AutoTransaction.h>
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/Expression.h>
 #include <App/GeoFeature.h>
+#include <App/PropertyStandard.h>
 #include <Base/Exception.h>
 #include <Base/FileInfo.h>
 #include <Base/Stream.h>
@@ -1716,7 +1719,18 @@ void StdCmdPlacement::activated(int iMsg)
     );
     auto plm = new Gui::Dialog::TaskPlacement();
     if (!sel.empty()) {
-        App::Property* prop = sel.front()->getPropertyByName("Placement");
+        // Usinix: an attached object gets its Placement back from the attachment on recompute, so a
+        // change made here was undone. When every selected object is attached, edit the attachment
+        // offset instead.
+        auto attached = [](App::DocumentObject* obj) {
+            auto offset = dynamic_cast<App::PropertyPlacement*>(obj->getPropertyByName("AttachmentOffset"));
+            auto mode = dynamic_cast<App::PropertyEnumeration*>(obj->getPropertyByName("MapMode"));
+            const char* value = mode ? mode->getValueAsString() : nullptr;
+            return offset && value && std::string(value) != "Deactivated";
+        };
+        const char* propName = std::all_of(sel.cbegin(), sel.cend(), attached) ? "AttachmentOffset"
+                                                                                 : "Placement";
+        App::Property* prop = sel.front()->getPropertyByName(propName);
         if (prop && prop->is<App::PropertyPlacement>()) {
             plm->setPlacement(static_cast<App::PropertyPlacement*>(prop)->getValue());
 
@@ -1729,7 +1743,7 @@ void StdCmdPlacement::activated(int iMsg)
                 [](App::DocumentObject* obj) { return Gui::SelectionObject(obj); }
             );
 
-            plm->setPropertyName(QLatin1String("Placement"));
+            plm->setPropertyName(QLatin1String(propName));
             plm->setSelection(selection);
             plm->bindObject();
             plm->clearSelection();

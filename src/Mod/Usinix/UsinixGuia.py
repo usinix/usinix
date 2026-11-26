@@ -459,18 +459,17 @@ class Guia:
         panel = self._task_panel()
         if panel is None:
             return
+        lay = panel.layout()
         if not self._valid() or self.frame.parent() is not panel:
             self._drop()
-            lay = panel.layout()
-            idx = 0
-            import UsinixUI
-            for i, w in UsinixUI.widgets_do_layout(lay):
-                if w is not None and w.isVisible():
-                    idx = i
-                    break
+            # sempre no topo: procurar o "primeiro visível" falhava logo depois que os cartões do Usinix entravam
+            # (ainda não mostrados, com o formulário original já escondido) e a caixa ia para o rodapé
             self.frame = GuiaFrame(panel)
-            lay.insertWidget(idx, self.frame)
+            lay.insertWidget(0, self.frame)
             self.key = None
+        elif lay.indexOf(self.frame) != 0:
+            lay.removeWidget(self.frame)
+            lay.insertWidget(0, self.frame)
         if key != self.key:
             self.key = key
             if so_aviso:
