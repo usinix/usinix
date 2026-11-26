@@ -38,6 +38,7 @@ NOMES = {
     "DatumPlane": "Plano de referência", "DatumLine": "Linha de referência", "DatumPoint": "Ponto de referência",
     "LocalCoordinateSystem": "Sistema de coordenadas local", "ShapeBinder": "Vínculo de forma",
     "SubShapeBinder": "Vínculo de subforma", "Binder": "Vínculo",
+    "InvoluteGear": "Engrenagem evolvente", "Sprocket": "Roda dentada",
     # origem (eixos e planos)
     "Origin": "Origem", "X_Axis": "Eixo X", "Y_Axis": "Eixo Y", "Z_Axis": "Eixo Z",
     "XY_Plane": "Plano XY", "XZ_Plane": "Plano XZ", "YZ_Plane": "Plano YZ",
@@ -93,12 +94,55 @@ def _documento_ocupado(doc):
     return False
 
 
+def _dono_da_origem(obj):
+    """Corpo, parte ou montagem cuja origem é `obj` (ou None)."""
+    try:
+        if obj.TypeId != "App::Origin":
+            return None
+        for o in obj.InList:
+            if getattr(o, "Origin", None) is obj:
+                return o
+    except Exception:
+        pass
+    return None
+
+
+def rotulo_da_origem(obj):
+    """A origem leva o número do seu dono: Corpo001 → Origem001 (antes: Origem003, Origem005…, porque a
+    numeração conta as origens do documento inteiro). None se não houver dono."""
+    dono = _dono_da_origem(obj)
+    if dono is None:
+        return None
+    m = _RE.match(dono.Name)
+    return NOMES["Origin"] + ((m.group(2) or "") if m else "")
+
+
+def renomear_origem(obj, original):
+    """Dá à origem o número do seu dono, se o rótulo ainda é o que o FreeCAD pôs (o rótulo traduzido chega
+    depois da criação, então vale qualquer "Origem…"/"Origin…" sem mudança do usuário)."""
+    try:
+        if obj is None or not re.match(r"^(Origem|Origin)\d*$", obj.Label or ""):
+            return False
+        novo = rotulo_da_origem(obj)
+        if not novo or novo == obj.Label:
+            return False
+        # o ponto da origem também se chamava "Origem" e disputava o nome: a numeração pulava de 2 em 2
+        num = novo[len(NOMES["Origin"]):]
+        for f in getattr(obj, "OriginFeatures", []) or []:
+            if f.TypeId == "App::Point" and f.Label.startswith(NOMES["Origin"]):
+                f.Label = "Ponto de origem" + num
+        obj.Label = novo
+        return True
+    except Exception:
+        return False
+
+
 def renomear(obj, original):
     """Troca o rótulo se ele ainda for o original em inglês."""
     try:
         if obj is None or obj.Label != original:
             return False
-        novo = traduzir(original)
+        novo = rotulo_da_origem(obj) or traduzir(original)
         if not novo:
             return False
         obj.Label = novo
@@ -143,7 +187,12 @@ class Observador:
             if _documento_ocupado(doc):
                 return
             original = obj.Label
+            origem = obj.TypeId == "App::Origin"
         except Exception:
+            return
+        if origem:
+            # a origem já nasce em português, mas numerada pelo documento inteiro (Origem003 no Corpo001)
+            QtCore.QTimer.singleShot(0, lambda o=obj, r=original: renomear_origem(o, r))
             return
         if traduzir(original) is None:
             return

@@ -42,7 +42,8 @@ TENTATIVAS_MAX = 2
 # 1.29.8: C++ novo (barra de cores com vírgula decimal e título com o campo e a unidade)
 # 1.30.0: C++ novo (Novo corpo pergunta antes de usar a seleção como base; Posicionamento de peça presa edita o
 # deslocamento da fixação)
-BASE_MINIMA = "1.30.0"
+# 1.30.1: C++ novo (Novo corpo ignora, sem aviso, a seleção que já pertence a um corpo)
+BASE_MINIMA = "1.30.1"
 
 _estado = {"aqui": None, "usuario": False, "delegou": None, "motivo": ""}
 

@@ -207,7 +207,23 @@ def describe(obj):
     if t == "PartDesign::Draft":
         return ("draft",), "Ângulo de saída", I.draft(), \
             "Selecione as faces a inclinar, o plano neutro e o ângulo de saída."
+    perfil = PERFIS_PRONTOS.get(type(getattr(obj, "Proxy", None)).__name__)
+    if perfil is not None:
+        return (perfil[0],), perfil[1], None, perfil[2]
     return None
+
+
+# perfis prontos (Peça › Esboço): o resultado é um contorno 2D, que ainda precisa ser extrudado
+PERFIS_PRONTOS = {
+    "_InvoluteGear": ("gear", "Engrenagem evolvente",
+                      "Cria só o perfil da engrenagem (contorno 2D), ainda sem espessura. Defina o número de dentes, "
+                      "o módulo e o ângulo de pressão; depois do OK, selecione o perfil e use Extrusão com a "
+                      "largura da engrenagem."),
+    "Sprocket": ("sprocket", "Roda dentada",
+                 "Cria só o perfil da roda dentada para corrente (contorno 2D), ainda sem espessura. Escolha a "
+                 "corrente de referência e o número de dentes; depois do OK, selecione o perfil e use Extrusão com "
+                 "a espessura da roda."),
+}
 
 
 class GuiaFrame(QtWidgets.QFrame):
@@ -320,7 +336,7 @@ class GuiaFrame(QtWidgets.QFrame):
         self.alert.setText("\n\n".join("⚠  " + m for m in msgs))
         self.alert.setVisible(bool(msgs))
 
-    def set_content(self, title, g, text):
+    def set_content(self, title, g, text, como=False):
         if getattr(self, "_msgs", None) is not None:      # vinha do modo compacto: volta ao normal
             self._msgs = None
             _desligar(self.toggle.clicked)
@@ -328,7 +344,7 @@ class GuiaFrame(QtWidgets.QFrame):
             self.toggle.setToolTip("Mostrar / ocultar o desenho")
             self.title.setVisible(True)
             self.alert.setTextFormat(QtCore.Qt.PlainText)
-        self.title.setText(("Como funciona · " if g is not None else "Boa prática · ") + title)
+        self.title.setText(("Como funciona · " if g is not None or como else "Boa prática · ") + title)
         self.text.setText(text)
         self.text.setVisible(bool(text))
         self.image.setVisible(g is not None and not self._collapsed())
@@ -476,7 +492,7 @@ class Guia:
                 nome = (obj.Name, tuple(warn))
                 self.frame.set_compacto(warn, lambda n=nome: Guia.dispensados.add(n))
             else:
-                self.frame.set_content(title, g, text)
+                self.frame.set_content(title, g, text, como=key[0][0] in ("gear", "sprocket"))
                 self.frame.set_alerts(warn)
 
 

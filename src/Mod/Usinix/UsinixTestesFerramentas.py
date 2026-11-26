@@ -28,6 +28,42 @@ URLS_ABERTAS = []
 _BLOQUEIO = {"obj": None}
 
 
+# Documentos que já estavam abertos quando a bateria começou são do usuário: nenhum teste pode fechá-los.
+# Antes, testes que limpam a tela (T38, T63, T83) fechavam tudo, e um documento não salvo do usuário sumiu.
+_PROTECAO = {"orig": None, "nomes": set()}
+
+
+def proteger_documentos():
+    if _PROTECAO["orig"] is not None:
+        return
+    _PROTECAO["nomes"] = set(FreeCAD.listDocuments())
+    orig = FreeCAD.closeDocument
+
+    def closeDocument(name):
+        if name in _PROTECAO["nomes"]:
+            FreeCAD.Console.PrintLog("Usinix: teste tentou fechar o documento %s, que é do usuário\n" % name)
+            return None
+        return orig(name)
+
+    closeDocument.__doc__ = orig.__doc__
+    closeDocument._usinix_original = orig
+    FreeCAD.closeDocument = closeDocument
+    _PROTECAO["orig"] = orig
+
+
+def liberar_documentos():
+    orig = _PROTECAO["orig"]
+    if orig is not None:
+        FreeCAD.closeDocument = orig
+    _PROTECAO["orig"] = None
+    _PROTECAO["nomes"] = set()
+
+
+def documentos_protegidos():
+    """Documentos do usuário ainda abertos durante a bateria (não se fecham)."""
+    return set(n for n in _PROTECAO["nomes"] if n in FreeCAD.listDocuments())
+
+
 def bloquear_navegador():
     if not FreeCAD.GuiUp or _BLOQUEIO["obj"] is not None:
         return
@@ -4364,9 +4400,10 @@ class T38CopiarProjeto(unittest.TestCase):
         self.assertIsNotNone(alvo)
         self.assertEqual(os.path.normcase(alvo.Document.FileName),
                          os.path.normcase(os.path.join(destino, "NOVO_Peca.FCStd")))
-        # o original continua apontando para a peça original
+        # o original continua apontando para a peça original (fecha só as peças do teste)
         for n in list(FreeCAD.listDocuments()):
-            FreeCAD.closeDocument(n)
+            if os.path.normcase(FreeCAD.getDocument(n).FileName).startswith(os.path.normcase(self.base)):
+                FreeCAD.closeDocument(n)
         orig = FreeCAD.openDocument(os.path.join(self.orig, "Montagem.FCStd"))
         self.assertEqual(os.path.normcase(orig.getObject("Link").LinkedObject.Document.FileName),
                          os.path.normcase(os.path.join(self.orig, "Peca.FCStd")))
@@ -7537,12 +7574,14 @@ class T55PainelLateral(unittest.TestCase):
         self.assertEqual(self.P.titulo_real(self.P.TAREFA), sk.Label)
         self.assertIn(sk.Label, abas)
         self.assertEqual(self._atual(), sk.Label, "a aba do comando não veio para a frente")
+        FreeCADGui.Selection.clearSelection()
         FreeCADGui.ActiveDocument.resetEdit()
         self._assentar()
         bar, abas = self._abas()
         self.assertFalse(tar.isVisible(), "a aba do comando ficou depois de concluir")
         self.assertNotIn(sk.Label, abas)
-        self.assertEqual(self._atual(), "Propriedades", "não voltou para a aba de antes")
+        # 1.30.1: Propriedades voltava vazia depois do OK: volta para a Árvore
+        self.assertEqual(self._atual(), "Árvore", "depois do comando devia voltar para a Árvore")
 
     def test_comando_vazio_nunca_aparece(self):
         """O painel de comando sem comando aberto não aparece: nem com a tela inicial na frente (o FreeCAD o
@@ -8810,6 +8849,7 @@ class T63FerramentasDePontaAPonta(unittest.TestCase):
         erros, rodados = [], 0
         doc = None
         vistos = set()       # comando que aparece em duas abas roda uma vez só
+        antes = set(FreeCAD.listDocuments())   # documentos que já estavam abertos não são do teste
         for tab in UsinixRibbon.TABS:
             wb = tab.get("wb")
             for extra in (tab.get("wb_extra") or []) + ([wb] if wb else []):
@@ -8822,7 +8862,7 @@ class T63FerramentasDePontaAPonta(unittest.TestCase):
                 fechar(doc)
             doc = None
             for d in list(FreeCAD.listDocuments().values()):
-                if d.Name.startswith(("Sem", "Unnamed")):
+                if d.Name.startswith(("Sem", "Unnamed")) and d.Name not in antes:
                     fechar(d)
             # janelas de folha (TechDraw) de documento fechado só somem no próximo ciclo da interface;
             # selecionar antes disso derruba o FreeCAD (observador de seleção já apagado)
@@ -8857,7 +8897,8 @@ class T63FerramentasDePontaAPonta(unittest.TestCase):
                 if doc.Name not in FreeCAD.listDocuments():
                     doc = None
         for d in list(FreeCAD.listDocuments().values()):
-            if d.Name.startswith("UsinixTesteFaixa") or d.Name.startswith("Sem") or d.Name.startswith("Unnamed"):
+            if d.Name not in antes and (d.Name.startswith("UsinixTesteFaixa") or d.Name.startswith("Sem")
+                                        or d.Name.startswith("Unnamed")):
                 fechar(d)
         self.assertGreater(rodados, 150, "poucos comandos rodaram: %d" % rodados)
         self.assertEqual(erros, [], "ferramentas com erro:\n" + "\n".join(erros))
@@ -12015,6 +12056,8 @@ class T83FaixaDoMomento(unittest.TestCase):
         return cmds, mais
 
     def _sem_documentos(self):
+        if documentos_protegidos():
+            self.skipTest("há documento do usuário aberto (não se fecha para testar a faixa vazia)")
         for d in list(FreeCAD.listDocuments().values()):
             fechar(d)
         self._esp(0.8)
@@ -23096,3 +23139,127 @@ class T181Defeitos130(unittest.TestCase):
         self.assertTrue(self._ok())
         self._esp(0.4)
         self.assertFalse(self.C.ajuste_de_vista(estado))
+
+
+class T182Defeitos1301(unittest.TestCase):
+    """1.30.1: documento do usuário fechado pela bateria; engrenagem fora do padrão (31); linha marcada ilegível e
+    clique simples na busca (32); nota do posicionamento no tema escuro (33); numeração das origens (35)."""
+
+    _esp = T62PainelDeComando._esp
+    _ok = T62PainelDeComando._ok
+    _fechar_janelas = T63FerramentasDePontaAPonta._fechar_janelas
+    setUp = T69Fixacao.setUp
+    tearDown = T69Fixacao.tearDown
+    _corpo = T69Fixacao._corpo
+
+    def test_bateria_nao_fecha_documento_do_usuario(self):
+        if _PROTECAO["orig"] is not None:
+            self.skipTest("a bateria já está protegendo os documentos")
+        usuario = novo_doc("UsinixT182Usuario")
+        try:
+            proteger_documentos()
+            try:
+                self.assertIn(usuario.Name, documentos_protegidos())
+                FreeCAD.closeDocument(usuario.Name)                     # como os testes que limpam a tela
+                self.assertIn(usuario.Name, FreeCAD.listDocuments(), "a bateria fechou o documento do usuário")
+                proprio = novo_doc("UsinixT182DoTeste").Name
+                FreeCAD.closeDocument(proprio)                          # o que o teste abriu, ele fecha
+                self.assertNotIn(proprio, FreeCAD.listDocuments())
+            finally:
+                liberar_documentos()
+            self.assertFalse(hasattr(FreeCAD.closeDocument, "_usinix_original"))
+        finally:
+            fechar(usuario)
+        import UsinixTestes
+        import inspect
+        self.assertIn("proteger_documentos()", inspect.getsource(UsinixTestes._executar))
+
+    def test_engrenagem_no_padrao_usinix(self):
+        from PySide import QtWidgets
+        import UsinixGuia
+        UsinixGuia.install()
+        FreeCADGui.activateWorkbench("PartDesignWorkbench")
+        body, _p = self._corpo()
+        FreeCADGui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
+        FreeCADGui.runCommand("PartDesign_InvoluteGear", 0)
+        self._esp(1.5)
+        eng = [o for o in self.doc.Objects if type(getattr(o, "Proxy", None)).__name__ == "_InvoluteGear"]
+        self.assertEqual(len(eng), 1)
+        eng = eng[0]
+        self.assertEqual(eng.Label, "Engrenagem evolvente")
+        panel = self.C._painel_de_tarefas()
+        self.assertIsNotNone(panel)
+        chaves = self.C.chaves_da_engrenagem(panel)
+        self.assertEqual(len(chaves), 2)
+        for nome in self.C.CHAVES_DA_ENGRENAGEM:
+            cb = panel.findChild(QtWidgets.QComboBox, nome)
+            self.assertTrue(cb.isHidden(), "%s: a lista Verdadeiro/Falso ficou à vista" % nome)
+        ext = panel.findChild(QtWidgets.QWidget, "UsinixChave_ExternalGear")
+        self.assertIsNotNone(ext)
+        self.assertTrue(ext.isChecked())
+        ext.setChecked(False)
+        self._esp(0.3)
+        self.assertFalse(eng.ExternalGear, "a chave não mudou a propriedade")
+        g = UsinixGuia._guia["obj"]
+        self.assertTrue(g._valid(), "sem a caixa Como funciona")
+        self.assertIn("Como funciona", g.frame.title.text())
+        self.assertIn("Extrusão", g.frame.text.text())
+        self.assertIn("perfil", g.frame.text.text())
+        textos = [w.title() for w in panel.findChildren(QtWidgets.QWidget)
+                  if hasattr(w, "title") and callable(w.title) and isinstance(w.title(), str)]
+        self.assertNotIn("Involute Parameter", textos)
+        self.assertTrue(self._ok())
+
+    def test_busca_clique_roda_e_linha_marcada_legivel(self):
+        import UsinixBuscaComandos as B
+        from PySide import QtGui
+        caixa = B.BuscaComandos()
+        try:
+            caixa.filtrar("caixa")
+            self.assertGreater(caixa.lista.count(), 0)
+            pal = caixa.lista.palette()
+            self.assertEqual(pal.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight).name().upper(), "#FFF4CC")
+            self.assertEqual(pal.color(QtGui.QPalette.Active, QtGui.QPalette.HighlightedText).name().upper(),
+                             "#1E2A38")
+            self.assertIn("item:selected:active", caixa.styleSheet())
+            rodados = []
+            orig = B.rodar
+            try:
+                B.rodar = lambda it, rb=None: rodados.append(it[0])
+                li = caixa.lista.item(0)
+                caixa.lista.itemClicked.emit(li)
+                self._esp(0.2)
+            finally:
+                B.rodar = orig
+            self.assertEqual(len(rodados), 1, "o clique simples não rodou o comando")
+            self.assertIn("Clique ou Enter", caixa.dica.text())
+        finally:
+            caixa.deleteLater()
+
+    def test_nota_do_posicionamento_com_contraste(self):
+        body, _p = self._corpo()
+        sk = esboco_retangulo(body)
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(sk)
+        FreeCADGui.runCommand("Std_Placement", 0)
+        self._esp(1.0)
+        nota = self.C.nota_do_posicionamento()
+        self.assertIsNotNone(nota)
+        css = nota.styleSheet()
+        self.assertIn("background-color", css)
+        import UsinixEstilo
+        fundo, texto = ("#3A3221", "#FFE7A6") if UsinixEstilo.escuro() else ("#FFF6D6", "#4D3B00")
+        self.assertIn(fundo, css)
+        self.assertIn(texto, css)
+        FreeCADGui.Control.closeDialog()
+
+    def test_origem_com_o_numero_do_corpo(self):
+        self.doc = novo_doc("UsinixT182Origem")
+        FreeCAD.setActiveDocument(self.doc.Name)
+        corpos = [self.doc.addObject("PartDesign::Body", "Body") for _i in range(3)]
+        self._esp(0.4)
+        for b in corpos:
+            num = b.Name[len("Body"):]
+            self.assertEqual(b.Origin.Label, "Origem" + num, "%s com %s" % (b.Label, b.Origin.Label))
+            pontos = [f.Label for f in b.Origin.OriginFeatures if f.TypeId == "App::Point"]
+            self.assertEqual(pontos, ["Ponto de origem" + num])

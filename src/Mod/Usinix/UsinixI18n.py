@@ -628,6 +628,12 @@ GLOSSARIO = {
     ("SheetMetal", "Create hems on edges.\n1. Select edges to create bends with walls.\n2. Use Property editor to "
                    "modify other parameters"):
         "Cria bainhas nas arestas\n1. Selecione as arestas.\n2. Ajuste os demais parâmetros",
+    # Clonar (Peça › Vínculo): a dica vinha em inglês
+    ("CmdPartDesignClone", "Copies a solid object parametrically as the base feature of a new body"):
+        "Copia um sólido de forma paramétrica como base de um corpo novo",
+    # Perfis prontos (Peça › Esboço): título do painel
+    ("InvoluteGearParameter", "Involute Parameter"): "Engrenagem evolvente",
+    ("SprocketParameter", "Sprocket Parameters"): "Roda dentada",
     # Novo corpo com um sólido selecionado (CommandBody.cpp): pergunta antes de usá-lo como base
     ("QObject", "New body"): "Novo corpo",
     ("QObject", "Use \"%1\" as the base of the new body?\n\nYes: the new body starts from this solid.\n"

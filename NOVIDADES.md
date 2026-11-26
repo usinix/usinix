@@ -15,6 +15,29 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.30.1 — 26/11/2026
+
+### Peça
+
+- **Novo corpo com a face de uma extrusão selecionada:** em vez do erro "Objeto base não válido", a seleção que já
+  pertence a um corpo é ignorada e o corpo novo sai vazio, sem aviso.
+- **Engrenagem evolvente e roda dentada no padrão Usinix:** nome em português na árvore e no painel; "Alta precisão"
+  e "Engrenagem externa" viram chaves liga/desliga; a caixa "Como funciona" avisa que o resultado é um perfil que
+  ainda precisa de Extrusão.
+- **Origens numeradas pelo corpo:** Corpo001 fica com "Origem001" e "Ponto de origem001" (antes os números pulavam).
+
+### Interface
+
+- **Procurar comando (tecla S / Ctrl+K):** a linha marcada fica legível e o clique simples já roda o comando.
+- **Nota do Posicionamento** legível também no tema escuro.
+- **Depois do OK de um comando**, o painel lateral volta para a Árvore (antes voltava para Propriedades vazia).
+- **Clonar:** a dica do comando em português.
+
+### Testes
+
+- A bateria de testes não fecha mais os documentos que já estavam abertos (um documento não salvo do usuário
+  sumia ao rodar os testes).
+
 ## 1.30.0 — 26/11/2026
 
 ### Peça

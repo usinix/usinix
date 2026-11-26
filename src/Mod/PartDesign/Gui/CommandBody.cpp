@@ -21,6 +21,7 @@
  ***************************************************************************/
 
 
+#include <algorithm>
 #include <QApplication>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -117,23 +118,10 @@ void CmdPartDesignBody::activated(int iMsg)
     if (!features.empty()) {
         if (features.size() == 1) {
             baseFeature = features[0];
-            if (baseFeature->isDerivedFrom(PartDesign::Feature::getClassTypeId())
-                && PartDesign::Body::findBodyOf(baseFeature)) {
-                // Prevent creating bodies based on features already belonging to other bodies
-                QMessageBox::warning(
-                    Gui::getMainWindow(),
-                    QObject::tr("Bad base feature"),
-                    QObject::tr("A body cannot be based on a Part Design feature.")
-                );
-                baseFeature = nullptr;
-            }
-            else if (PartDesign::Body::findBodyOf(baseFeature)) {
-                QMessageBox::warning(
-                    Gui::getMainWindow(),
-                    QObject::tr("Bad base feature"),
-                    QObject::tr("%1 already belongs to a body and cannot be used as a base feature for another body.")
-                        .arg(QString::fromUtf8(baseFeature->Label.getValue()))
-                );
+            if (PartDesign::Body::findBodyOf(baseFeature)) {
+                // Usinix: something that already belongs to a body (e.g. a face of an extrusion
+                // selected by chance) cannot be the base of another body; ignore the selection
+                // without a warning and create an empty body
                 baseFeature = nullptr;
             }
             else if (baseFeature->isDerivedFrom(Part::BodyBase::getClassTypeId())) {
@@ -230,6 +218,12 @@ void CmdPartDesignBody::activated(int iMsg)
                     }
                 }
             }
+        }
+        else if (std::all_of(features.begin(), features.end(), [](App::DocumentObject* obj) {
+                     return PartDesign::Body::findBodyOf(obj) != nullptr;
+                 })) {
+            // Usinix: several items that already belong to bodies: empty body, as above
+            baseFeature = nullptr;
         }
         else {
             QMessageBox::warning(

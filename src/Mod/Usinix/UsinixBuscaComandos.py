@@ -285,12 +285,14 @@ if QtWidgets is not None:
             self.lista.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
             self.lista.setTextElideMode(QtCore.Qt.ElideRight)
             lay.addWidget(self.lista)
-            self.dica = QtWidgets.QLabel("Enter roda · ↑↓ escolhe · Esc fecha")
+            self.dica = QtWidgets.QLabel("Clique ou Enter roda · ↑↓ escolhe · Esc fecha")
             self.dica.setStyleSheet("color: #6B7785;")
             lay.addWidget(self.dica)
             self.campo.textChanged.connect(self.filtrar)
             self.campo.returnPressed.connect(self.rodar_marcado)
             self.lista.itemActivated.connect(lambda _i: self.rodar_marcado())
+            # clique simples já roda (antes só marcava a linha e era preciso o Enter)
+            self.lista.itemClicked.connect(self._clicou)
             self.campo.installEventFilter(self)
             try:
                 import UsinixEstilo
@@ -304,8 +306,16 @@ if QtWidgets is not None:
                 "QLineEdit:focus { border: 2px solid #003A70; }"
                 "QListWidget { border: none; background: transparent; color: %s; }"
                 "QListWidget::item { padding: 5px 4px; border-radius: 4px; }"
-                "QListWidget::item:selected { background: #FFF4CC; color: #1E2A38; }"
-                % (fundo, borda, borda, texto, texto))
+                # linha marcada: o tema geral (item:selected:active) deixava fundo branco e texto cinza-claro
+                "QListWidget::item:selected, QListWidget::item:selected:active, QListWidget::item:selected:!active,"
+                " QListWidget::item:selected:focus { background: #FFF4CC; color: #1E2A38; }"
+                "QListWidget::item:hover:!selected { background: %s; }"
+                % (fundo, borda, borda, texto, texto, "#2A333D" if escuro else "#EEF2F6"))
+            pal = self.lista.palette()
+            for grupo in (QtGui.QPalette.Active, QtGui.QPalette.Inactive):
+                pal.setColor(grupo, QtGui.QPalette.Highlight, QtGui.QColor("#FFF4CC"))
+                pal.setColor(grupo, QtGui.QPalette.HighlightedText, QtGui.QColor("#1E2A38"))
+            self.lista.setPalette(pal)
 
         def itens(self):
             if self._itens is None:
@@ -324,9 +334,9 @@ if QtWidgets is not None:
                 self.lista.addItem(li)
             if self.lista.count():
                 self.lista.setCurrentRow(0)
-            self.dica.setText(("Ferramentas da aba · digite para procurar todas · Enter roda · Esc fecha"
+            self.dica.setText(("Ferramentas da aba · digite para procurar todas · clique ou Enter roda · Esc fecha"
                                if not texto and getattr(self, "padrao", None)
-                               else "Enter roda · ↑↓ escolhe · Esc fecha") if self.lista.count() or not texto
+                               else "Clique ou Enter roda · ↑↓ escolhe · Esc fecha") if self.lista.count() or not texto
                               else "Nada com esse nome. Tente outra palavra.")
 
         def eventFilter(self, obj, ev):
@@ -337,6 +347,10 @@ if QtWidgets is not None:
                         self.lista.setCurrentRow(r)
                     return True
             return super().eventFilter(obj, ev)
+
+        def _clicou(self, li):
+            self.lista.setCurrentItem(li)
+            self.rodar_marcado()
 
         def rodar_marcado(self):
             li = self.lista.currentItem()

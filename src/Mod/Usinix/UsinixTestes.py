@@ -1055,6 +1055,7 @@ def _executar(completo):
     try:
         import UsinixTestesFerramentas as _TF
         _TF.bloquear_navegador()
+        _TF.proteger_documentos()        # documentos abertos antes da bateria são do usuário
     except Exception:
         _TF = None
     try:
@@ -1063,6 +1064,7 @@ def _executar(completo):
         _fechar_andamento()
         if _TF is not None:
             _TF.liberar_navegador()      # depois da bateria, os links voltam a abrir o navegador
+            _TF.liberar_documentos()
     total = res.testsRun
     aprov = total - len(res.failures) - len(res.errors) - len(res.skipped)
     linhas = ["Usinix — testes automáticos — %s" % time.strftime("%d/%m/%Y %H:%M"),

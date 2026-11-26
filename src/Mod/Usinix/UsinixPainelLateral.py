@@ -526,7 +526,12 @@ def _comando(ds, no_inicio):
         _estado["ic_tarefa"] = None
         if tar.isVisible() and not tar.isFloating():
             tar.hide()
-        volta = ds.get(_estado.get("antes")) or ds.get(ARVORE)
+        antes = _estado.get("antes")
+        if antes == PROPRIEDADES:
+            # depois do OK, Propriedades voltava vazia (só com "‹ Voltar aos cartões"); a árvore mostra o que
+            # acabou de ser feito. Aparência continua voltando para ela mesma.
+            antes = ARVORE
+        volta = ds.get(antes) or ds.get(ARVORE)
         if volta is not None and volta.isVisible():
             volta.raise_()
         _estado["reais"][TAREFA] = TITULOS[TAREFA]

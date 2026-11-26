@@ -4303,7 +4303,7 @@ def nota_do_posicionamento(panel=None):
                 if w.metaObject().className() == "Gui::Dialog::Placement"), None)
     if dlg is None:
         return None
-    nota = dlg.findChild(QtWidgets.QLabel, "UsinixNotaPresa")
+    nota = next((lb for lb in dlg.findChildren(QtWidgets.QLabel) if lb.property("usinix_nota_presa")), None)
     sel = FreeCADGui.Selection.getSelection()
     if not sel or not all(_presa(o) for o in sel):
         if nota is not None:
@@ -4311,9 +4311,19 @@ def nota_do_posicionamento(panel=None):
         return None
     if nota is None:
         nota = QtWidgets.QLabel(NOTA_POSICIONAMENTO_PRESO, dlg)
+        # aviso no estilo do tema (claro e escuro); cores fixas ficavam ilegíveis no tema escuro
         nota.setObjectName("UsinixNotaPresa")
+        nota.setProperty("usinix_nota_presa", True)
         nota.setWordWrap(True)
-        nota.setStyleSheet("background:#FFF6D6; color:#4D3B00; border-left:3px solid #E0A100; padding:6px 8px;")
+        try:
+            import UsinixEstilo
+            escuro = UsinixEstilo.escuro()
+        except Exception:
+            escuro = False
+        fundo, texto = ("#3A3221", "#FFE7A6") if escuro else ("#FFF6D6", "#4D3B00")
+        nota.setAutoFillBackground(True)
+        nota.setStyleSheet("QLabel#UsinixNotaPresa { background-color: %s; color: %s; border-left: 3px solid #E0A100;"
+                           " padding: 6px 8px; }" % (fundo, texto))
         lay = dlg.layout()
         if lay is not None and hasattr(lay, "insertWidget"):
             lay.insertWidget(0, nota)
@@ -4367,7 +4377,54 @@ def ajuste_de_vista(estado=None):
     return ajustou
 
 
+# Engrenagem evolvente: "Alta precisão" e "Engrenagem externa" vinham numa lista Verdadeiro/Falso; no padrão
+# Usinix, sim/não é chave liga/desliga.
+CHAVES_DA_ENGRENAGEM = ("comboBox_HighPrecision", "comboBox_ExternalGear")
+
+
+def chaves_da_engrenagem(panel=None):
+    """Troca as listas Verdadeiro/Falso do painel da engrenagem por chaves. Devolve as chaves criadas/achadas."""
+    panel = panel if panel is not None else _painel_de_tarefas()
+    if panel is None:
+        return []
+    import UsinixUI as UI
+    feitas = []
+    for nome in CHAVES_DA_ENGRENAGEM:
+        cb = panel.findChild(QtWidgets.QComboBox, nome)
+        if cb is None or cb.count() < 2:
+            continue
+        ch = cb.property("usinix_chave")
+        if ch is not None:
+            feitas.append(ch)
+            continue
+        ch = UI.Interruptor(cb.currentIndex() == 0, dica=cb.toolTip())
+        ch.setObjectName(nome.replace("comboBox_", "UsinixChave_"))
+        ch.setEnabled(cb.isEnabled())
+        ch.toggled.connect(lambda on, c=cb: c.setCurrentIndex(0 if on else 1))     # 0 = True, 1 = False
+        cb.currentIndexChanged.connect(lambda i, c=ch: c.setChecked(i == 0) if c.isChecked() != (i == 0) else None)
+        lay = cb.parentWidget().layout() if cb.parentWidget() is not None else None
+        if isinstance(lay, QtWidgets.QFormLayout):
+            linha, _papel = lay.getWidgetPosition(cb)
+            caixa = QtWidgets.QWidget()
+            h = QtWidgets.QHBoxLayout(caixa)
+            h.setContentsMargins(0, 0, 0, 0)
+            h.addWidget(ch)
+            h.addStretch(1)
+            lay.setWidget(linha, QtWidgets.QFormLayout.FieldRole, caixa)
+            cb.hide()
+        else:
+            cb.parentWidget().layout().addWidget(ch) if cb.parentWidget() and cb.parentWidget().layout() else None
+            cb.hide()
+        cb.setProperty("usinix_chave", ch)
+        feitas.append(ch)
+    return feitas
+
+
 def _tick_localizacao():
+    try:
+        chaves_da_engrenagem()
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: chaves da engrenagem: {}\n".format(exc))
     try:
         ajuste_de_vista()
     except Exception as exc:
