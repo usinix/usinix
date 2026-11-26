@@ -15,6 +15,20 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.29.9 — 26/11/2026
+
+### Peça
+
+- **Posição da peça solta:** na Caixa (e nas outras primitivas) do corpo sem referência, o deslocamento do FreeCAD
+  fica cinza e não havia como posicionar a peça pelo painel. Agora o cartão "Posição (peça solta)" tem X, Y e Z,
+  que movem a peça direto; com referência, vale o deslocamento de sempre.
+- **Primitivas soltas:** no quadro de localização, os campos da rotação passam a dizer "Eixo X", "Eixo Y", "Eixo Z"
+  e "Ângulo de rotação", com uma dica de que é o eixo em torno do qual a peça gira (não a direção da peça).
+
+### Interface
+
+- **Janela de cor:** "Selecionar cor" e "Capturar cor da tela" em português, como o resto da janela.
+
 ## 1.29.8 — 25/11/2026
 
 ### Simulação

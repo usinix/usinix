@@ -2247,6 +2247,33 @@ class PainelFixacao(_Base):
         except Exception:
             return None
 
+    def _solta(self):
+        """Objeto em edição sem referência (modo Desativado), ou None. Nesse caso o FreeCAD deixa o deslocamento
+        cinza: a peça só se posiciona pela própria posição (Placement), que o cartão "Posição" edita."""
+        try:
+            vp = FreeCADGui.ActiveDocument.getInEdit()
+            obj = vp.Object if vp is not None else None
+        except Exception:
+            return None
+        if obj is None or "Placement" not in obj.PropertiesList or "MapMode" not in obj.PropertiesList:
+            return None
+        if obj.MapMode != "Deactivated" or (getattr(obj, "AttachmentSupport", None) or []):
+            return None
+        return obj
+
+    def _posicao(self, obj, eixo, valor):
+        pl = obj.Placement
+        base = pl.Base
+        if abs(getattr(base, eixo) - valor) < 1e-9:
+            return
+        setattr(base, eixo, float(valor))
+        pl.Base = base
+        obj.Placement = pl
+        try:
+            obj.Document.recompute()
+        except Exception:
+            pass
+
     def _modos(self):
         lw = self.f.w("listOfModes", QtWidgets.QListWidget)
         if lw is None:
@@ -2265,8 +2292,10 @@ class PainelFixacao(_Base):
         _lw, modos = self._modos()
         gb = f.w("groupBox_AttachmentOffset", QtWidgets.QGroupBox)
         msg = f.w("message", QtWidgets.QLabel)
+        solta = self._solta()
         return {"refs": refs, "modos": tuple((t, ok, sel) for _i, t, _d, ok, sel in modos),
                 "desl": bool(gb.isEnabled()) if gb else False,
+                "pos": tuple(round(v, 6) for v in solta.Placement.Base) if solta is not None else None,
                 "nums": tuple(f.numero("attachmentOffset" + n) for n in ("X", "Y", "Z", "Roll", "Pitch", "Yaw")),
                 "flip": bool(f.check("checkBoxFlip").isChecked()) if f.check("checkBoxFlip") else False,
                 "msg": msg.text() if msg else ""}
@@ -2303,6 +2332,21 @@ class PainelFixacao(_Base):
             lb.setObjectName("UsinixSub")
             c.widget(lb)
         self.lay.addWidget(c)
+
+        solta = self._solta()
+        if solta is not None and e["pos"] is not None:
+            # sem referência o deslocamento do FreeCAD fica cinza: posiciona pela posição da própria peça
+            c = UI.Cartao("Posição (peça solta)", "seta_cima")
+            for eixo in ("x", "y", "z"):
+                num = UI.CampoNumero(getattr(solta.Placement.Base, eixo), "mm")
+                num.valueChanged.connect(lambda v, o=solta, k=eixo: self._posicao(o, k, v))
+                c.linha(eixo.upper(), num)
+                self.campos["pos" + eixo] = num
+            sub = QtWidgets.QLabel("Para prender em outra peça ou plano, escolha uma referência acima.")
+            sub.setObjectName("UsinixSub")
+            sub.setWordWrap(True)
+            c.widget(sub)
+            self.lay.addWidget(c)
 
         lw, modos = self._modos()
         if lw is not None and modos:
@@ -4199,7 +4243,59 @@ def _peso_proprio_editavel():
     V.VPConstraintSelfWeight._usinix = True
 
 
+# Primitivas soltas (Part): o quadro "Localização" tem dois grupos com campos X, Y e Z; nos da rotação o X/Y/Z é a
+# direção do eixo em torno do qual a peça gira, e não a direção da peça (X = 1 deixava o cilindro em pé).
+ROTULOS_ROTACAO = {"labelXSkew": "Eixo X", "labelYSkew": "Eixo Y", "labelZSkew": "Eixo Z",
+                   "labelLength2": "Ângulo de rotação"}
+TITULO_ROTACAO = "Rotação: eixo e ângulo"
+DICA_ROTACAO = ("Direção do eixo em torno do qual a peça gira (não é a direção da peça). Ex.: cilindro deitado "
+                "ao longo de X: eixo Y = 1 e ângulo 90°.")
+TITULO_POSICAO = "Posição"
+
+
+def rotulos_da_localizacao(panel=None):
+    """Deixa claro, no quadro Localização das primitivas, o que é posição e o que é eixo de rotação.
+    Devolve True se achou o quadro."""
+    panel = panel if panel is not None else _painel_de_tarefas()
+    if panel is None:
+        return False
+    rot = panel.findChild(QtWidgets.QGroupBox, "RotationGB")
+    if rot is None:
+        return False
+    if rot.property("usinix_rotulos"):
+        return True
+    rot.setTitle(TITULO_ROTACAO)
+    rot.setToolTip(DICA_ROTACAO)
+    for nome, texto in ROTULOS_ROTACAO.items():
+        lb = rot.findChild(QtWidgets.QLabel, nome)
+        if lb is not None:
+            lb.setText(texto)
+            lb.setToolTip(DICA_ROTACAO)
+    for nome in ("XDirectionEdit", "YDirectionEdit", "ZDirectionEdit"):
+        sp = rot.findChild(QtWidgets.QWidget, nome)
+        if sp is not None:
+            sp.setToolTip(DICA_ROTACAO)
+    pos = panel.findChild(QtWidgets.QGroupBox, "PositionGB")
+    if pos is not None:
+        pos.setTitle(TITULO_POSICAO)
+    rot.setProperty("usinix_rotulos", True)
+    return True
+
+
+def _tick_localizacao():
+    try:
+        rotulos_da_localizacao()
+    except Exception as exc:
+        FreeCAD.Console.PrintLog("Usinix: rótulos da localização: {}\n".format(exc))
+
+
 def instalar():
+    if _estado.get("localizacao") is None:
+        t = QtCore.QTimer(FreeCADGui.getMainWindow())
+        t.setInterval(400)
+        t.timeout.connect(_tick_localizacao)
+        t.start()
+        _estado["localizacao"] = t
     if _estado["encaixe"] is None:
         _estado["encaixe"] = Encaixe()
     _estado["encaixe"].iniciar()

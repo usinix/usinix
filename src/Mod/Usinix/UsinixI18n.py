@@ -628,6 +628,10 @@ GLOSSARIO = {
     ("SheetMetal", "Create hems on edges.\n1. Select edges to create bends with walls.\n2. Use Property editor to "
                    "modify other parameters"):
         "Cria bainhas nas arestas\n1. Selecione as arestas.\n2. Ajuste os demais parâmetros",
+    # Janela de cor do Qt: o arquivo de tradução do Qt não traz estes (o resto da janela sai em português)
+    ("QColorDialog", "Select Color"): "Selecionar cor",
+    ("QColorDialog", "&Pick Screen Color"): "&Capturar cor da tela",
+    ("QColorDialog", "Cursor at %1, %2\nPress ESC to cancel"): "Cursor em %1, %2\nPressione Esc para cancelar",
     ("SheetMetal", "Wrap Cutout"): "Recorte envolvente",
     ("SheetMetal", "Wrap cutout from a Sketch On Sheet metal faces\n1. Select a flat face on sheet metal and\n"
                    "2. Select a sketch on same face to create sheetmetal wrapped cut.\n3. Use Property editor to "

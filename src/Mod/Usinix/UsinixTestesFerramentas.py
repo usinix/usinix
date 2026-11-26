@@ -22793,3 +22793,160 @@ class T178AvisoDeMalhaDe1aOrdem(unittest.TestCase):
         self.assertEqual(F.aviso_de_ordem(Est()), F.AVISO_1A_ORDEM_FREQ)
         Malha.ElementOrder = "2nd"
         self.assertEqual(F.aviso_de_ordem(Est()), "")
+
+
+class T179CaixaNoCorpoEPrimitivasSoltas(unittest.TestCase):
+    """1.29.9: na Caixa do corpo sem referência o deslocamento do FreeCAD fica cinza e não havia como posicionar
+    a peça pelo painel; agora o cartão "Posição (peça solta)" edita a posição. O painel rola até o fim com os dois
+    formulários completos abertos. Nas primitivas soltas, o X/Y/Z da rotação diz que é o eixo."""
+
+    _esp = T62PainelDeComando._esp
+    _ok = T62PainelDeComando._ok
+    _fechar_janelas = T63FerramentasDePontaAPonta._fechar_janelas
+    setUp = T69Fixacao.setUp
+    tearDown = T69Fixacao.tearDown
+    _corpo = T69Fixacao._corpo
+
+    def _caixa_em_edicao(self):
+        body, _p = self._corpo()
+        cx = body.newObject("PartDesign::AdditiveBox", "Caixa")
+        self.doc.recompute()
+        FreeCADGui.ActiveDocument.setEdit(cx.Name)
+        self._esp(1.5)
+        return cx
+
+    def test_posicao_da_peca_solta(self):
+        cx = self._caixa_em_edicao()
+        self.assertEqual(cx.MapMode, "Deactivated")
+        p = self.C.painel_fixacao()
+        self.assertIsNotNone(p, "o painel de fixação não apareceu")
+        for k in ("posx", "posy", "posz"):
+            self.assertIn(k, p.campos)
+        self.assertEqual(textos_com_problema(p), [])
+        p.campos["posx"].setValue(25.0)
+        p.campos["posz"].setValue(-12.5)
+        self._esp(0.4)
+        self.assertAlmostEqual(cx.Placement.Base.x, 25.0, places=6)
+        self.assertAlmostEqual(cx.Placement.Base.z, -12.5, places=6)
+        self.assertTrue(self._ok())
+        self.doc.recompute()
+        self.assertAlmostEqual(cx.Placement.Base.x, 25.0, places=6, msg="o OK desfez a posição")
+        self.assertAlmostEqual(cx.Placement.Base.z, -12.5, places=6)
+        self.assertAlmostEqual(cx.Shape.BoundBox.XMin, 25.0, places=4)
+
+    def test_presa_nao_tem_cartao_de_posicao(self):
+        body, planos = self._corpo()
+        cx = body.newObject("PartDesign::AdditiveBox", "Caixa")
+        cx.AttachmentSupport = [(planos["XY_Plane"], "")]
+        cx.MapMode = "FlatFace"
+        self.doc.recompute()
+        FreeCADGui.ActiveDocument.setEdit(cx.Name)
+        self._esp(1.5)
+        p = self.C.painel_fixacao()
+        self.assertIsNotNone(p)
+        self.assertNotIn("posx", p.campos)
+        self.assertIn("deslX", p.campos)               # presa: o deslocamento do FreeCAD vale
+
+    def test_painel_rola_ate_o_fim_com_formularios_completos(self):
+        from PySide import QtWidgets
+        self._caixa_em_edicao()
+        mw = FreeCADGui.getMainWindow()
+        bts = [b for b in mw.findChildren(QtWidgets.QToolButton)
+               if b.objectName() == "UsinixAvancado" and b.isVisible() and "completo" in b.text().lower()
+               or b.objectName() == "UsinixAvancado" and b.isVisible() and "completa" in b.text().lower()]
+        self.assertGreaterEqual(len(bts), 2, [b.text() for b in bts])
+        for b in bts:
+            b.setChecked(True)
+        self._esp(1.0)
+        panel = self.C._painel_de_tarefas()
+        area = [a for a in mw.findChildren(QtWidgets.QScrollArea) if a.isAncestorOf(panel)][0]
+        sb = area.verticalScrollBar()
+        sb.setValue(sb.maximum())
+        self._esp(0.4)
+        vp = area.viewport()
+        for nome in ("attachmentOffsetX", "attachmentOffsetZ", "attachmentOffsetYaw"):
+            w = panel.findChild(QtWidgets.QWidget, nome)
+            self.assertIsNotNone(w, nome)
+            topo = w.mapTo(vp, w.rect().topLeft()).y()
+            base = w.mapTo(vp, w.rect().bottomLeft()).y()
+            self.assertGreaterEqual(topo, 0, "%s acima da área visível" % nome)
+            self.assertLessEqual(base, vp.height(), "%s abaixo da borda com a barra no fim" % nome)
+
+    def test_primitiva_solta_rotulos_da_rotacao(self):
+        from PySide import QtWidgets
+        self.doc = novo_doc("UsinixT179")
+        FreeCAD.setActiveDocument(self.doc.Name)
+        FreeCADGui.runCommand("Part_Primitives", 0)
+        self._esp(1.5)
+        panel = self.C._painel_de_tarefas()
+        self.assertIsNotNone(panel)
+        rot = panel.findChild(QtWidgets.QGroupBox, "RotationGB")
+        self.assertIsNotNone(rot)
+        self.assertEqual(rot.title(), self.C.TITULO_ROTACAO)
+        textos = {n: rot.findChild(QtWidgets.QLabel, n).text() for n in self.C.ROTULOS_ROTACAO}
+        self.assertEqual(textos, self.C.ROTULOS_ROTACAO)
+        self.assertIn("não é a direção da peça", rot.findChild(QtWidgets.QWidget, "XDirectionEdit").toolTip())
+        self.assertEqual(panel.findChild(QtWidgets.QGroupBox, "PositionGB").title(), "Posição")
+
+
+class T180JanelaDeCorECtrlCliqueNaArvore(unittest.TestCase):
+    """1.29.9: a janela de cor mostrava "Select Color" e "Pick Screen Color" no meio do português; e o Ctrl+clique
+    na árvore, que o relato não conseguiu testar, precisa somar peças à seleção."""
+
+    def setUp(self):
+        self.doc = None
+
+    def tearDown(self):
+        if self.doc is not None:
+            fechar(self.doc)
+
+    def test_janela_de_cor_em_portugues(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixI18n
+        from PySide import QtWidgets, QtGui
+        FreeCADGui.updateGui()
+        UsinixI18n.raise_priority()
+        dlg = QtWidgets.QColorDialog(QtGui.QColor(255, 0, 0))
+        dlg.setOptions(QtWidgets.QColorDialog.DontUseNativeDialog)
+        try:
+            self.assertEqual(dlg.windowTitle(), "Selecionar cor")
+            textos = [b.text() for b in dlg.findChildren(QtWidgets.QAbstractButton)] + \
+                [lb.text() for lb in dlg.findChildren(QtWidgets.QLabel)]
+            self.assertIn("&Capturar cor da tela", textos)
+            ingles = [t for t in textos if t.replace("&", "") in ("Select Color", "Pick Screen Color", "Basic colors",
+                                                                   "Custom colors", "Add to Custom Colors", "Cancel")]
+            self.assertEqual(ingles, [])
+        finally:
+            dlg.deleteLater()
+
+    def test_ctrl_clique_soma_na_selecao(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        from PySide import QtCore, QtWidgets
+        from PySide6.QtTest import QTest
+        self.doc = novo_doc("UsinixT180")
+        a = self.doc.addObject("Part::Box", "PecaA")
+        b = self.doc.addObject("Part::Cylinder", "PecaB")
+        self.doc.recompute()
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.updateGui()
+        mw = FreeCADGui.getMainWindow()
+        arvore = itens = None
+        for t in mw.findChildren(QtWidgets.QTreeWidget):
+            ia = t.findItems(a.Label, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive, 0)
+            ib = t.findItems(b.Label, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive, 0)
+            if ia and ib:
+                arvore, itens = t, (ia[0], ib[0])
+                break
+        self.assertIsNotNone(arvore, "peças não achadas na árvore")
+        for it in itens:
+            arvore.scrollToItem(it)
+        FreeCADGui.updateGui()
+        vp = arvore.viewport()
+        QTest.mouseClick(vp, QtCore.Qt.LeftButton, QtCore.Qt.NoModifier, arvore.visualItemRect(itens[0]).center())
+        FreeCADGui.updateGui()
+        QTest.mouseClick(vp, QtCore.Qt.LeftButton, QtCore.Qt.ControlModifier, arvore.visualItemRect(itens[1]).center())
+        FreeCADGui.updateGui()
+        nomes = sorted(o.Name for o in FreeCADGui.Selection.getSelection(self.doc.Name))
+        self.assertEqual(nomes, ["PecaA", "PecaB"])

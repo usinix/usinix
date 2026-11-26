@@ -35,9 +35,13 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.29.8** (25/11/2026): a simulação avisa no painel e no relatório quando a malha é de 1ª ordem
-(tensões e deslocamentos subestimados); a barra de cores usa vírgula decimal e mostra o campo e a unidade; a barra
-de status da árvore mostra "Válido" em vez de "Valid".
+**Versão atual: 1.29.9** (26/11/2026): peça solta no corpo (Caixa sem referência) ganha o cartão "Posição" com
+X, Y e Z; nas primitivas soltas, os campos da rotação dizem que são o eixo e o ângulo; janela de cor toda em
+português.
+
+Na 1.29.8: a simulação avisa no painel e no relatório quando a malha é de 1ª ordem (tensões e deslocamentos
+subestimados); a barra de cores usa vírgula decimal e mostra o campo e a unidade; a barra de status da árvore mostra
+"Válido" em vez de "Valid".
 
 Na 1.29.7: na simulação do modelo de vigas a legenda da tela passa a mostrar a tensão em MPa e o deslocamento em
 mm (antes saía em Pa e m); o documento novo deixa de aparecer como "Unnamed" na barra de status.
