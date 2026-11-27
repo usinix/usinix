@@ -35,7 +35,9 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.30.3** (26/11/2026): a restrição Tangente da montagem só aceita faces planas, cilíndricas e
+**Versão atual: 1.30.4** (26/11/2026): o programa volta a abrir sempre na aba Início (às vezes abria em Peça).
+
+Na 1.30.3: a restrição Tangente da montagem só aceita faces planas, cilíndricas e
 esféricas e explica quando recusa (came de perfil livre, cone ou toro montavam errado sem aviso).
 
 Na 1.30.2: chaves da engrenagem evolvente no lugar certo; na busca de comandos, a

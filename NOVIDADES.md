@@ -15,6 +15,13 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.30.4 — 26/11/2026
+
+### Interface
+
+- **Abre na aba Início:** o programa às vezes abria na aba Peça. O carregamento das bancadas em segundo plano, logo
+  depois da abertura, trocava a aba da faixa e a última troca (a bancada Peça) ficava.
+
 ## 1.30.3 — 26/11/2026
 
 ### Montagem

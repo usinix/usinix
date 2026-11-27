@@ -1647,9 +1647,12 @@ class UsinixRibbon(QtWidgets.QWidget):
         if getattr(self, "_ignorar_sync", False):
             return
         try:
-            name = name or FreeCADGui.activeWorkbench().name()
+            ativa = FreeCADGui.activeWorkbench().name()
         except Exception:
             return
+        if name and name != ativa:
+            return                      # aviso atrasado de uma bancada que já não é a ativa
+        name = ativa
         self._rotulo_bancada(name)
         for t in self._tabs:
             if t.get("wb") == name or name in t.get("wb_extra", ()):
@@ -2391,6 +2394,10 @@ def _on_workbench(name):
     if rb is None:
         return
     QtCore.QTimer.singleShot(0, _hide_native_toolbars)
+    # pré-carregamento das bancadas (ativa cada uma e volta): a trava vale na hora da troca. Antes a troca de aba
+    # era agendada para depois, quando a trava já tinha saído, e a última (Peça) ganhava da aba Início.
+    if getattr(rb, "_ignorar_sync", False):
+        return
     QtCore.QTimer.singleShot(50, lambda: rb.sync_workbench(name))
     QtCore.QTimer.singleShot(80, instalar_menu_ferramentas)
 

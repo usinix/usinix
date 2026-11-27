@@ -23390,3 +23390,36 @@ class T184TangenteSoOndeEExata(unittest.TestCase):
         self.assertIsNotNone(FreeCADGui.Control.activeDialog(), "o painel continua aberto para corrigir")
         task.reject()
         FreeCADGui.Control.closeDialog()
+
+
+class T185AbreNaAbaInicio(unittest.TestCase):
+    """1.30.4: o programa abria na aba Peça em vez de Início. O pré-carregamento das bancadas (ativa cada uma e
+    volta) agendava a troca de aba para depois da trava sair, e a última, da bancada de partida, ganhava."""
+
+    _esp = T62PainelDeComando._esp
+
+    def test_precarregar_nao_tira_do_inicio(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixRibbon
+        rb = UsinixRibbon._state.get("ribbon")
+        self.assertIsNotNone(rb)
+        rb.select_tab("inicio")
+        self._esp(0.3)
+        rb._todas_precarregadas = False
+        rb.precarregar_todas()
+        self._esp(1.0)
+        self.assertEqual(rb._tabs[rb.tabbar.currentIndex()]["id"], "inicio",
+                         "o pré-carregamento das bancadas tirou a faixa do Início")
+
+    def test_aviso_atrasado_de_outra_bancada_e_ignorado(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixRibbon
+        rb = UsinixRibbon._state.get("ribbon")
+        rb.select_tab("inicio")
+        ativa = FreeCADGui.activeWorkbench().name()
+        outra = "TechDrawWorkbench" if ativa != "TechDrawWorkbench" else "SketcherWorkbench"
+        rb.sync_workbench(outra)
+        self._esp(0.2)
+        self.assertEqual(rb._tabs[rb.tabbar.currentIndex()]["id"], "inicio")
