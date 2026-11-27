@@ -165,7 +165,42 @@ def renomear_projecao(obj):
     return False
 
 
+def limpar_barra_do_documento(nome):
+    """Tira da barra de status a mensagem que cita um documento que fechou ("Pré-seleção: Doc.Obj.Edge2"): o
+    FreeCAD escreve num rótulo próprio da barra e a mensagem ficava lá depois de o documento sumir."""
+    if not FreeCAD.GuiUp:
+        return 0
+    try:
+        import FreeCADGui
+        from PySide import QtWidgets
+        sb = FreeCADGui.getMainWindow().statusBar()
+    except Exception:
+        return 0
+    marca = "%s." % nome
+    n = 0
+    for lb in sb.findChildren(QtWidgets.QLabel):
+        t = lb.text() or ""
+        if marca in t.split(" ", 1)[-1] and (": " + marca in t or t.startswith(marca) or " " + marca in t):
+            lb.setText("")
+            n += 1
+    if marca in (sb.currentMessage() or ""):
+        sb.clearMessage()
+        n += 1
+    return n
+
+
 class Observador:
+    def slotDeletedDocument(self, doc):
+        try:
+            nome = doc.Name
+        except Exception:
+            return
+        try:
+            from PySide import QtCore
+            QtCore.QTimer.singleShot(0, lambda n=nome: limpar_barra_do_documento(n))
+        except Exception:
+            pass
+
     def slotChangedObject(self, obj, prop):
         # o grupo de projeção cria a vista e só depois põe o tipo como rótulo
         if prop != "Label" or not _ligado():

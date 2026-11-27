@@ -15,6 +15,20 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.31.1 — 27/11/2026
+
+### Correções
+
+- **Mangueira — arrastar os pontos de passagem:** as alças agora são esferas amarelas desenhadas por cima da
+  mangueira (antes ficavam escondidas dentro dela e o clique pegava a mangueira). Aperte o botão sobre a alça,
+  arraste e solte: o ponto anda no plano da tela e a prévia acompanha. Saiu o arrastador antigo de setas, que não
+  respondia ao mouse e podia causar "Access violation".
+- **Mangueira — trecho abaixo do raio mínimo:** fica marcado com uma faixa vermelha na vista, também depois do OK.
+  O aviso aparece ainda na barra de status e no relatório.
+- **Mangueira — nome das pontas:** o painel mostra o que a ponta é ("furo Ø24 — Bomba", "boca do tubo Ø27 — Tubo").
+  O nome interno (Edge10) fica na dica.
+- **Barra de status:** a mensagem de pré-seleção de um documento que já fechou não fica mais na barra.
+
 ## 1.31.0 — 27/11/2026
 
 ### Tubulação

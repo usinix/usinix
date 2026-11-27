@@ -222,16 +222,69 @@ def ponta_de(obj, sub):
     return V(centro), eixo, diam
 
 
+def _mm(v):
+    return ("%.1f" % v).rstrip("0").rstrip(".").replace(".", ",")
+
+
+def descrever_ponta(obj, sub):
+    """Nome que a pessoa entende para a ponta: "furo Ø24", "boca do tubo Ø27", "face Ø40", "ponto"."""
+    _p, _n, d = ponta_de(obj, sub)
+    if sub.startswith("Vertex"):
+        return "ponto"
+    el = _forma_global(obj, sub)
+    if el.ShapeType == "Face":
+        if hasattr(el.Surface, "Radius") and not hasattr(el.Surface, "MajorRadius"):
+            return "furo Ø%s" % _mm(d) if _face_interna(el) else "ressalto Ø%s" % _mm(d)
+        return "face Ø%s" % _mm(d) if d else "face plana"
+    # aresta redonda: olha as faces vizinhas na peça
+    try:
+        sh = _forma_global(obj, "")
+    except Exception:
+        sh = None
+    planas, cilindros = [], []
+    if sh is not None:
+        for f in sh.Faces:
+            if any(e.isSame(el) or (e.CenterOfMass - el.CenterOfMass).Length < 1e-6 and
+                   abs(e.Length - el.Length) < 1e-6 for e in f.Edges):
+                (cilindros if hasattr(f.Surface, "Radius") and not hasattr(f.Surface, "MajorRadius")
+                 else planas).append(f)
+    for f in planas:
+        circ = [e for e in f.Edges if hasattr(e.Curve, "Radius")]
+        if len(f.Wires) == 2 and len(circ) == 2 and (circ[0].Curve.Center - circ[1].Curve.Center).Length < 1e-6:
+            return "boca do tubo Ø%s" % _mm(2 * max(e.Curve.Radius for e in circ))
+    if cilindros and _face_interna(cilindros[0]):
+        return "furo Ø%s" % _mm(d)
+    return "borda Ø%s" % _mm(d)
+
+
+def _face_interna(face):
+    """Face cilíndrica de furo (a normal aponta para o eixo) ou de ressalto (aponta para fora)."""
+    try:
+        sup = face.Surface
+        u0, u1, v0, v1 = face.ParameterRange
+        u, v = (u0 + u1) / 2, (v0 + v1) / 2
+        p = face.valueAt(u, v)
+        n = face.normalAt(u, v)
+        c = sup.Center if hasattr(sup, "Center") else sup.Position
+        ax = V(sup.Axis)
+        r = p - c
+        r = r - ax * r.dot(ax)
+        return n.dot(r) < 0
+    except Exception:
+        return False
+
+
 def filtro_ponta(obj, subs):
-    """Para a caixa de seleção do painel: aceita aresta redonda, face ou vértice."""
+    """Para a caixa de seleção do painel: aceita aresta redonda, face ou vértice. O texto diz o que a ponta é
+    ("furo Ø24 — Bomba"); o nome interno (Edge10) fica na dica."""
     res = []
     for s in subs or ():
         if s.startswith(("Edge", "Face", "Vertex")):
             try:
-                ponta_de(obj, s)
+                txt = descrever_ponta(obj, s)
             except Exception:
                 continue
-            res.append(("%s · %s" % (obj.Label, s), (obj, s)))
+            res.append((("%s — %s" % (txt, obj.Label), "%s · %s" % (obj.Label, s)), (obj, s)))
     return res
 
 

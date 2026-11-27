@@ -584,7 +584,8 @@ EM_PREVIA = {"ativa": False, "avisos": []}   # durante a prévia: avisos vão pa
 class CaixaSelecao(QtWidgets.QFrame):
     """O que o comando precisa que esteja selecionado.
 
-    filtro(obj, subnomes) → lista de (texto, valor) aceitos daquela seleção (vazia = ignora).
+    filtro(obj, subnomes) → lista de (texto, valor) aceitos daquela seleção (vazia = ignora); texto pode ser
+    (texto, dica), com a dica no item.
     Aceita seleção anterior à abertura do painel e seleção feita depois, na vista ou na árvore.
     Clique na caixa para ela receber a seleção (fica ativa: barra rosa forte).
     """
@@ -638,7 +639,12 @@ class CaixaSelecao(QtWidgets.QFrame):
                 self._valores.pop(0)
                 self.lista.takeItem(0)
             self._valores.append(valor)
-            self.lista.addItem(texto)
+            if isinstance(texto, tuple):          # (texto, dica): a dica guarda o nome interno
+                texto, dica = texto
+                self.lista.addItem(texto)
+                self.lista.item(self.lista.count() - 1).setToolTip(dica)
+            else:
+                self.lista.addItem(texto)
             n += 1
         if n:
             self._atualizar_rotulo()

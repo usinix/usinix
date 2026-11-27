@@ -23546,6 +23546,29 @@ class T187EngrenagemVisivelNaPeca(unittest.TestCase):
             fechar(doc)
 
 
+def arrastar_na_vista(v, de, ate, passos=6):
+    """Arrasta com o botão esquerdo na vista 3D, com eventos de mouse do Qt (de/ate em coordenadas da vista,
+    origem embaixo, como o Coin)."""
+    from PySide import QtCore, QtGui, QtWidgets
+    gv = v.graphicsView()
+    w = gv.viewport()
+    h = w.height()
+    dpr = w.devicePixelRatioF() if hasattr(w, "devicePixelRatioF") else 1.0
+
+    def qp(p):
+        return QtCore.QPointF(p[0] / dpr, h - p[1] / dpr)
+    E, B, N = QtCore.QEvent, QtCore.Qt.LeftButton, QtCore.Qt.NoModifier
+    QtWidgets.QApplication.sendEvent(w, QtGui.QMouseEvent(E.MouseMove, qp(de), QtCore.Qt.NoButton,
+                                                          QtCore.Qt.NoButton, N))
+    QtWidgets.QApplication.sendEvent(w, QtGui.QMouseEvent(E.MouseButtonPress, qp(de), B, B, N))
+    for k in range(1, passos + 1):
+        p = (de[0] + (ate[0] - de[0]) * k / passos, de[1] + (ate[1] - de[1]) * k / passos)
+        QtWidgets.QApplication.sendEvent(w, QtGui.QMouseEvent(E.MouseMove, qp(p), QtCore.Qt.NoButton, B, N))
+        FreeCADGui.updateGui()
+    QtWidgets.QApplication.sendEvent(w, QtGui.QMouseEvent(E.MouseButtonRelease, qp(ate), B, QtCore.Qt.NoButton, N))
+    FreeCADGui.updateGui()
+
+
 class T188Mangueira(unittest.TestCase):
     """1.31.0: Mangueira entre duas pontas (tubo–tubo, tubo–máquina, máquina–máquina), com terminais retos, 45° ou
     90°, giro automático, pontos de passagem arrastáveis, aviso de raio mínimo, corte e lista de materiais."""
@@ -23713,13 +23736,23 @@ class T188Mangueira(unittest.TestCase):
         p.adicionar_ponto()
         self.assertEqual(len(p.pontos), 1)
         self.assertEqual(len(p._arrastadores), 1, "o ponto novo ganha uma alça para arrastar")
-        alvo = V(p.pontos[0]) + V(0, 0, 250)
-        # o arrastador chama a mesma função quando a alça se move
-        dr, mexeu = p._arrastadores[0]
-        esc = p._escala_alca()
-        dr.translation.setValue(0, 0, 250.0 / esc)
-        mexeu(None, dr)
-        self.assertLess((p.pontos[0] - alvo).Length, 1e-3)
+        self.assertEqual(p._raiz[1].getTypeId().getName().getString(), "Annotation",
+                         "a alça é desenhada por cima da mangueira")
+        # arraste de verdade: eventos de mouse do Qt na vista (passam pelo Coin até o retorno do painel)
+        v = FreeCADGui.ActiveDocument.ActiveView
+        v.viewFront()
+        v.fitAll()
+        T62PainelDeComando._esp(self, 0.3)
+        antes = V(p.pontos[0])
+        x, y = v.getPointOnViewport(antes)
+        self.assertEqual(p.alca_em((x, y)), 0)
+        FreeCADGui.Selection.clearSelection()
+        arrastar_na_vista(v, (x, y), (x, y + 60))
+        T62PainelDeComando._esp(self, 0.6)
+        self.assertGreater(p.pontos[0].z - antes.z, 10.0, "o ponto devia subir com o arraste")
+        self.assertAlmostEqual(p.pontos[0].y, antes.y, 3, "o arraste fica no plano da tela")
+        self.assertEqual(FreeCADGui.Selection.getSelection(), [], "pegar a alça não seleciona a mangueira")
+        alvo = V(p.pontos[0])
         T62PainelDeComando._esp(self, 0.6)
         self.assertTrue(p.accept())
         FreeCADGui.Control.closeDialog()
@@ -23731,7 +23764,72 @@ class T188Mangueira(unittest.TestCase):
         self.assertLess((m.Pontos[0] - alvo).Length, 1e-3)
         self.assertEqual(m.FormaA, "90°")
         self.assertIsNone(p._raiz, "as alças saem da vista com o OK")
+        self.assertIsNone(p._cb_evento, "o retorno de eventos sai com o OK")
         self.assertEqual(len(m.ViewObject.ShapeAppearance), len(m.Shape.Faces), "cores por face")
+
+    def test_nome_das_pontas(self):
+        import UsinixMangueira as M
+        import UsinixMangueiraGui as G
+        self.assertEqual(M.descrever_ponta(*self.a), "furo Ø20")
+        self.assertEqual(M.descrever_ponta(*self.tubo), "boca do tubo Ø27")
+        (txt, dica), val = G.filtro_ponta(self.a[0], (self.a[1],))[0]
+        self.assertEqual(txt, "furo Ø20 — Bomba")
+        self.assertEqual(dica, "Bomba · %s" % self.a[1], "o nome interno fica só na dica")
+        if FreeCAD.GuiUp:
+            p = G.PainelMangueira()
+            p.ponta_a.aceitar(self.a[0], [self.a[1]])
+            it = p.ponta_a.lista.item(0)
+            self.assertEqual(it.text(), "furo Ø20 — Bomba")
+            self.assertEqual(it.toolTip(), "Bomba · %s" % self.a[1])
+
+    def test_trecho_apertado_marcado_e_aviso_depois_do_ok(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixMangueira as M
+        import UsinixMangueiraGui as G
+        m = M.criar(self.a, self.b, term_a=self._term("90°", 90.0), term_b=self._term("90°"), doc=self.doc)
+        T62PainelDeComando._esp(self, 0.3)
+        self.assertTrue(m.Aviso)
+        vp = m.ViewObject.Proxy
+        self.assertEqual(vp._no.getTypeId().getName().getString(), "Annotation", "por cima da mangueira")
+        nv = [vp._linhas.numVertices[k] for k in range(vp._linhas.numVertices.getNum())]
+        self.assertTrue(nv and all(n >= 2 for n in nv), "faixa vermelha nos trechos apertados")
+        self.assertEqual(sum(nv), vp._coords.point.getNum())
+        txt = G.avisar_raio(m)
+        self.assertIn("abaixo do mínimo", txt)
+        self.assertIn("abaixo do mínimo", FreeCADGui.getMainWindow().statusBar().currentMessage())
+        m.GiroAutoA = True
+        self.doc.recompute()
+        T62PainelDeComando._esp(self, 0.2)
+        self.assertEqual(vp._linhas.numVertices.getNum(), 0, "sem trecho apertado, sem faixa")
+        self.assertEqual(G.avisar_raio(m), "")
+
+    def test_arquivo_salvo_reabre_e_edita(self):
+        """MG01 (do Ronne): a mangueira salva reabre, recalcula e o painel de edição monta as alças."""
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import os, tempfile
+        import UsinixMangueira as M
+        m = M.criar(self.a, self.tubo, pontos=[FreeCAD.Vector(300, 200, 450)], doc=self.doc)
+        arq = os.path.join(tempfile.mkdtemp(), "MG01.FCStd")
+        self.doc.saveAs(arq)
+        nome = self.doc.Name
+        fechar(self.doc)
+        self.doc = FreeCAD.openDocument(arq)
+        m = [o for o in self.doc.Objects if M.e_mangueira(o)][0]
+        self.doc.recompute()
+        self.assertTrue(m.Shape.isValid())
+        m.ViewObject.Proxy.doubleClicked(m.ViewObject)
+        T62PainelDeComando._esp(self, 0.4)
+        import UsinixPainel as P
+        p = P._ATIVO.get("painel")
+        self.assertEqual(len(p._arrastadores), 1)
+        self.assertIsNotNone(p._cb_evento)
+        self.assertTrue(p.reject())
+        FreeCADGui.Control.closeDialog()
+        T62PainelDeComando._esp(self, 0.3)
+        self.assertIsNone(p._cb_evento)
+        self.assertNotEqual(nome, "")
 
     def test_duplo_clique_edita(self):
         if not FreeCAD.GuiUp:
@@ -23816,3 +23914,37 @@ class T189CruzetaTrizetaGraxeira(unittest.TestCase):
         a = C._gerar("graxeira", "Reta (A) M8×1")[0].BoundBox
         c = C._gerar("graxeira", "90° (C) M8×1")[0].BoundBox
         self.assertGreater(c.YLength, a.YLength + 2, "a forma C sai de lado")
+
+
+class T190BarraLimpaAoFecharDocumento(unittest.TestCase):
+    """1.31.1 (item 41): "Pré-seleção: UsinixT188Mangueira.Motor.Edge2" ficava na barra de status depois de o
+    documento da bateria fechar."""
+
+    def test_pre_selecao_some_quando_o_documento_fecha(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import Part
+        doc = novo_doc("UsinixT190Barra")
+        o = doc.addObject("Part::Feature", "Caixa")
+        o.Shape = Part.makeBox(10, 10, 10)
+        doc.recompute()
+        FreeCADGui.Selection.setPreselection(o, "Edge2")
+        T62PainelDeComando._esp(self, 0.2)
+        self.assertTrue(mensagem_da_barra("UsinixT190Barra."), "a pré-seleção devia aparecer na barra")
+        FreeCADGui.Selection.clearPreselection()
+        fechar(doc)
+        T62PainelDeComando._esp(self, 0.3)
+        self.assertEqual(mensagem_da_barra("UsinixT190Barra."), "")
+
+    def test_nao_apaga_mensagem_de_outro_documento(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixNomes
+        from PySide import QtWidgets
+        sb = FreeCADGui.getMainWindow().statusBar()
+        lb = [x for x in sb.findChildren(QtWidgets.QLabel)][0]
+        lb.setText("Pré-seleção: Outro.Caixa.Edge1")
+        self.assertEqual(UsinixNomes.limpar_barra_do_documento("Out"), 0, "nome parecido não conta")
+        self.assertEqual(lb.text(), "Pré-seleção: Outro.Caixa.Edge1")
+        self.assertEqual(UsinixNomes.limpar_barra_do_documento("Outro"), 1)
+        self.assertEqual(lb.text(), "")

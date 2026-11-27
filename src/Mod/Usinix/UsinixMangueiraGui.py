@@ -21,6 +21,41 @@ def filtro_ponta(obj, subs):
     return M.filtro_ponta(obj, subs)
 
 
+def trechos_apertados(pts):
+    """Divide os pontos apertados (amostras seguidas da curva) em trechos contínuos, cada um com pelo menos dois
+    pontos (um ponto sozinho vira um traço curto em volta dele)."""
+    if not pts:
+        return []
+    passos = [(pts[k + 1] - pts[k]).Length for k in range(len(pts) - 1)]
+    lim = 3.0 * (sorted(passos)[len(passos) // 2] if passos else 1.0)
+    trechos, atual = [], [pts[0]]
+    for k in range(1, len(pts)):
+        if (pts[k] - pts[k - 1]).Length > lim:
+            trechos.append(atual)
+            atual = []
+        atual.append(pts[k])
+    trechos.append(atual)
+    res = []
+    for t in trechos:
+        if len(t) == 1:
+            t = [t[0] - V(1, 0, 0), t[0] + V(1, 0, 0)]
+        res.append(t)
+    return res
+
+
+def avisar_raio(obj):
+    """Depois do OK: o aviso de raio fica também na barra de status e no relatório, fora do painel."""
+    if obj is None or not getattr(obj, "Aviso", ""):
+        return ""
+    txt = "%s: %s" % (obj.Label, obj.Aviso)
+    FreeCAD.Console.PrintWarning(txt + "\n")
+    try:
+        FreeCADGui.getMainWindow().statusBar().showMessage(txt, 15000)
+    except Exception:
+        pass
+    return txt
+
+
 # ============================================================================ vista
 class VPMangueira:
     def __init__(self, vobj):
@@ -30,19 +65,25 @@ class VPMangueira:
         self.Object = vobj.Object
         self._no = None
         try:
+            # trecho abaixo do raio mínimo: faixa vermelha grossa ao longo do eixo, desenhada por cima da
+            # mangueira (os pontos ficam no centro dela, escondidos se fossem desenhados normalmente)
             from pivy import coin
-            self._no = coin.SoSeparator()
+            self._no = coin.SoAnnotation()
             mat = coin.SoMaterial()
-            mat.diffuseColor = (0.9, 0.1, 0.1)
-            mat.emissiveColor = (0.9, 0.1, 0.1)
+            mat.diffuseColor = (0.95, 0.12, 0.10)
+            mat.emissiveColor = (0.95, 0.12, 0.10)
             est = coin.SoDrawStyle()
-            est.pointSize = 7
+            est.lineWidth = 6
+            est.pointSize = 9
+            luz = coin.SoLightModel()
+            luz.model = coin.SoLightModel.BASE_COLOR
             self._coords = coin.SoCoordinate3()
-            self._no.addChild(mat)
-            self._no.addChild(est)
-            self._no.addChild(self._coords)
-            self._no.addChild(coin.SoPointSet())
+            self._linhas = coin.SoLineSet()
+            self._linhas.numVertices.setNum(0)
+            for n in (luz, mat, est, self._coords, self._linhas):
+                self._no.addChild(n)
             vobj.RootNode.addChild(self._no)
+            self._marcar_apertados(vobj.Object)
         except Exception:
             self._no = None
 
@@ -84,10 +125,13 @@ class VPMangueira:
         if self._no is None:
             return
         try:
-            pts = [(p.x, p.y, p.z) for p in obj.Apertados]
+            trechos = trechos_apertados(list(obj.Apertados))
+            pts = [(p.x, p.y, p.z) for t in trechos for p in t]
             self._coords.point.setNum(0)
+            self._linhas.numVertices.setNum(0)
             if pts:
                 self._coords.point.setValues(0, len(pts), pts)
+                self._linhas.numVertices.setValues(0, len(trechos), [len(t) for t in trechos])
         except Exception:
             pass
 
@@ -211,6 +255,8 @@ class PainelMangueira(P.PainelTarefa):
         self.pontos = []
         self._arrastadores = []
         self._raiz = None
+        self._pegando = None
+        self._cb_evento = None
         f = self.form
         s0 = f.secao("Pontas", "selecao")
         self.ponta_a = f.caixa(s0, "Ponta A", filtro_ponta, minimo=1, maximo=1,
@@ -348,50 +394,75 @@ class PainelMangueira(P.PainelTarefa):
         self._campo_mudou()
 
     def arrastou(self, i, ponto):
-        """Alça i arrastada até ponto (chamado pelo arrastador; os testes chamam direto)."""
+        """Ponto de passagem i levado até ponto (o arraste na vista chama isto; os testes também)."""
         if 0 <= i < len(self.pontos):
             self.pontos[i] = V(ponto)
+            self._mover_alca(i)
             self._mudou()
 
-    def _escala_alca(self):
+    # ---- alças dos pontos de passagem
+    # Sem arrastador do Coin (SoDragPointDragger): ele não respondia ao mouse dentro da vista do FreeCAD e, junto
+    # com a prévia recriando a mangueira, chegou a dar "Access violation". As alças são esferas desenhadas por
+    # cima de tudo (a mangueira não as esconde) e o arraste é feito aqui, num retorno de eventos da vista:
+    # apertar o botão perto de uma alça pega a alça (o clique não chega à seleção), mover leva o ponto no plano
+    # da tela que passa por ele, soltar termina.
+    RAIO_TELA = 18          # pixels: distância do cursor até o centro da alça para pegar
+
+    def _raio_alca(self):
         try:
-            return max(M.dados(self.tipo.currentData(), self.tamanho.currentData())["de"] * 1.5, 8.0)
+            return max(M.dados(self.tipo.currentData(), self.tamanho.currentData())["de"] * 1.2, 8.0)
         except Exception:
-            return 15.0
+            return 10.0
+
+    def _vista(self):
+        try:
+            return FreeCADGui.ActiveDocument.ActiveView
+        except Exception:
+            return None
 
     def _montar_arrastadores(self):
         self._remover_arrastadores()
         if not FreeCAD.GuiUp or not self.pontos:
             return
+        v = self._vista()
         try:
             from pivy import coin
-            raiz = FreeCADGui.ActiveDocument.ActiveView.getSceneGraph()
+            raiz = v.getSceneGraph()
         except Exception:
             return
-        esc = self._escala_alca()
-        grupo = coin.SoSeparator()
-        for i, p in enumerate(self.pontos):
+        r = self._raio_alca()
+        grupo = coin.SoAnnotation()          # por cima da mangueira e das peças
+        for p in self.pontos:
             sep = coin.SoSeparator()
             tr = coin.SoTranslation()
             tr.translation = (p.x, p.y, p.z)
-            sc = coin.SoScale()
-            sc.scaleFactor = (esc, esc, esc)
-            dr = coin.SoDragPointDragger()
-            base = V(p)
-
-            def mexeu(_dado, d, i=i, base=base):
-                t = d.translation.getValue()
-                self.arrastou(i, base + V(t[0], t[1], t[2]) * esc)
-            dr.addMotionCallback(mexeu, None)
+            mat = coin.SoMaterial()
+            mat.diffuseColor = (0.97, 0.75, 0.0)
+            mat.emissiveColor = (0.45, 0.33, 0.0)
+            esf = coin.SoSphere()
+            esf.radius = r
             sep.addChild(tr)
-            sep.addChild(sc)
-            sep.addChild(dr)
+            sep.addChild(mat)
+            sep.addChild(esf)
             grupo.addChild(sep)
-            self._arrastadores.append((dr, mexeu))
+            self._arrastadores.append((tr, mat))
         raiz.addChild(grupo)
         self._raiz = (raiz, grupo)
+        try:
+            self._cb_evento = v.addEventCallbackPivy(coin.SoEvent.getClassTypeId(), self._evento)
+            self._cb_vista = v
+        except Exception:
+            self._cb_evento = None
 
     def _remover_arrastadores(self):
+        cb = getattr(self, "_cb_evento", None)
+        if cb is not None:
+            try:
+                from pivy import coin
+                self._cb_vista.removeEventCallbackPivy(coin.SoEvent.getClassTypeId(), cb)
+            except Exception:
+                pass
+        self._cb_evento = None
         if self._raiz is not None:
             try:
                 raiz, grupo = self._raiz
@@ -400,6 +471,82 @@ class PainelMangueira(P.PainelTarefa):
                 pass
         self._raiz = None
         self._arrastadores = []
+        self._pegando = None
+
+    def _mover_alca(self, i):
+        if 0 <= i < len(self._arrastadores):
+            p = self.pontos[i]
+            self._arrastadores[i][0].translation = (p.x, p.y, p.z)
+
+    def _destacar(self, i):
+        for k, (_tr, mat) in enumerate(self._arrastadores):
+            mat.diffuseColor = (1.0, 0.45, 0.0) if k == i else (0.97, 0.75, 0.0)
+
+    def alca_em(self, pos):
+        """Índice da alça sob a posição de tela pos (coordenadas da vista), ou -1."""
+        v = self._vista()
+        if v is None:
+            return -1
+        melhor, dist = -1, self.RAIO_TELA
+        for i, p in enumerate(self.pontos):
+            try:
+                q = v.getPointOnViewport(V(p))
+            except Exception:
+                continue
+            d = ((q[0] - pos[0]) ** 2 + (q[1] - pos[1]) ** 2) ** 0.5
+            if d <= dist:
+                melhor, dist = i, d
+        return melhor
+
+    def ponto_na_tela(self, i, pos):
+        """Onde o ponto i vai parar com o cursor em pos: no plano da tela que passa pelo ponto."""
+        v = self._vista()
+        q = v.getPoint(int(pos[0]), int(pos[1]))
+        d = V(v.getViewDirection()).normalize()
+        return q + d * (V(self.pontos[i]) - q).dot(d)
+
+    def pegar(self, pos):
+        i = self.alca_em(pos)
+        if i < 0:
+            return False
+        self._pegando = i
+        self._destacar(i)
+        return True
+
+    def mover(self, pos):
+        if self._pegando is None:
+            self._destacar(self.alca_em(pos))
+            return False
+        self.arrastou(self._pegando, self.ponto_na_tela(self._pegando, pos))
+        return True
+
+    def soltar(self, pos):
+        if self._pegando is None:
+            return False
+        i, self._pegando = self._pegando, None
+        self.arrastou(i, self.ponto_na_tela(i, pos))
+        self._destacar(-1)
+        return True
+
+    def _evento(self, no):
+        try:
+            from pivy import coin
+            ev = no.getEvent()
+            pos = ev.getPosition().getValue()
+            usado = False
+            if ev.isOfType(coin.SoMouseButtonEvent.getClassTypeId()) and \
+                    ev.getButton() == coin.SoMouseButtonEvent.BUTTON1:
+                if ev.getState() == coin.SoButtonEvent.DOWN:
+                    usado = self.pegar(pos)
+                elif ev.getState() == coin.SoButtonEvent.UP:
+                    usado = self.soltar(pos)
+            elif ev.isOfType(coin.SoLocation2Event.getClassTypeId()):
+                usado = self.mover(pos)
+            if usado:
+                no.setHandled()
+        except Exception as ex:
+            self._pegando = None
+            FreeCAD.Console.PrintWarning("Mangueira: arraste do ponto interrompido (%s)\n" % ex)
 
     # ---- resultado
     def _atualizar_previa(self):
@@ -490,10 +637,20 @@ class PainelMangueira(P.PainelTarefa):
         return [obj]
 
     def accept(self):
+        self._remover_arrastadores()
         ok = super().accept()
         if ok:
-            self._remover_arrastadores()
+            avisar_raio(self._objeto_final())
+        else:
+            self._montar_arrastadores()
         return ok
+
+    def _objeto_final(self):
+        if self.editando is not None:
+            return self.editando
+        doc = FreeCAD.ActiveDocument
+        objs = [o for o in (doc.Objects if doc else []) if M.e_mangueira(o)]
+        return objs[-1] if objs else None
 
     def reject(self):
         self._remover_arrastadores()

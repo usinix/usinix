@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.31.0** (27/11/2026): ferramenta Mangueira na aba Tubulação (pontas em tubo ou máquina,
+**Versão atual: 1.31.1** (27/11/2026): na Mangueira, as alças dos pontos de passagem ficam por cima e
+arrastam com o mouse, o trecho abaixo do raio mínimo fica em vermelho e as pontas aparecem como "furo Ø24";
+a barra de status não guarda mais mensagem de documento fechado.
+
+Na 1.31.0: ferramenta Mangueira na aba Tubulação (pontas em tubo ou máquina,
 terminais retos, 45° ou 90°, pontos de passagem arrastáveis, aviso de raio mínimo e comprimento de corte na lista
 de materiais); cruzeta, trizeta e graxeira nos Componentes (Transmissão).
 
