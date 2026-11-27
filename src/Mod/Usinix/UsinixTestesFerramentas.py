@@ -89,7 +89,9 @@ def liberar_navegador():
     _BLOQUEIO["obj"] = None
 
 
-bloquear_navegador()
+# O bloqueio vale só enquanto a bateria roda (o executor liga e desliga). Antes ele era ligado ao importar este
+# módulo: carregado por fora do executor (ex.: pela conexão de IA), nenhum link abria mais até fechar o programa
+# ("Enviar sugestão" não fazia nada).
 
 
 def novo_doc(nome):
@@ -17198,10 +17200,31 @@ class T137TestesSemAbrirNavegador(unittest.TestCase):
     def test_sugestao_anotada(self):
         if not FreeCAD.GuiUp:
             self.skipTest("sem interface")
-        antes = len(URLS_ABERTAS)
-        FreeCADGui.runCommand("Usinix_Sugestao")
-        self.assertEqual(len(URLS_ABERTAS), antes + 1)
-        self.assertIn("usinix.com.br/sugestao.html", URLS_ABERTAS[-1])
+        ja = _BLOQUEIO["obj"] is not None
+        bloquear_navegador()
+        try:
+            antes = len(URLS_ABERTAS)
+            FreeCADGui.runCommand("Usinix_Sugestao")
+            self.assertEqual(len(URLS_ABERTAS), antes + 1)
+            self.assertIn("usinix.com.br/sugestao.html", URLS_ABERTAS[-1])
+        finally:
+            if not ja:
+                liberar_navegador()
+
+    def test_importar_os_testes_nao_bloqueia_links(self):
+        # 1.30.5: importar o módulo de testes deixava os links bloqueados até fechar o programa
+        import ast
+        import inspect
+        import sys
+        arvore = ast.parse(inspect.getsource(sys.modules[__name__]))
+        chamadas = [n for n in arvore.body if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
+                    and getattr(n.value.func, "id", "") == "bloquear_navegador"]
+        self.assertEqual(chamadas, [], "o bloqueio de links não pode ser ligado ao importar os testes")
+        # e o executor do Usinix liga e desliga
+        import UsinixTestes
+        src = inspect.getsource(UsinixTestes._executar)
+        self.assertIn("bloquear_navegador()", src)
+        self.assertIn("liberar_navegador()", src)
 
 class T121FolhaPronta(unittest.TestCase):
     """1.7.0: folha pronta — furação cotada (n× ⌀ e posição), balões ligados à lista de materiais, folha da
@@ -23070,7 +23093,7 @@ class T181Defeitos130(unittest.TestCase):
         self.assertIn("PartDesign_InvoluteGear", todos)
         itens = B.indice()
         for termo in ("engrenagem", "evolvente", "involute"):
-            self.assertIn("PartDesign_InvoluteGear", [it[0] for it in B.procurar(termo, itens)], termo)
+            self.assertIn("PartDesign_InvoluteGear", [it[0].split("|")[0] for it in B.procurar(termo, itens)], termo)
         self.assertIn("Part_Box", [it[0] for it in B.procurar("caixa", itens)], "item do menu do Sólido")
         cmds = [it[0] for it in itens]
         self.assertEqual(len(cmds), len(set(cmds)), "comando repetido no índice")
@@ -23423,3 +23446,100 @@ class T185AbreNaAbaInicio(unittest.TestCase):
         rb.sync_workbench(outra)
         self._esp(0.2)
         self.assertEqual(rb._tabs[rb.tabbar.currentIndex()]["id"], "inicio")
+
+
+class T186PainelVoltaParaArvore(unittest.TestCase):
+    """1.30.5 (item 34): depois do OK da extrusão o painel voltava para Propriedades vazia, só com
+    "‹ Voltar aos cartões" (modo Avançado preso). Volta para a Árvore e sai do modo Avançado."""
+
+    setUp = T55PainelLateral.setUp
+    tearDown = T55PainelLateral.tearDown
+    _assentar = T55PainelLateral._assentar
+    _atual = T55PainelLateral._atual
+    _ok = T62PainelDeComando._ok
+    _esp = T62PainelDeComando._esp
+
+    def test_ok_da_extrusao_volta_para_arvore(self):
+        body = self.doc.addObject("PartDesign::Body", "Body")
+        sk = esboco_retangulo(body)
+        self.doc.recompute()
+        FreeCADGui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
+        self._assentar(0.8)              # deixa terminar o que um teste anterior agendou
+        # como no relato: o usuário estava em Propriedades, na tabela completa
+        self.P.abrir_avancado()
+        self._assentar(0.4)
+        ins = self.P.inspetor()
+        self.assertTrue(ins.botao_avancado.isChecked())
+        self.assertEqual(self._atual(), "Propriedades")
+        FreeCADGui.Selection.clearSelection()
+        FreeCADGui.Selection.addSelection(sk)
+        FreeCADGui.runCommand("PartDesign_Pad", 0)
+        self._assentar(1.2)
+        self.assertIsNotNone(FreeCADGui.Control.activeDialog(), "a extrusão não abriu")
+        self.assertTrue(self._ok())
+        self._assentar(1.0)
+        info = "dialogo=%s edicao=%s aba=%s ativa=%s antes=%s" % (
+            FreeCADGui.Control.activeDialog(), FreeCADGui.ActiveDocument.getInEdit(), self.P.aba_atual(),
+            self.P._estado.get("ativa"), self.P._estado.get("antes"))
+        try:
+            import UsinixPainelComando as _C
+            from PySide import QtWidgets as _W
+            _p = _C._painel_de_tarefas()
+            info += " caixas=%s botoes=%s doc=%s" % (
+                [w.windowTitle() for w in _p.findChildren(_W.QWidget) if w.windowTitle()][:6] if _p else None,
+                [b.text() for b in _p.findChildren(_W.QAbstractButton) if b.isVisible()][:8] if _p else None,
+                [(o.Name, o.TypeId, o.isValid(), o.Shape.isNull() if hasattr(o, "Shape") else None)
+                 for o in self.doc.Objects][-2:])
+            info += " oks=%s" % [(b.text(), type(b.parentWidget()).__name__, b.window().windowTitle())
+                                  for b in FreeCADGui.getMainWindow().findChildren(_W.QPushButton)
+                                  if b.isVisible() and b.text().replace("&", "") in ("OK", "Cancelar", "Cancel")]
+        except Exception as _e:
+            info += " erro=%s" % _e
+        self.assertEqual(self._atual(), "Árvore", "depois do OK da extrusão devia voltar para a Árvore (%s)" % info)
+        self.assertFalse(ins.botao_avancado.isChecked(), "o modo Avançado ficou preso")
+        self.assertEqual(ins.botao_avancado.text(), "Avançado (tabela completa)")
+
+
+class T187EngrenagemVisivelNaPeca(unittest.TestCase):
+    """1.30.5: a engrenagem ficava escondida no menu do botão Esboço; agora tem botão grande na aba Peça, no grupo
+    Elementos de máquina, com a roda dentada no menu da setinha."""
+
+    def test_botao_da_engrenagem_na_peca(self):
+        import UsinixRibbon as R
+        peca = [t for t in R.TABS if t["id"] == "peca"][0]
+        grupos = dict(peca["panels"])
+        self.assertIn("Elementos de máquina", grupos)
+        cmd, tam, rot = grupos["Elementos de máquina"][0][:3]
+        self.assertEqual(cmd.split("|")[0], "PartDesign_InvoluteGear")
+        self.assertIn("PartDesign_Sprocket", cmd.split("|"))
+        self.assertEqual(rot, "Engrenagem")
+        self.assertEqual(tam, R.L, "a engrenagem deve ter botão grande")
+        esboco = [c for item in grupos["Corpo"] for c in item[0].split("|")]
+        self.assertNotIn("PartDesign_InvoluteGear", esboco, "repetida no menu do Esboço")
+        todos = [c for t in R.TABS for _p, itens in t["panels"] for item in itens for c in item[0].split("|")]
+        self.assertEqual(todos.count("PartDesign_InvoluteGear"), 1, "a faixa não repete ferramenta")
+        eixo = [item for item in grupos["Elementos de máquina"] if item[0] == "PartDesign_WizardShaft"]
+        self.assertEqual(len(eixo), 1, "sem o botão do assistente de eixo")
+        self.assertEqual(eixo[0][1], R.L)
+        self.assertEqual(todos.count("PartDesign_WizardShaft"), 1)
+
+    def test_assistente_de_eixo_abre(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixI18n
+        from PySide import QtCore
+        FreeCADGui.activateWorkbench("PartDesignWorkbench")
+        doc = novo_doc("UsinixT187Eixo")
+        try:
+            FreeCADGui.updateGui()
+            UsinixI18n.raise_priority()
+            info = FreeCADGui.Command.get("PartDesign_WizardShaft").getInfo()
+            self.assertEqual(QtCore.QCoreApplication.translate("PartDesign_WizardShaft", info["menuText"]),
+                             "Assistente de eixo (cálculo)")
+            FreeCADGui.runCommand("PartDesign_WizardShaft", 0)
+            T62PainelDeComando._esp(self, 1.5)
+            self.assertIsNotNone(FreeCADGui.Control.activeDialog(), "o assistente de eixo não abriu")
+        finally:
+            FreeCADGui.Control.closeDialog()
+            T62PainelDeComando._esp(self, 0.3)
+            fechar(doc)

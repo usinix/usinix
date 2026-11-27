@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.30.4** (26/11/2026): o programa volta a abrir sempre na aba Início (às vezes abria em Peça).
+**Versão atual: 1.30.5** (27/11/2026): depois do OK de um comando o painel volta para a Árvore e sai do modo
+Avançado das Propriedades; botões "Engrenagem" e "Eixo (cálculo)" na aba Peça (grupo Elementos de máquina); "Enviar sugestão" e outros links
+não ficam mais bloqueados depois de carregar os testes.
+
+Na 1.30.4: o programa volta a abrir sempre na aba Início (às vezes abria em Peça).
 
 Na 1.30.3: a restrição Tangente da montagem só aceita faces planas, cilíndricas e
 esféricas e explica quando recusa (came de perfil livre, cone ou toro montavam errado sem aviso).

@@ -115,10 +115,8 @@ TABS = [
     ]},
     {"id": "peca", "label": "Peça", "wb": "PartDesignWorkbench", "wb_extra": ["PartWorkbench"], "panels": [
         ("Corpo", [
-            # no menu do Esboço, os perfis prontos para extrudar (engrenagem evolvente, roda dentada): antes só no
-            # menu Peça, e a busca (Ctrl+K) não os achava
             ("PartDesign_Body", L, "Novo\ncorpo"),
-            ("PartDesign_CompSketches|Usinix_Esboco3D|PartDesign_InvoluteGear|PartDesign_Sprocket", L, "Esboço"),
+            ("PartDesign_CompSketches|Usinix_Esboco3D", L, "Esboço"),
             # um botão só: subforma (a mais completa), forma e clone no menu da setinha
             ("PartDesign_SubShapeBinder|PartDesign_ShapeBinder|PartDesign_Clone", L, "Vínculo"),
             # referências: só o Novo plano (grupo Ferramentas); o grupo Eixo, ponto, sistema saiu
@@ -161,6 +159,13 @@ TABS = [
             ("Part_CompJoinFeatures|Part_CompSplitFeatures|Part_CompCompoundTools", S, "Juntar / dividir"),
             ("Part_Section|Part_CrossSections|Part_ProjectionOnSurface", S, "Seção / projeção"),
             ("Part_Scale|Part_CompOffset|Part_Defeaturing", S, "Escala / offset"),
+        ]),
+        # elementos de máquina: perfis prontos que viram sólido com a Extrusão (antes escondidos no menu do Esboço)
+        ("Elementos de máquina", [
+            ("PartDesign_InvoluteGear|PartDesign_Sprocket", L, "Engrenagem"),
+            # assistente de eixo: trechos, mancais e cargas, com diagramas de cortante, fletor e deflexão
+            # (diferente do eixo escalonado do "Modelo com regras", que é só geometria)
+            ("PartDesign_WizardShaft", L, "Eixo\n(cálculo)"),
         ]),
         ("Ferramentas", [
             # Recalcular foi para a barra do topo (ao lado de Medir); Verificar geometria fica em Superfícies;

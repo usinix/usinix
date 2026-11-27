@@ -532,9 +532,28 @@ def _comando(ds, no_inicio):
             # acabou de ser feito. Aparência continua voltando para ela mesma.
             antes = ARVORE
         volta = ds.get(antes) or ds.get(ARVORE)
-        if volta is not None and volta.isVisible():
-            volta.raise_()
+        _voltar_para(volta)
+        # o Qt mostra sozinho a aba vizinha (Propriedades) quando a do comando some, às vezes depois deste tique
+        QtCore.QTimer.singleShot(300, lambda d=volta: _voltar_para(d))
         _estado["reais"][TAREFA] = TITULOS[TAREFA]
+
+
+def _voltar_para(dock):
+    """Traz a aba para a frente depois de um comando. A aba atrás de outra não conta como "visível" para o Qt,
+    então vale a aba aberta no painel (não fechada pelo usuário). Sai também do modo Avançado das Propriedades
+    ("‹ Voltar aos cartões"), que ficava preso e mostrava a tabela vazia."""
+    try:
+        ins = inspetor()
+        if ins is not None and ins.botao_avancado.isChecked():
+            ins.botao_avancado.setChecked(False)
+    except Exception:
+        pass
+    if dock is None or dock.isFloating() or not dock.toggleViewAction().isChecked():
+        return False
+    if _estado.get("ativa"):
+        return False                   # um novo comando já abriu: não tira a aba dele da frente
+    dock.raise_()
+    return True
 
 
 def organizar(no_inicio=False):

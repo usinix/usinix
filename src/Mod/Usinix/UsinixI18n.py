@@ -628,6 +628,11 @@ GLOSSARIO = {
     ("SheetMetal", "Create hems on edges.\n1. Select edges to create bends with walls.\n2. Use Property editor to "
                    "modify other parameters"):
         "Cria bainhas nas arestas\n1. Selecione as arestas.\n2. Ajuste os demais parâmetros",
+    # Assistente de eixo (Peça › Elementos de máquina)
+    ("PartDesign_WizardShaft", "Shaft Design Wizard"): "Assistente de eixo (cálculo)",
+    ("PartDesign_WizardShaft", "Starts the shaft design wizard"):
+        "Monta um eixo por trechos, com mancais e cargas, e mostra os diagramas de cortante, momento fletor e "
+        "deflexão",
     # Clonar (Peça › Vínculo): a dica vinha em inglês
     ("CmdPartDesignClone", "Copies a solid object parametrically as the base feature of a new body"):
         "Copia um sólido de forma paramétrica como base de um corpo novo",

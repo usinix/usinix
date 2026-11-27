@@ -15,6 +15,22 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.30.5 — 27/11/2026
+
+### Interface
+
+- **Depois do OK de um comando** (ex.: extrusão), o painel lateral volta para a Árvore e sai do modo Avançado das
+  Propriedades. Antes ficava em Propriedades com a tabela vazia e só o botão "‹ Voltar aos cartões".
+- **"Enviar sugestão" e outros links voltam a abrir o navegador** depois que os testes automáticos são carregados por
+  fora do executor (ex.: pela conexão de IA). O bloqueio de links dos testes ficava ligado até fechar o programa.
+
+### Peça
+
+- **Engrenagem visível:** botão grande "Engrenagem" na aba Peça, no grupo novo "Elementos de máquina" (a roda
+  dentada fica no menu da setinha). Antes ficava escondida no menu do botão Esboço.
+- **Eixo (cálculo):** no mesmo grupo, o assistente de eixo, que monta o eixo por trechos, com mancais e cargas, e
+  mostra os diagramas de cortante, momento fletor e deflexão. Antes só existia no menu, sem botão.
+
 ## 1.30.4 — 26/11/2026
 
 ### Interface
