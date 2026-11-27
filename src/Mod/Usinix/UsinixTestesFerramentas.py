@@ -12514,6 +12514,7 @@ class T85SoldaRugosidadeAjuste(unittest.TestCase):
                         "UsinixPiso.PainelPiso._atualizar_previa",       # chama super() e depois mostra área e peso
                         "UsinixProtecao.PainelProtecao._atualizar_previa",   # chama super() e mostra a verificação
                         "UsinixEscada.PainelEscada._atualizar_previa",   # chama super() e mostra a NR-12
+                        "UsinixMangueiraGui.PainelMangueira._atualizar_previa",   # chama super() e mostra corte e raio
                         "UsinixInserirDesenho.PainelInserir._preencher_com_selecao"}  # a seleção só marca a lista
         ruins = []
         for cls in todas(P.PainelTarefa):
@@ -23543,3 +23544,275 @@ class T187EngrenagemVisivelNaPeca(unittest.TestCase):
             FreeCADGui.Control.closeDialog()
             T62PainelDeComando._esp(self, 0.3)
             fechar(doc)
+
+
+class T188Mangueira(unittest.TestCase):
+    """1.31.0: Mangueira entre duas pontas (tubo–tubo, tubo–máquina, máquina–máquina), com terminais retos, 45° ou
+    90°, giro automático, pontos de passagem arrastáveis, aviso de raio mínimo, corte e lista de materiais."""
+
+    def setUp(self):
+        import Part
+        self.doc = novo_doc("UsinixT188Mangueira")
+        V = FreeCAD.Vector
+
+        def maquina(nome, x):
+            o = self.doc.addObject("Part::Feature", nome)
+            o.Shape = Part.makeBox(200, 150, 100, V(x, 0, 0)).cut(
+                Part.makeCylinder(10, 30, V(x + 100, 75, 70), V(0, 0, 1)))
+            e = [("Edge%d" % (i + 1)) for i, ed in enumerate(o.Shape.Edges)
+                 if hasattr(ed.Curve, "Radius") and abs(ed.Curve.Center.z - 100) < 1e-6][0]
+            return o, e
+        self.a = maquina("Bomba", 0)
+        self.b = maquina("Motor", 800)
+        t = self.doc.addObject("Part::Feature", "Tubo")
+        t.Shape = Part.makeCylinder(13.5, 300, V(600, 0, 300), V(0, 1, 0)).cut(
+            Part.makeCylinder(10, 300, V(600, 0, 300), V(0, 1, 0)))
+        self.doc.recompute()
+        e = [("Edge%d" % (i + 1)) for i, ed in enumerate(t.Shape.Edges) if hasattr(ed.Curve, "Radius")
+             and abs(ed.Curve.Radius - 13.5) < 1e-6 and abs(ed.Curve.Center.y - 300) < 1e-6][0]
+        self.tubo = (t, e)
+
+    def tearDown(self):
+        try:
+            FreeCADGui.Control.closeDialog()
+        except Exception:
+            pass
+        T62PainelDeComando._esp(self, 0.2)
+        fechar(self.doc)
+
+    def _term(self, forma, giro=None):
+        return ("JIC 37°", "3/4-16 UNF", "Fêmea giratória", forma, giro)
+
+    def test_pontas_e_eixos(self):
+        import UsinixMangueira as M
+        p, n, d = M.ponta_de(*self.a)
+        self.assertAlmostEqual(p.z, 100.0, 3)
+        self.assertAlmostEqual(n.z, 1.0, 6, "o furo da máquina deve apontar para fora (para cima)")
+        self.assertAlmostEqual(d, 20.0, 3)
+        p, n, _d = M.ponta_de(*self.tubo)
+        self.assertAlmostEqual(p.y, 300.0, 3)
+        self.assertAlmostEqual(n.y, 1.0, 6, "a boca do tubo deve apontar para fora do tubo")
+
+    def test_maquina_maquina_terminais_90(self):
+        import UsinixMangueira as M
+        m = M.criar(self.a, self.b, term_a=self._term("90°"), term_b=self._term("90°"), doc=self.doc)
+        self.assertTrue(m.Shape.isValid())
+        self.assertEqual(len(m.Shape.Solids), 9, "mangueira + 4 sólidos por terminal")
+        self.assertEqual(m.Aviso, "", "terminais virados um para o outro: sem aviso")
+        c = m.Proxy.curva
+        t0 = c.tangent(c.FirstParameter)[0]
+        self.assertAlmostEqual(t0.x, 1.0, 4, "o terminal 90° (giro automático) deve virar para a outra máquina")
+        dd = M.dados(m.Tipo, m.Tamanho)
+        mt = M.medidas_terminal(m.Tipo, m.Tamanho, "JIC 37°", "3/4-16 UNF")
+        esperado = math.ceil((float(m.Livre) + 2 * mt["entra"]) / 5.0) * 5.0
+        self.assertAlmostEqual(float(m.Corte), esperado, 3)
+        self.assertEqual(float(m.Corte) % 5, 0)
+        self.assertEqual(float(m.RaioMinimo), dd["rmin"])
+
+    def test_giro_manual_e_aviso_de_raio(self):
+        import UsinixMangueira as M
+        m = M.criar(self.a, self.b, term_a=self._term("90°", 90.0), term_b=self._term("90°"), doc=self.doc)
+        self.assertFalse(m.GiroAutoA)
+        self.assertIn("abaixo do mínimo", m.Aviso)
+        self.assertTrue(list(m.Apertados))
+        self.assertLess(float(m.RaioMedido), float(m.RaioMinimo))
+        m.GiroAutoA = True
+        self.doc.recompute()
+        self.assertEqual(m.Aviso, "")
+        self.assertFalse(list(m.Apertados))
+
+    def test_terminal_45_e_reto(self):
+        import UsinixMangueira as M
+        for forma, dz in (("Reto", 1.0), ("45°", math.sqrt(0.5))):
+            m = M.criar(self.a, self.b, term_a=self._term(forma), term_b=self._term(forma), doc=self.doc)
+            c = m.Proxy.curva
+            self.assertAlmostEqual(c.tangent(c.FirstParameter)[0].z, dz, 4, forma)
+            self.assertTrue(m.Shape.isValid(), forma)
+
+    def test_tubo_maquina_e_ponto_de_passagem(self):
+        import UsinixMangueira as M
+        V = FreeCAD.Vector
+        alvo = V(300, 200, 450)
+        m = M.criar(self.a, self.tubo, pontos=[alvo], doc=self.doc)
+        self.assertTrue(m.Shape.isValid())
+        c = m.Proxy.curva
+        perto = min((c.value(c.FirstParameter + (c.LastParameter - c.FirstParameter) * i / 3000) - alvo).Length
+                    for i in range(3001))
+        self.assertLess(perto, 1.0, "a mangueira deve passar pelo ponto de passagem")
+        novos = M.ponto_novo(c, [alvo])
+        self.assertEqual(len(novos), 2)
+
+    def test_varredura_em_curva_plana_reta_e_3d(self):
+        """O Frenet corrigido falha em curva plana e o Frenet puro desenha a mangueira com falhas: cada caso
+        tem de sair num sólido válido (sem makePipe, que derruba o programa)."""
+        import UsinixMangueira as M
+        V = FreeCAD.Vector
+        casos = ((V(100, 75, 184), V(0, 0, 1), V(900, 75, 184), V(0, 0, 1)),
+                 (V(0, 0, 0), V(1, 0, 0), V(500, 0, 0), V(-1, 0, 0)),
+                 (V(0, 0, 0), V(0, 0, 1), V(500, 300, 100), V(0, 1, 0)))
+        for p0, d0, p1, d1 in casos:
+            s = M.varrer(M.curva(p0, d0, p1, d1), 10.0)
+            self.assertTrue(s.isValid())
+            self.assertEqual(len(s.Solids), 1)
+            self.assertEqual(len(s.Faces), 3)
+
+    def test_pneumatica(self):
+        import UsinixMangueira as M
+        m = M.criar(self.a, self.b, "Pneumática PU (tubo)", "Ø8", doc=self.doc)
+        self.assertTrue(m.RoscaA.startswith("Instantânea |"))
+        self.assertTrue(m.Shape.isValid())
+        linhas = m.Proxy.linhas_bom(m)
+        self.assertIn("Conexão instantânea", linhas[1][1])
+        self.assertEqual(linhas[1][2], "Latão niquelado")
+
+    def test_lista_de_materiais(self):
+        import UsinixMangueira as M
+        import UsinixBOM
+        m = M.criar(self.a, self.b, term_a=self._term("90°"), term_b=self._term("Reto"), folga=12.0,
+                    doc=self.doc)
+        linhas = UsinixBOM.coletar([m], 7850)
+        dens = [l.denominacao for l in linhas]
+        self.assertTrue(any(d.startswith("Mangueira Hidráulica 2SN") for d in dens), dens)
+        self.assertTrue(any("90°" in d for d in dens), dens)
+        self.assertTrue(any("reto" in d for d in dens), dens)
+        mang = [l for l in linhas if l.denominacao.startswith("Mangueira")][0]
+        self.assertIn("L = %.0f mm" % float(m.Corte), mang.dimensoes)
+        self.assertGreater(mang.massa or 0, 0)
+
+    def test_faixa_e_comando(self):
+        import UsinixRibbon as R
+        tub = [t for t in R.TABS if t["id"] == "tubulacao"][0]
+        grupos = dict(tub["panels"])
+        cmds = [it[0] for it in grupos["Tubulação"]]
+        self.assertEqual(cmds.index("Usinix_Mangueira"), cmds.index("Usinix_Tubulacao") + 1,
+                         "Mangueira ao lado de Tubos e conexões")
+        todos = [c for t in R.TABS for _p, itens in t["panels"] for item in itens for c in item[0].split("|")]
+        self.assertEqual(todos.count("Usinix_Mangueira"), 1)
+        if FreeCAD.GuiUp:
+            self.assertIn("Usinix_Mangueira", FreeCADGui.listCommands())
+
+    def test_painel_cria_com_ponto_arrastado(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixMangueira as M
+        import UsinixMangueiraGui as G
+        V = FreeCAD.Vector
+        FreeCADGui.Selection.clearSelection()
+        p = G.PainelMangueira()
+        p.mostrar()
+        T62PainelDeComando._esp(self, 0.3)
+        self.assertIsNotNone(p.pendencia())
+        p.ponta_a.aceitar(*[self.a[0], [self.a[1]]])
+        self.assertIs(p.form.caixa_ativa(), p.ponta_b, "depois da ponta A a caixa ativa passa para a B")
+        p.ponta_b.aceitar(*[self.b[0], [self.b[1]]])
+        p.lados["A"].forma.setCurrentIndex(p.lados["A"].forma.findData("90°"))
+        T62PainelDeComando._esp(self, 0.6)
+        prev = [o for o in self.doc.Objects if M.e_mangueira(o)]
+        self.assertEqual(len(prev), 1, "a prévia devia mostrar a mangueira")
+        self.assertIn("Corte", p.lb_resultado.text())
+        p.adicionar_ponto()
+        self.assertEqual(len(p.pontos), 1)
+        self.assertEqual(len(p._arrastadores), 1, "o ponto novo ganha uma alça para arrastar")
+        alvo = V(p.pontos[0]) + V(0, 0, 250)
+        # o arrastador chama a mesma função quando a alça se move
+        dr, mexeu = p._arrastadores[0]
+        esc = p._escala_alca()
+        dr.translation.setValue(0, 0, 250.0 / esc)
+        mexeu(None, dr)
+        self.assertLess((p.pontos[0] - alvo).Length, 1e-3)
+        T62PainelDeComando._esp(self, 0.6)
+        self.assertTrue(p.accept())
+        FreeCADGui.Control.closeDialog()
+        T62PainelDeComando._esp(self, 0.3)
+        objs = [o for o in self.doc.Objects if M.e_mangueira(o)]
+        self.assertEqual(len(objs), 1)
+        m = objs[0]
+        self.assertEqual(len(m.Pontos), 1)
+        self.assertLess((m.Pontos[0] - alvo).Length, 1e-3)
+        self.assertEqual(m.FormaA, "90°")
+        self.assertIsNone(p._raiz, "as alças saem da vista com o OK")
+        self.assertEqual(len(m.ViewObject.ShapeAppearance), len(m.Shape.Faces), "cores por face")
+
+    def test_duplo_clique_edita(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixMangueira as M
+        import UsinixPainel as P
+        m = M.criar(self.a, self.b, doc=self.doc)
+        corte = float(m.Corte)
+        m.ViewObject.Proxy.doubleClicked(m.ViewObject)
+        T62PainelDeComando._esp(self, 0.4)
+        p = P._ATIVO.get("painel")
+        self.assertIs(p.editando, m)
+        self.assertEqual(p.ponta_a.valores(), [self.a])
+        p.folga.setValue(100.0)
+        T62PainelDeComando._esp(self, 0.6)
+        self.assertAlmostEqual(float(m.Corte), math.ceil((corte + 100.0) / 5) * 5, 3)
+        self.assertTrue(p.reject())
+        FreeCADGui.Control.closeDialog()
+        T62PainelDeComando._esp(self, 0.3)
+        self.assertAlmostEqual(float(m.Corte), corte, 3, "Cancelar volta ao que era")
+
+
+class T189CruzetaTrizetaGraxeira(unittest.TestCase):
+    """1.31.0: componentes de transmissão e lubrificação — cruzeta (capa e largura conferidas), trizeta e graxeira
+    DIN 71412 (formas A, B e C)."""
+
+    def setUp(self):
+        self.doc = novo_doc("UsinixT189Comp")
+
+    def tearDown(self):
+        fechar(self.doc)
+
+    def test_catalogo(self):
+        import UsinixComponentes as C
+        trans = [m[0] for c, _n, ms in C.CATALOGO if c == "transmissao" for m in ms]
+        for mod in ("rolamento_esferas", "cruzeta", "trizeta", "graxeira"):
+            self.assertIn(mod, trans)
+        self.assertEqual(C.CRUZETAS["1310"], (1.062, 3.219))
+        self.assertEqual(C.CRUZETAS["1350"], (1.188, 3.625))
+        self.assertEqual(C.CRUZETAS["1550"], (1.375, 4.964))
+        self.assertEqual(C.SW_GRAXEIRA["A"]["M6"], 7)
+        self.assertEqual(C.SW_GRAXEIRA["C"]["M6"], 9)
+        import UsinixRibbon as R
+        comp = [t for t in R.TABS if t["id"] == "componentes"][0]
+        rot = [it[2] for _p, itens in comp["panels"] for it in itens if it[0] == "Usinix_Componentes_transmissao"]
+        self.assertEqual(rot, ["Transmissão"])
+
+    def test_cruzeta_medidas(self):
+        import UsinixComponentes as C
+        tam = [t for t in C.TAMANHOS_CRUZETA if t.startswith("1310")][0]
+        o = C.inserir(self.doc, "cruzeta", tam)
+        self.doc.recompute()
+        bb = o.Shape.BoundBox
+        self.assertAlmostEqual(bb.XLength, 3.219 * 25.4, 2, "largura entre as faces das capas")
+        self.assertAlmostEqual(bb.YLength, 3.219 * 25.4, 2)
+        raios = [f.Surface.Radius for f in o.Shape.Faces if "Cylinder" in type(f.Surface).__name__]
+        self.assertAlmostEqual(max(raios), 1.062 * 25.4 / 2, 3, "diâmetro da capa")
+        self.assertTrue(o.Shape.isValid())
+
+    def test_trizeta(self):
+        import UsinixComponentes as C
+        for tam, (d, n) in C.TRIZETAS.items():
+            comp, cores, info = C._gerar("trizeta", tam)
+            self.assertTrue(comp.isValid(), tam)
+            self.assertEqual(len(comp.Faces), len(cores))
+            self.assertEqual(info["Estrias"], str(n))
+            self.assertIn("representativas", info["Medidas"])
+
+    def test_graxeiras(self):
+        import UsinixComponentes as C
+        self.assertEqual(len(C.TAMANHOS_GRAXEIRA), 12)
+        for tam in C.TAMANHOS_GRAXEIRA:
+            comp, cores, info = C._gerar("graxeira", tam)
+            self.assertTrue(comp.isValid(), tam)
+            self.assertEqual(len(comp.Faces), len(cores), tam)
+            forma, rosca = tam.rsplit(" ", 1)
+            d = C.ROSCAS_GRAXEIRA[rosca]
+            rosca_r = [f.Surface.Radius for f in comp.Faces if "Cylinder" in type(f.Surface).__name__
+                       and f.BoundBox.ZMax < 1e-6]
+            self.assertTrue(any(abs(r - d / 2) < 1e-6 for r in rosca_r), tam)
+            self.assertAlmostEqual(comp.BoundBox.ZMin, -{"M6": 5.5, "M8×1": 5.5, "M10×1": 6.5, "R1/8": 6.0}[rosca], 6)
+        a = C._gerar("graxeira", "Reta (A) M8×1")[0].BoundBox
+        c = C._gerar("graxeira", "90° (C) M8×1")[0].BoundBox
+        self.assertGreater(c.YLength, a.YLength + 2, "a forma C sai de lado")

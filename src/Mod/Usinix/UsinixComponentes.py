@@ -974,6 +974,126 @@ def rolamento(tam):
         "Medidas": "d, D e B conferidas em duas fontes; desenho simplificado"}
 
 
+# Graxeiras (bicos graxeiros de cabeça cônica, DIN 71412): formas A (reta), B (45°) e C (90°).
+# Conferido (27/11/2026): sextavado da forma A — M6 SW 7, M8×1 SW 9, M10×1 SW 11, R1/8 SW 11 (KIPP K1132, datasheet
+# 18495; Würth 098640 "WS7 HEX M6"); forma C — M6 e M8×1 SW 9, M10×1 SW 11, comprimento 14,3 / 14,3 / 15,3 mm
+# (Böllhoff, DIN 71412 C). Comprimentos, cabeça, pescoço e forma B: representativos.
+ROSCAS_GRAXEIRA = {"M6": 6.0, "M8×1": 8.0, "M10×1": 10.0, "R1/8": 9.73}
+SW_GRAXEIRA = {"A": {"M6": 7, "M8×1": 9, "M10×1": 11, "R1/8": 11},
+               "C": {"M6": 9, "M8×1": 9, "M10×1": 11, "R1/8": 11}}
+FORMAS_GRAXEIRA = (("Reta (A)", "A", 0.0), ("45° (B)", "B", 45.0), ("90° (C)", "C", 90.0))
+TAMANHOS_GRAXEIRA = ["%s %s" % (f, r) for f, _l, _a in FORMAS_GRAXEIRA for r in ROSCAS_GRAXEIRA]
+
+
+def _graxeira_partes(forma, rosca):
+    """Sólidos da graxeira com a rosca para baixo (entrada no furo em z = 0, rosca para z < 0)."""
+    letra, ang = {f: (l, a) for f, l, a in FORMAS_GRAXEIRA}[forma]
+    d = ROSCAS_GRAXEIRA[rosca]
+    sw = SW_GRAXEIRA["A" if letra == "A" else "C"][rosca]
+    lr = {"M6": 5.5, "M8×1": 5.5, "M10×1": 6.5, "R1/8": 6.0}[rosca]
+    hh = 4.0 if sw <= 9 else 5.0
+    rosca_s = cilindro(d / 2.0, lr, base=(0, 0, -lr))
+    sext = sextavado(sw, hh)
+    # pescoço e cabeça cônica (bola de 6 mm onde a bomba de graxa encaixa)
+    cab = revolver([(0, 0), (1.9, 0), (1.9, 2.4), (3.1, 3.5), (3.1, 4.3), (1.5, 6.1), (0, 6.1)])
+    if letra == "A":
+        cab = cab.translated(_V(0, 0, hh))
+        corpo = None
+    else:
+        # cotovelo: corpo curto em cima do sextavado e a cabeça saindo inclinada
+        rc = sw * 0.42
+        corpo = esfera(rc, (0, 0, hh + rc * 0.8)).fuse(cilindro(rc * 0.85, rc * 0.8, base=(0, 0, hh)))
+        cab = cab.translated(_V(0, 0, rc * 0.6))
+        cab.rotate(_V(0, 0, 0), _V(1, 0, 0), ang)
+        cab = cab.translated(_V(0, 0, hh + rc * 0.8))
+    partes = [(rosca_s, "metal"), (sext, "metal"), (cab, "metal")]
+    if corpo is not None:
+        partes.append((corpo, "metal"))
+    return partes, sw
+
+
+def graxeira(tam):
+    forma, rosca = tam.rsplit(" ", 1)
+    partes, sw = _graxeira_partes(forma, rosca)
+    return partes, {"Graxeira": "DIN 71412 forma %s" % forma, "Rosca": rosca, "Sextavado": "SW %d" % sw,
+                    "Medidas": "rosca e sextavado conferidos; cabeça e pescoço representativos"}
+
+
+# Cruzetas (juntas universais tipo Spicer): diâmetro da capa e largura entre as faces externas das capas, em
+# polegadas. Conferido (27/11/2026) em duas fontes: Denny's Driveshafts (u-joints by size, "LockUp Width") e
+# Crawlpedia (u-joints, "Snap Ring Spread – Outside"). Corpo, munhões e altura da capa: representativos.
+CRUZETAS = {"1100": (0.938, 2.411), "1310": (1.062, 3.219), "1330": (1.062, 3.625), "1350": (1.188, 3.625),
+            "1410": (1.188, 4.188), "1550": (1.375, 4.964)}
+TAMANHOS_CRUZETA = ["%s  (capa Ø %.1f × %.1f mm)" % (k, c * 25.4, s * 25.4) for k, (c, s) in CRUZETAS.items()]
+
+
+def cruzeta(tam):
+    """Cruzeta com os munhões nos eixos X e Y, centro na origem; graxeira M6 reta no corpo (para +Z)."""
+    serie = tam.split()[0]
+    c, s = CRUZETAS[serie]
+    c, s = c * 25.4, s * 25.4
+    hc = 0.23 * s                                  # altura da capa
+    rm = 0.36 * c                                  # raio do munhão
+    b = 1.15 * c                                   # corpo central
+    corpo = esfera(b * 0.62).common(caixa(b, b, b, z=-b / 2.0))
+    partes = [(corpo, "aco")]
+    for k in range(4):
+        a = math.pi / 2 * k
+        ex = (math.cos(a), math.sin(a), 0)
+        munhao = cilindro(rm, s / 2.0 - hc * 0.6, eixo=ex)
+        capa = revolver([(0, 0), (c / 2.0 - 0.6, 0), (c / 2.0, 0.6), (c / 2.0, hc - 1.0), (c / 2.0 - 1.0, hc),
+                         (0, hc)], base=tuple(v * (s / 2.0 - hc) for v in ex), eixo=ex)
+        partes += [(munhao, "aco"), (capa, "metal")]
+    gx, _sw = _graxeira_partes("Reta (A)", "M6")
+    for forma, cor in gx:
+        partes.append((forma.translated(_V(0, 0, b * 0.5)), cor))
+    return partes, {"Cruzeta": "série %s" % serie, "Diâmetro da capa": "%.2f mm" % c,
+                    "Largura entre capas": "%.1f mm" % s,
+                    "Medidas": "capa e largura conferidas em duas fontes; corpo representativo"}
+
+
+# Trizetas (aranha da junta tripoide do semieixo): cada veículo tem a sua; tamanhos pelo eixo, medidas
+# representativas (proporções típicas), estriado interno com o nº de estrias indicado.
+TRIZETAS = {"Eixo Ø 20 mm": (20.0, 22), "Eixo Ø 22 mm": (22.0, 23), "Eixo Ø 25 mm": (25.0, 24),
+            "Eixo Ø 28 mm": (28.0, 26), "Eixo Ø 32 mm": (32.0, 28)}
+
+
+def trizeta(tam):
+    """Trizeta com o eixo em Z (face de baixo em z = 0) e os três munhões no plano z = largura/2."""
+    import Part
+    d, n = TRIZETAS[tam]
+    larg = 0.95 * d
+    de_cubo = 1.85 * d
+    zc = larg / 2.0
+    cubo = cilindro(de_cubo / 2.0, larg)
+    # estriado: furo no diâmetro maior com dentes deixados para dentro
+    furo = cilindro(d / 2.0 + 0.6, larg + 2, base=(0, 0, -1))
+    dentes = []
+    passo = math.pi * d / n
+    for i in range(n):
+        a = 2 * math.pi * i / n
+        dente = caixa(1.4, passo * 0.45, larg + 2, x=d / 2.0, z=-1)
+        dente.rotate(_V(0, 0, 0), _V(0, 0, 1), math.degrees(a))
+        dentes.append(dente)
+    cubo = cubo.cut(furo.cut(Part.makeCompound(dentes)))
+    rm = 0.38 * d                                  # munhão
+    lm = 1.55 * d                                  # do centro à ponta do munhão
+    dr, wr = 1.55 * d, 0.62 * d                    # rolete (diâmetro externo, largura)
+    partes = [(cubo, "aco")]
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        ex = (math.cos(a), math.sin(a), 0)
+        munhao = cilindro(rm, lm, base=(0, 0, zc), eixo=ex)
+        p = lm - wr * 0.55
+        perfil = [(rm + 0.3, 0), (dr / 2.0 - 1.2, 0), (dr / 2.0, 1.2), (dr / 2.0, wr - 1.2), (dr / 2.0 - 1.2, wr),
+                  (rm + 0.3, wr)]
+        rolete = revolver(perfil, base=(ex[0] * (p - wr / 2.0), ex[1] * (p - wr / 2.0), zc), eixo=ex)
+        partes += [(munhao, "aco"), (rolete, "metal")]
+    return partes, {"Trizeta": tam, "Estrias": "%d" % n, "Rolete": "Ø %.0f × %.0f mm" % (dr, wr),
+                    "Medidas": "representativas (cada semieixo tem a sua; confira na peça)"}
+
+
+
 TALHA_T = {"0,5 t": 0.5, "1 t": 1.0, "2 t": 2.0, "5 t": 5.0}
 
 
@@ -2200,8 +2320,11 @@ CATALOGO = [
         ("pessoa_pe", "Funcionário em pé (com capacete)", ALTURAS, lambda t: pessoa(t)),
         ("pessoa_sentado", "Funcionário sentado", ALTURAS, lambda t: pessoa(t, sentado=True, capacete=False)),
     ]),
-    ("transmissao", "Transmissão", [
+    ("transmissao", "Transmissão e lubrificação", [
         ("rolamento_esferas", "Rolamento rígido de esferas (uma carreira)", TAMANHOS_ROLAMENTO, rolamento),
+        ("cruzeta", "Cruzeta (junta universal)", TAMANHOS_CRUZETA, cruzeta),
+        ("trizeta", "Trizeta (junta tripoide do semieixo)", list(TRIZETAS), trizeta),
+        ("graxeira", "Graxeira (bico graxeiro DIN 71412)", TAMANHOS_GRAXEIRA, graxeira),
     ]),
     ("outros", "Outros", [
         ("bomba", "Motobomba centrífuga", BOMBA_DN, bomba),
@@ -2214,7 +2337,7 @@ UNIDADE_TAMANHO = {"compressor_pistao": "L", "compressor_parafuso": "kW", "calde
                    "secador_refrigeracao": "m³/min", "secador_adsorcao": "m³/min", "reservatorio": "L",
                    "valvula_esfera": "DN", "valvula_gaveta": "DN", "valvula_globo": "DN", "valvula_retencao": "DN",
                    "valvula_borboleta": "DN", "bomba": "DN", "ventilador": "mm", "motor_iec": "carcaça",
-                   "rolamento_esferas": "série", "torre_retangular": "TR", "torre_circular": "TR"}
+                   "rolamento_esferas": "série", "cruzeta": "série", "trizeta": "eixo", "graxeira": "forma e rosca", "torre_retangular": "TR", "torre_circular": "TR"}
 MODELOS = {m[0]: (cat, m) for cat, _n, ms in CATALOGO for m in ms}
 
 

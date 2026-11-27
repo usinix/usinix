@@ -15,6 +15,33 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.31.0 — 27/11/2026
+
+### Tubulação
+
+- **Mangueira (ferramenta nova):** aba Tubulação, ao lado de "Tubos e conexões". Clique na ponta A e na ponta B
+  (boca de tubo, furo ou face da máquina: tubo–tubo, tubo–máquina ou máquina–máquina) e a mangueira sai no eixo de
+  cada ponta, já com os terminais.
+  - Catálogo: hidráulica 1SN e 2SN (EN 853), do -4 ao -32, e tubo pneumático de PU, do Ø4 ao Ø14, com pressão de
+    trabalho e raio mínimo de curvatura.
+  - Terminais retos, 45° ou 90°, com rosca JIC 37°, BSP, NPT ou ORFS (fêmea giratória ou macho); na pneumática,
+    conexão instantânea. O terminal curvo vira sozinho para a outra ponta, ou gira no ângulo que você der.
+  - Pontos de passagem: "Adicionar ponto" põe um ponto no meio do maior trecho e você arrasta a alça na vista 3D
+    para levar a mangueira por onde ela deve passar.
+  - Aviso quando a curva fica abaixo do raio mínimo do catálogo, com os trechos apertados marcados em vermelho.
+  - Comprimento de corte (curva livre + parte que entra nas capas + folga, de 5 em 5 mm), que vai para a lista de
+    materiais junto com os dois terminais.
+  - Duplo clique na mangueira reabre o painel para editar.
+
+### Componentes
+
+- **Transmissão e lubrificação** (botão "Transmissão" na aba Componentes, antes "Rolamentos"): além dos rolamentos,
+  - cruzeta (junta universal) das séries 1100, 1310, 1330, 1350, 1410 e 1550, com diâmetro da capa e largura
+    entre capas conferidos;
+  - trizeta (junta tripoide do semieixo), do eixo Ø20 ao Ø32, com estriado interno (medidas representativas: cada
+    semieixo tem a sua);
+  - graxeira (bico graxeiro DIN 71412) reta, 45° e 90°, em M6, M8×1, M10×1 e R1/8.
+
 ## 1.30.5 — 27/11/2026
 
 ### Interface

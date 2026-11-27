@@ -35,7 +35,11 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.30.5** (27/11/2026): depois do OK de um comando o painel volta para a Árvore e sai do modo
+**Versão atual: 1.31.0** (27/11/2026): ferramenta Mangueira na aba Tubulação (pontas em tubo ou máquina,
+terminais retos, 45° ou 90°, pontos de passagem arrastáveis, aviso de raio mínimo e comprimento de corte na lista
+de materiais); cruzeta, trizeta e graxeira nos Componentes (Transmissão).
+
+Na 1.30.5: depois do OK de um comando o painel volta para a Árvore e sai do modo
 Avançado das Propriedades; botões "Engrenagem" e "Eixo (cálculo)" na aba Peça (grupo Elementos de máquina); "Enviar sugestão" e outros links
 não ficam mais bloqueados depois de carregar os testes.
 

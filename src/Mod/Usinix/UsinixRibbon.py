@@ -296,7 +296,7 @@ TABS = [
             ("Usinix_Esboco3D", L, "Esboço\n3D"), ("Sketcher_NewSketch", L, "Esboço\nplano"),
         ]),
         ("Tubulação", [
-            ("Usinix_Tubulacao", L, "Tubos e\nconexões"), ("Usinix_IsometricoTubulacao", L, "Folha\nisométrica"),
+            ("Usinix_Tubulacao", L, "Tubos e\nconexões"), ("Usinix_Mangueira", L, "Mangueira"), ("Usinix_IsometricoTubulacao", L, "Folha\nisométrica"),
         ]),
         ("Ar-condicionado (dutos)", [
             ("Usinix_Dutos", L, "Dutos\n(HVAC)"), ("Usinix_EditarDuto", S, "Editar duto"),
@@ -320,7 +320,7 @@ TABS = [
             ("Usinix_Componentes_valvulas", L, "Válvulas"), ("Usinix_Componentes_ar", L, "Ar\ncomprimido"),
         ]),
         ("Fixação e transmissão", [
-            ("Usinix_Fixador", L, "Parafuso,\nporca, arruela"), ("Usinix_Componentes_transmissao", L, "Rolamentos"),
+            ("Usinix_Fixador", L, "Parafuso,\nporca, arruela"), ("Usinix_Componentes_transmissao", L, "Transmissão"),
         ]),
         ("Segurança e pessoas", [
             ("Usinix_Componentes_altura", L, "Trabalho\nem altura"),

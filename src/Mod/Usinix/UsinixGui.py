@@ -1056,6 +1056,7 @@ def register_commands():
                              ("UsinixAnotacao", lambda m: m.registrar_comandos()),
                              ("UsinixArredondar", lambda m: m.registrar_comandos()),
                              ("UsinixBarraVarredura", lambda m: m.registrar_comandos()),
+                             ("UsinixMangueiraGui", lambda m: m.registrar_comandos()),
                              ("UsinixComponentes", lambda m: m.registrar_comandos()),
                              ("UsinixDutos", lambda m: m.registrar_comandos()),
                              ("UsinixDireto", lambda m: m.registrar_comandos()),
