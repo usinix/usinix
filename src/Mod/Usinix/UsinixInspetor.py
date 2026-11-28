@@ -159,13 +159,29 @@ def _espacar(nome):
     return out.replace("_", " ").strip()
 
 
+# palavras das propriedades do próprio Usinix, escritas sem acento no nome interno ("LigacaoA", "RaioMinimo")
+ACENTOS = {"Ligacao": "Ligação", "Minimo": "Mínimo", "Maximo": "Máximo", "Angulo": "Ângulo", "Rotacao": "Rotação",
+           "Direcao": "Direção", "Posicao": "Posição", "Secao": "Seção", "Pressao": "Pressão", "Numero": "Número",
+           "Diametro": "Diâmetro", "Area": "Área", "Inclinacao": "Inclinação", "Orientacao": "Orientação",
+           "Distancia": "Distância", "Espacamento": "Espaçamento", "Calculo": "Cálculo", "Codigo": "Código",
+           "Descricao": "Descrição", "Observacao": "Observação", "Funcao": "Função", "Conexao": "Conexão",
+           "Tensao": "Tensão", "Saida": "Saída", "Medio": "Médio"}
+# nomes inteiros que pedem outra forma
+NOMES_USINIX = {"Giro Auto A": "Giro automático A", "Giro Auto B": "Giro automático B",
+                "Raio Medido": "Raio medido", "Raio Minimo": "Raio mínimo"}
+
+
 def nome_pt(nome):
     try:
         from UsinixPropNames import PROPS
     except Exception:
         PROPS = {}
     esp = _espacar(nome)
-    return PROPS.get(esp, esp)
+    if esp in PROPS:
+        return PROPS[esp]
+    if esp in NOMES_USINIX:
+        return NOMES_USINIX[esp]
+    return " ".join(ACENTOS.get(p, p) for p in esp.split(" "))
 
 
 def grupo_pt(grupo):
@@ -190,6 +206,9 @@ def tipo_pt(obj):
     proxy = getattr(obj, "Proxy", None)
     if proxy is not None and hasattr(proxy, "Type"):
         return str(proxy.Type)
+    if proxy is not None and type(proxy).__module__.startswith("Usinix"):
+        # objeto Python do próprio Usinix: o nome da classe ("Mangueira") diz mais que "FeaturePython"
+        return nome_pt(type(proxy).__name__)
     return t.split("::")[-1]
 
 
@@ -388,6 +407,17 @@ class Propriedades(QtWidgets.QWidget):
     def _editar(self):
         if self.obj is None:
             return
+        # objeto Python do Usinix com painel próprio (abre no duplo clique da árvore): o setEdit padrão de um
+        # Part::FeaturePython sem setEdit no Proxy abria o painel errado (Espelhar) e o arrastador de Transformar
+        vo = getattr(self.obj, "ViewObject", None)
+        proxy = getattr(vo, "Proxy", None) if vo is not None else None
+        if proxy is not None and not hasattr(proxy, "setEdit") and hasattr(proxy, "doubleClicked"):
+            try:
+                proxy.doubleClicked(vo)
+                return
+            except Exception as exc:
+                FreeCAD.Console.PrintWarning("Usinix: {} não abre para edição: {}\n".format(self.obj.Label, exc))
+                return
         try:
             FreeCADGui.ActiveDocument.setEdit(self.obj.Name, 0)
         except Exception as exc:
@@ -526,6 +556,8 @@ class Propriedades(QtWidgets.QWidget):
             w = QtWidgets.QLineEdit(str(valor))
             w.setObjectName("UsinixCampo")
             w.setMaximumWidth(170)
+            w.setCursorPosition(0)             # texto longo mostra o começo ("JIC 37° | …"), não o fim
+            w.setToolTip(str(valor))
             w.editingFinished.connect(lambda ww=w, p=prop, r=rotulo: self._mudar(p, ww.text(), r))
         elif tipo == "vinculo":
             texto = _rotulo_link(valor)

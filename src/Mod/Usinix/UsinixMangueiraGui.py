@@ -583,9 +583,24 @@ class PainelMangueira(P.PainelTarefa):
             res.append((V(p), str(i + 1), False))
         o = self._objeto()
         if o is not None and list(o.Apertados):
-            ap = list(o.Apertados)
-            res.append((ap[len(ap) // 2], "raio pequeno", True))
+            res.append((self.lugar_do_aviso(list(o.Apertados)), "raio pequeno", True))
         return res
+
+    def lugar_do_aviso(self, apertados):
+        """Onde vai o rótulo "raio pequeno": no meio do maior trecho vermelho, longe das alças (o rótulo em cima
+        de uma alça a escondia e parecia apontar para o ponto de passagem, não para o trecho)."""
+        trechos = trechos_apertados(apertados)
+        t = max(trechos, key=len)
+        if not self.pontos:
+            return t[len(t) // 2]
+        folga = 3.0 * self._raio_alca()
+
+        def longe(q):
+            return min((q - V(p)).Length for p in self.pontos)
+        meio = t[len(t) // 2]
+        if longe(meio) >= folga:
+            return meio
+        return max(t, key=longe)
 
     # ---- fluxo do painel
     def pendencia(self):

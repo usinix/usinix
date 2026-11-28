@@ -23948,3 +23948,72 @@ class T190BarraLimpaAoFecharDocumento(unittest.TestCase):
         self.assertEqual(lb.text(), "Pré-seleção: Outro.Caixa.Edge1")
         self.assertEqual(UsinixNomes.limpar_barra_do_documento("Outro"), 1)
         self.assertEqual(lb.text(), "")
+
+
+class T191MangueiraNoCartao(unittest.TestCase):
+    """1.31.2: cartão de propriedades da mangueira — Editar abre o painel da mangueira (não o Espelhar), cabeçalho
+    "Mangueira" em vez de "FeaturePython", nomes com acento, rosca mostrada do começo; rótulo "raio pequeno" no
+    trecho vermelho, longe das alças."""
+
+    def setUp(self):
+        self.t188 = T188Mangueira("test_pontas_e_eixos")
+        self.t188.setUp()
+        self.doc = self.t188.doc
+
+    def tearDown(self):
+        self.t188.tearDown()
+
+    def _mangueira(self):
+        import UsinixMangueira as M
+        return M.criar(self.t188.a, self.t188.b, term_a=self.t188._term("90°", 90.0),
+                       term_b=self.t188._term("90°"), pontos=[FreeCAD.Vector(300, 75, 300)], doc=self.doc)
+
+    def test_nomes_e_cabecalho(self):
+        import UsinixInspetor as I
+        m = self._mangueira()
+        self.assertEqual(I.tipo_pt(m), "Mangueira")
+        self.assertEqual(I.nome_pt("LigacaoA"), "Ligação A")
+        self.assertEqual(I.nome_pt("GiroAutoB"), "Giro automático B")
+        self.assertEqual(I.nome_pt("RaioMinimo"), "Raio mínimo")
+        self.assertEqual(I.nome_pt("RaioMedido"), "Raio medido")
+        self.assertEqual(I.nome_pt("Length"), "Comprimento", "nomes do FreeCAD continuam pela tabela")
+
+    def test_cartao_e_botao_editar(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixInspetor as I
+        import UsinixPainel as P
+        m = self._mangueira()
+        card = I.Propriedades()
+        card.montar(m)
+        self.assertEqual(card.tipo.text(), "Mangueira")
+        w = card.campos["RoscaA"]
+        self.assertEqual(w.cursorPosition(), 0, "a rosca aparece do começo (JIC 37° ...)")
+        self.assertEqual(w.toolTip(), m.RoscaA)
+        card._editar()
+        T62PainelDeComando._esp(self, 0.4)
+        p = P._ATIVO.get("painel")
+        self.assertIsNotNone(p, "Editar devia abrir o painel da mangueira")
+        self.assertEqual(type(p).__name__, "PainelMangueira")
+        self.assertIs(p.editando, m)
+        self.assertFalse(FreeCADGui.ActiveDocument.getInEdit(), "não entra no modo de edição padrão (Transformar)")
+        self.assertTrue(p.reject())
+        FreeCADGui.Control.closeDialog()
+        T62PainelDeComando._esp(self, 0.3)
+        card.deleteLater()
+
+    def test_rotulo_raio_pequeno_longe_da_alca(self):
+        if not FreeCAD.GuiUp:
+            self.skipTest("sem interface")
+        import UsinixMangueiraGui as G
+        V = FreeCAD.Vector
+        p = G.PainelMangueira()
+        # dois trechos vermelhos: o maior passa pela alça; o rótulo vai para o maior, mas fora da alça
+        curto = [V(0, 0, z) for z in range(0, 20, 5)]
+        longo = [V(500, 0, z) for z in range(0, 200, 5)]
+        p.pontos = [V(500, 0, 100)]
+        q = p.lugar_do_aviso(curto + longo)
+        self.assertAlmostEqual(q.x, 500.0, 6, "fica no maior trecho vermelho")
+        self.assertGreaterEqual((q - p.pontos[0]).Length, 3 * p._raio_alca() - 1e-6, "não cobre a alça")
+        p.pontos = []
+        self.assertEqual(p.lugar_do_aviso(curto + longo), longo[len(longo) // 2])

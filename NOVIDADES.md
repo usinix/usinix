@@ -15,6 +15,19 @@ O que mudou em cada versão, da mais nova para a mais antiga. Os arquivos para b
   Mudança que altera a tela: imagem em .github/images/novidades/X.Y.Z.webp e, logo abaixo do título,
   a linha ![legenda curta](.github/images/novidades/X.Y.Z.webp).
 -->
+## 1.31.2 — 27/11/2026
+
+### Correções
+
+- **Cartão de propriedades — Editar:** em objetos do Usinix com painel próprio (Mangueira e outros), o botão
+  Editar abre o mesmo painel do duplo clique na árvore. Antes abria um painel de Espelhar e o arrastador de
+  Transformar em cima de outra peça.
+- **Cartão de propriedades — textos:** o cabeçalho mostra o nome do objeto ("Mangueira", não "FeaturePython"); os
+  nomes saem com acento ("Ligação A", "Giro automático A", "Raio mínimo"); campo de texto longo mostra o começo
+  ("JIC 37° | 3/4-16 UNF") e o texto inteiro na dica.
+- **Mangueira — rótulo "raio pequeno":** fica no meio do maior trecho vermelho e longe das alças dos pontos de
+  passagem.
+
 ## 1.31.1 — 27/11/2026
 
 ### Correções

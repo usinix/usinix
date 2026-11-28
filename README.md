@@ -35,7 +35,10 @@ medida comercial, a norma e o jeito de trabalhar de quem faz metal-mecânica no 
 Novidades
 ---------
 
-**Versão atual: 1.31.1** (27/11/2026): na Mangueira, as alças dos pontos de passagem ficam por cima e
+**Versão atual: 1.31.2** (27/11/2026): Editar no cartão de propriedades abre o painel certo dos objetos do
+Usinix; cartão com nomes em português e acento; rótulo "raio pequeno" da mangueira junto do trecho vermelho.
+
+Na 1.31.1: na Mangueira, as alças dos pontos de passagem ficam por cima e
 arrastam com o mouse, o trecho abaixo do raio mínimo fica em vermelho e as pontas aparecem como "furo Ø24";
 a barra de status não guarda mais mensagem de documento fechado.
 
